@@ -1,0 +1,132 @@
+"""Contract pinning tests for tdd_contracts (depends only on the contracts module)."""
+
+from __future__ import annotations
+
+import pytest
+
+from tdd_contracts import (
+    COMMIT_GREEN,
+    COMMIT_RED,
+    COMMIT_RED_AMENDED,
+    COMMIT_SPEC,
+    PHASE_TRANSITIONS,
+    RESUMABLE_PHASES,
+    ExitCode,
+    Phase,
+    validate_transition,
+)
+
+
+class TestExitCodes:
+    """Exit code values must match requirement §13 exactly."""
+
+    @pytest.mark.parametrize(
+        ("name", "value"),
+        [
+            ("DONE", 0),
+            ("AWAITING_APPROVAL", 10),
+            ("COVERAGE_GAP", 11),
+            ("ESCALATED", 12),
+            ("BUDGET_EXCEEDED", 13),
+            ("NO_FEATURE_RESOLVED", 20),
+            ("BRANCH_MISMATCH", 21),
+            ("HARNESS_NOT_INITIALIZED", 22),
+            ("INTERNAL_ERROR", 1),
+        ],
+    )
+    def test_value(self, name: str, value: int) -> None:
+        assert ExitCode[name] == value
+
+    def test_no_extra_codes(self) -> None:
+        assert len(ExitCode) == 9
+
+
+class TestPhaseTransitions:
+    @pytest.mark.parametrize(
+        ("current", "new"),
+        [
+            (Phase.DRAFTING_GHERKIN, Phase.AWAITING_APPROVAL),
+            (Phase.AWAITING_APPROVAL, Phase.DRAFTING_GHERKIN),  # corrections cycle
+            (Phase.AWAITING_APPROVAL, Phase.GHERKIN_APPROVED),
+            (Phase.GHERKIN_APPROVED, Phase.GENERATING_TESTS),
+            (Phase.GENERATING_TESTS, Phase.VERIFYING_COVERAGE),
+            (Phase.VERIFYING_COVERAGE, Phase.GENERATING_TESTS),  # gap iteration
+            (Phase.VERIFYING_COVERAGE, Phase.RED_COMMITTED),
+            (Phase.RED_COMMITTED, Phase.IMPLEMENTING),
+            (Phase.IMPLEMENTING, Phase.ESCALATED),
+            (Phase.IMPLEMENTING, Phase.GREEN),
+            (Phase.ESCALATED, Phase.AMENDING_GHERKIN),  # approval
+            (Phase.ESCALATED, Phase.IMPLEMENTING),      # rejection
+            (Phase.AMENDING_GHERKIN, Phase.RED_COMMITTED),
+            (Phase.GREEN, Phase.DONE),
+        ],
+    )
+    def test_legal(self, current: Phase, new: Phase) -> None:
+        assert new in PHASE_TRANSITIONS[current]
+        assert validate_transition(current, new)
+
+    @pytest.mark.parametrize(
+        ("current", "new"),
+        [
+            (Phase.DRAFTING_GHERKIN, Phase.IMPLEMENTING),
+            (Phase.DRAFTING_GHERKIN, Phase.GHERKIN_APPROVED),  # cannot skip approval
+            (Phase.GHERKIN_APPROVED, Phase.RED_COMMITTED),     # cannot skip testgen
+            (Phase.IMPLEMENTING, Phase.DONE),                  # must pass through GREEN
+            (Phase.GREEN, Phase.IMPLEMENTING),
+            (Phase.DONE, Phase.DRAFTING_GHERKIN),              # DONE is terminal
+            (Phase.FAILED, Phase.DRAFTING_GHERKIN),            # FAILED is terminal
+            (Phase.ESCALATED, Phase.GREEN),
+        ],
+    )
+    def test_illegal(self, current: Phase, new: Phase) -> None:
+        assert new not in PHASE_TRANSITIONS[current]
+        assert not validate_transition(current, new)
+
+    def test_failed_reachable_from_anywhere(self) -> None:
+        for phase in Phase:
+            assert validate_transition(phase, Phase.FAILED), phase
+
+    def test_terminals_have_no_outgoing_transitions(self) -> None:
+        assert PHASE_TRANSITIONS[Phase.DONE] == ()
+        assert PHASE_TRANSITIONS[Phase.FAILED] == ()
+
+    def test_every_phase_has_a_transition_entry(self) -> None:
+        assert set(PHASE_TRANSITIONS) == set(Phase)
+
+
+class TestResumablePhases:
+    def test_covers_every_non_terminal_phase(self) -> None:
+        non_terminal = set(Phase) - {Phase.DONE, Phase.FAILED}
+        assert set(RESUMABLE_PHASES) == non_terminal
+
+    def test_loop_numbers_are_valid(self) -> None:
+        assert set(RESUMABLE_PHASES.values()) <= {1, 2, 3}
+
+    def test_loop_ownership_spot_checks(self) -> None:
+        assert RESUMABLE_PHASES[Phase.DRAFTING_GHERKIN] == 1
+        assert RESUMABLE_PHASES[Phase.GENERATING_TESTS] == 2
+        assert RESUMABLE_PHASES[Phase.IMPLEMENTING] == 3
+
+
+class TestCommitFormats:
+    """Commit messages per §16, exact."""
+
+    def test_spec(self) -> None:
+        assert COMMIT_SPEC.format(slug="user-auth") == (
+            "tdd(user-auth): spec — gherkin scenarios"
+        )
+
+    def test_red(self) -> None:
+        assert COMMIT_RED.format(slug="user-auth") == (
+            "tdd(user-auth): red — failing tests"
+        )
+
+    def test_red_amended(self) -> None:
+        assert COMMIT_RED_AMENDED.format(slug="user-auth", n=2) == (
+            "tdd(user-auth): red(2) — amended scenarios"
+        )
+
+    def test_green(self) -> None:
+        assert COMMIT_GREEN.format(slug="user-auth") == (
+            "tdd(user-auth): green — implementation"
+        )

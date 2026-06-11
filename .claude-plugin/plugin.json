@@ -1,0 +1,9 @@
+{
+  "name": "harness",
+  "description": "Strict TDD harness for Claude Code: a checkpoint state machine that drives Gherkin specification, test generation, and implementation loops with mechanical spec/test/implementation boundaries.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Dheeraj Gopinath",
+    "email": "dheerajgopinath@gmail.com"
+  }
+}

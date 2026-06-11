@@ -1,0 +1,16 @@
+# .harness/config.yaml — harness-wide configuration (§11)
+models:
+  gherkin: claude-opus-4-8        # spec quality matters most
+  testgen: claude-sonnet-4-6
+  verifier: claude-haiku-4-5      # coverage matrix + escalation triage
+  implement: claude-sonnet-4-6
+test:
+  # filled by tdd.py init convention scan — REVIEW before first run
+  command: ""
+  paths: []
+  syntax_check: false
+budgets:
+  max_turns_per_loop: 40
+  max_coverage_iterations: 5
+  max_cost_usd: 10
+  max_wall_clock_minutes: 120
