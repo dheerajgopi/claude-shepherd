@@ -16,7 +16,7 @@ The TDD skill is not distributed standalone: it ships inside a **harness plugin*
 
 ## 4. Distribution — the harness plugin
 
-The harness is a separate repository structured as a **Claude Code plugin** (publishable as its own marketplace), bundling the TDD skill, the outer-loop command, and per-project setup tooling. Capability distribution (skill, command, hooks) uses the native plugin mechanism; only project-workspace bootstrap is custom.
+The harness is a separate repository structured as a **Claude Code plugin** (publishable as its own marketplace), bundling skills, commands, and per-project setup tooling. The plugin is not TDD-specific — the TDD skill and its outer-loop command are simply the first capabilities it ships. Capability distribution (skill, command, hooks) uses the native plugin mechanism; only project-workspace bootstrap is custom.
 
 ### Harness repo layout
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# setup.sh — per-project installer for the harness plugin (requirement.md §4).
+# setup.sh — per-project installer for the harness plugin (docs/tdd-skill-requirements.md §4).
 #
 # Run once from a TARGET project's root:
 #   /path/to/harness/bin/setup.sh           # install (default)

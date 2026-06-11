@@ -1,9 +1,9 @@
 ---
 name: tdd
-description: Drive strict test-driven development for a single feature in a harness-enabled project. Use when the user wants to build a feature with a strict TDD / test-first workflow (Gherkin spec → failing tests → implementation), when a .harness/ folder exists in the project, or when the user asks to set up the TDD harness.
+description: Drive strict test-driven development for a single feature in a harness-enabled project. Use when the user wants to build a feature with a strict TDD / test-first workflow (Gherkin spec → failing tests → implementation), when a .harness/ folder exists in the project, or when the user asks to set up the harness plugin's TDD workflow.
 ---
 
-# TDD harness skill
+# TDD skill
 
 Drives one feature's full TDD lifecycle through a headless Python orchestrator
 (`tdd.py`, built on the Claude Agent SDK) that runs three sequential loops:
@@ -22,7 +22,7 @@ decision and re-invoke it.
 - The user asks for TDD-driven feature work, "test-first" development, or to
   build a feature with the harness.
 - The target project contains a `.harness/` folder.
-- The user asks to set up / initialize the TDD harness in a project.
+- The user asks to set up / initialize the harness's TDD workflow in a project.
 
 ## How to invoke
 

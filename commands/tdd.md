@@ -1,9 +1,9 @@
 ---
-description: Run the strict TDD harness for a feature (Gherkin spec → failing tests → implementation), handling every checkpoint exit code.
+description: Run the harness plugin's strict TDD workflow for a feature (Gherkin spec → failing tests → implementation), handling every checkpoint exit code.
 argument-hint: [task description or feature slug]
 ---
 
-# /harness:tdd — TDD harness outer loop
+# /harness:tdd — TDD outer loop
 
 You drive `tdd.py`, a headless, resumable TDD state machine. It exits with a
 distinct code whenever human input is needed; you interpret the code, gather
