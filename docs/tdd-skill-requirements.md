@@ -23,7 +23,8 @@ The harness is a separate repository structured as a **Claude Code plugin** (pub
 ```
 harness/
 ├── .claude-plugin/
-│   └── plugin.json              # manifest ONLY — nothing else in this folder
+│   ├── plugin.json              # plugin manifest
+│   └── marketplace.json         # marketplace catalog (this repo as its own marketplace)
 ├── skills/
 │   └── tdd/
 │       ├── SKILL.md             # trigger conditions, invocation, boundaries
