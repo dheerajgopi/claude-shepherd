@@ -12,7 +12,7 @@ The skill owns one feature's lifecycle from task statement to green tests. It do
 
 The skill follows the **checkpoint state machine** pattern. The script (`scripts/tdd.py`) runs headlessly via the Agent SDK and exits with a distinct code whenever human input is required. The outer Claude Code agent interprets the exit code, gathers the human's decision using its native `AskUserQuestion` tool, and re-invokes the script with that decision as input. The script resumes the relevant SDK session rather than starting fresh, which preserves the prompt-cache prefix across iterations.
 
-The TDD skill is not distributed standalone: it ships inside a **sluice plugin** (§4). All operational guidance for the outer agent — exit-code handling, "do not fight the hooks," no hand-created `tdd(...)` commits — lives in the plugin's own artifacts: triggering and invocation rules in `SKILL.md`, and exit-code interpretation in the command definition (`/sluice:tdd`), which is the component doing the interpreting. No content is injected into the target project's `CLAUDE.md`; instructions load only when the workflow is actually triggered and stay versioned with the sluice.
+The TDD skill is not distributed standalone: it ships inside a **sluice plugin** (§4). All operational guidance for the outer agent — exit-code handling, "do not fight the hooks," no hand-created `tdd(...)` commits — lives in the plugin's own artifacts: triggering, invocation, and boundary rules in `SKILL.md`, with the per-exit-code playbook in `skills/tdd/references/playbook.md` (loaded before any `run`). The command definition (`/sluice:tdd`) is a thin entry point that invokes the skill, so both invocation paths converge on the same instructions. No content is injected into the target project's `CLAUDE.md`; instructions load only when the workflow is actually triggered and stay versioned with the sluice.
 
 ## 4. Distribution — the sluice plugin
 
@@ -31,10 +31,11 @@ sluice/
 │       ├── scripts/
 │       │   └── tdd.py           # phased orchestrator (Claude Agent SDK)
 │       └── references/
+│           ├── playbook.md      # exit-code contract + per-code playbook (§13)
 │           ├── gherkin_prompt.md
 │           ├── testgen_prompt.md
 │           └── impl_prompt.md
-├── commands/                    # /sluice:tdd — carries the exit-code contract (§13)
+├── commands/                    # /sluice:tdd — thin entry point invoking the skill
 ├── templates/
 │   ├── config.yaml              # default per-loop models, budgets
 │   └── gitignore.snippet

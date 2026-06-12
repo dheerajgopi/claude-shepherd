@@ -2,8 +2,9 @@
 
 Contracts for the sluice plugin's TDD skill (other skills will pin their own).
 Source of truth: `skills/tdd/scripts/tdd_contracts.py` (stdlib-only, import it — never re-derive).
-This doc is the prose companion for artifacts that can't import Python (SKILL.md, the command,
-setup.sh, prompts). Requirement references (§n): `docs/tdd-skill-requirements.md`.
+This doc is the prose companion for artifacts that can't import Python (SKILL.md, the playbook
+in `skills/tdd/references/playbook.md`, setup.sh, prompts). Requirement references (§n):
+`docs/tdd-skill-requirements.md`.
 
 ## Exit codes (§13)
 

@@ -49,16 +49,24 @@ tdd.py status [--json]
 - `--force` overrides BRANCH_MISMATCH (21) only; never anything else.
 - All informational output on stdout; errors on stderr; the exit code is the protocol.
 
-Typical flow for a brand-new task: `tdd.py new "Add user auth"` to scaffold the
-feature folder and `tdd/<slug>` branch, then `tdd.py run --feature <slug>`.
-Thread `--feature <slug>` through every subsequent invocation once known.
+## Routing the request
+
+- **Brand-new task statement** → first run `tdd.py new "<title>"`, note the
+  slug it prints, then `tdd.py run --feature <slug>`.
+- **Existing feature slug** → `tdd.py run --feature <slug>` directly.
+- **Neither** → bare `tdd.py run` and let branch convention or exit 20
+  resolve it.
+
+Once the slug is known, thread `--feature <slug>` through **every**
+subsequent invocation.
 
 ## Exit-code protocol
 
-The full exit-code table and the per-code playbook live in the
-**`/sluice:tdd` command** — use that command for any `run` invocation so the
-checkpoint protocol (codes 0, 10, 11, 12, 13, 20, 21, 22, 1) is handled
-correctly. Do not improvise responses to exit codes from memory.
+**Before any `run` invocation**, read
+`${CLAUDE_PLUGIN_ROOT}/skills/tdd/references/playbook.md` — it carries the
+full exit-code table (codes 0, 10, 11, 12, 13, 20, 21, 22, 1) and the
+per-code playbook. Branch on `$?` after every invocation and follow the
+playbook exactly. Do not improvise responses to exit codes from memory.
 
 ## Boundaries — never violate these
 

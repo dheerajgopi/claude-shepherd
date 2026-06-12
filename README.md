@@ -86,6 +86,8 @@ under `skills/` and `commands/`. Each skill is self-contained: the TDD engine
 lives in `skills/tdd/scripts/` (`tdd_contracts.py` pins every shared contract;
 `tdd.py` is the CLI; loops in `tdd_loop{1,2,3}.py`; the SDK seam is the
 `AgentRunner` protocol — tests script `FakeAgentRunner` while production uses
-`SdkAgentRunner`), with its skill definition in `skills/tdd/SKILL.md` and
-outer-loop command in `commands/tdd.md`. Verified SDK behavior notes (shared
+`SdkAgentRunner`), with its skill definition in `skills/tdd/SKILL.md`, the
+exit-code playbook in `skills/tdd/references/playbook.md`, and a thin
+entry-point command in `commands/tdd.md` that invokes the skill. Verified SDK
+behavior notes (shared
 by any skill built on the Agent SDK): [docs/sdk-notes.md](docs/sdk-notes.md).
