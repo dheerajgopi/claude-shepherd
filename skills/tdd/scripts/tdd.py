@@ -313,9 +313,9 @@ def _status_rows(root: Path) -> list[dict[str, Optional[str]]]:
                 {
                     "slug": slug,
                     "phase": (
-                        "UNKNOWN (state.json missing — machine-local; re-create via "
-                        f"git checkout of the {BRANCH_PREFIX}{slug} branch on the "
-                        "original machine or start fresh)"
+                        "UNKNOWN (state.json missing — the .sluice/ workspace is "
+                        "machine-local; resume on the original machine or start "
+                        "fresh)"
                     ),
                     "branch": BRANCH_PREFIX + slug,
                     "last_updated": None,

@@ -32,9 +32,9 @@ The TDD engine CLI (run from a target project root): `python3 skills/tdd/scripts
 
 **The SDK seam.** Loops never import the SDK directly — they depend on the `AgentRunner` protocol. Production uses `SdkAgentRunner` (`tdd_agent.py`); tests script `FakeAgentRunner` (`tdd_fake_runner.py`), selected in subprocess tests via the `TDD_RUNNER=fake:<script.json>` env var. The fake routes simulated file writes through the real path-policy function, so it exercises the same mechanical boundary as production. Verified SDK behavior (resume, hooks deny shape, settings isolation, budgets) is documented in `docs/sdk-notes.md` — those notes were live-verified; trust them over intuition.
 
-**Automated commits** follow exact format strings: `tdd(<slug>): spec | red | red(<n>) | green` (see contracts module). Nothing outside the engine may create commits matching `tdd(...)`.
+**Automated commits** follow exact format strings: `tdd(<slug>): red | red(<n>) | green` (see contracts module). There is no spec commit — `.sluice/` is gitignored, so Loop 1 approval only advances the phase. Nothing outside the engine may create commits matching `tdd(...)`.
 
-**Target-project footprint:** a `.sluice/` workspace (config.yaml, manifest.json, one folder per feature; `state.json` is gitignored, traceability + reports are committed) and one `enabledPlugins` entry in `.claude/settings.json`. Branch convention: `tdd/<slug>`.
+**Target-project footprint:** a `.sluice/` workspace (config.yaml, manifest.json, one folder per feature), gitignored in its entirety — every artifact in it is machine-local — and one `enabledPlugins` entry in `.claude/settings.json`. Branch convention: `tdd/<slug>`.
 
 ## Test-suite conventions
 

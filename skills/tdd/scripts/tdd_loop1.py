@@ -4,8 +4,8 @@
 active feature: the gherkin model explores the repository read-only (Write is
 mechanically scoped to the feature's gherkin/ folder via the ALLOW_ONLY path
 policy), drafts `.feature` files, and the loop checkpoints with exit 10 until
-the human approves, at which point the spec commit is created and the
-dispatcher advances to Loop 2.
+the human approves, at which point the dispatcher advances to Loop 2 (the
+spec lives only in the machine-local, gitignored .sluice/ workspace).
 
 `amend_scenarios` is the §10 escalation re-entry: Loop 3 calls it after an
 approved test-change proposal; it resumes the Loop 1 session, amends only the
@@ -13,8 +13,8 @@ affected scenarios, and returns their scenario ids. Phase transitions around
 amendment are owned by Loop 3 — this function never transitions.
 
 All shared vocabulary comes from tdd_contracts; state mutations go through
-ctx.store; git through tdd_git; prompt assembly through
-tdd_agent.build_prompt with sections ordered stable → volatile (§12).
+ctx.store; prompt assembly through tdd_agent.build_prompt with sections
+ordered stable → volatile (§12).
 """
 
 from __future__ import annotations
@@ -23,10 +23,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-import tdd_git
 from tdd_agent import build_prompt
 from tdd_contracts import (
-    COMMIT_SPEC,
     DECISION_APPROVE,
     TASK_FILE,
     AgentRunner,
@@ -282,7 +280,7 @@ def _draft(ctx: FeatureContext, runner: AgentRunner) -> LoopOutcome:
 
 
 def _approve(ctx: FeatureContext) -> LoopOutcome:
-    """Human approved: commit the spec (§16) and advance to Loop 2."""
+    """Human approved: advance to Loop 2 (.sluice/ is gitignored — no commit)."""
 
     if not _feature_files(ctx):
         return LoopOutcome(
@@ -292,17 +290,12 @@ def _approve(ctx: FeatureContext) -> LoopOutcome:
                 f"nothing to approve: no .feature files in {_gherkin_rel(ctx)}"
             ),
         )
-    # Commits task.md + gherkin/ (state.json under .tdd/ is gitignored).
-    feature_rel = str(ctx.feature_dir.relative_to(ctx.repo_root))
-    tdd_git.commit_paths(
-        ctx.repo_root, COMMIT_SPEC.format(slug=ctx.slug), [feature_rel]
-    )
     ctx.store.transition(
         ctx.state,
         Phase.GHERKIN_APPROVED,
         session_id=ctx.state.session_ids.get("loop1"),
     )
-    return LoopOutcome(status=LoopStatus.ADVANCE, detail="spec committed")
+    return LoopOutcome(status=LoopStatus.ADVANCE, detail="spec approved")
 
 
 def _revise(

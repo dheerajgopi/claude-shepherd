@@ -46,28 +46,33 @@ VERIFYING_COVERAGE → RED_COMMITTED → IMPLEMENTING → (ESCALATED → AMENDIN
 
 ## On-disk artifacts (§5)
 
-| Path (per feature) | Schema (contracts module) | Git |
-|---|---|---|
-| `.sluice/config.yaml` | `SluiceConfig` | committed |
-| `.sluice/manifest.json` | `SluiceManifest` | committed |
-| `features/<slug>/task.md` | verbatim text | committed |
-| `features/<slug>/gherkin/*.feature` | Gherkin | committed |
-| `features/<slug>/.tdd/state.json` | `FeatureState` | **gitignored** |
-| `features/<slug>/.tdd/traceability.json` | `TraceabilityMatrix` | committed |
-| `features/<slug>/.tdd/reports/*` | markdown + json | committed |
+The entire `.sluice/` workspace is **gitignored** (init appends `.sluice/` to
+`.gitignore`): every artifact below is machine-local and never committed.
+
+| Path (per feature) | Schema (contracts module) |
+|---|---|
+| `.sluice/config.yaml` | `SluiceConfig` |
+| `.sluice/manifest.json` | `SluiceManifest` |
+| `features/<slug>/task.md` | verbatim text |
+| `features/<slug>/gherkin/*.feature` | Gherkin |
+| `features/<slug>/.tdd/state.json` | `FeatureState` |
+| `features/<slug>/.tdd/traceability.json` | `TraceabilityMatrix` |
+| `features/<slug>/.tdd/reports/*` | markdown + json |
 
 Branch convention: `tdd/<slug>` (`BRANCH_PREFIX`). No ACTIVE pointer file, ever (§7).
 
 ## Commit messages (§16) — format strings, exact
 
 ```
-tdd(<slug>): spec — gherkin scenarios
 tdd(<slug>): red — failing tests
 tdd(<slug>): red(<n>) — amended scenarios
 tdd(<slug>): green — implementation
 ```
 
 The outer agent must NEVER hand-create commits matching `tdd(...)`.
+There is no spec commit: Loop 1 approval only advances the phase, because
+the spec artifacts live in the gitignored `.sluice/` workspace. Red and
+red(n) commits carry only `test.paths` content.
 
 ## Path policy (the mechanical boundary, §9–10)
 

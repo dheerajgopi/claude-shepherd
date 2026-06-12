@@ -102,10 +102,8 @@ def _setup_loop2(
     """Loop-2 entry world: .feature on disk, phase set by direct state edit."""
 
     (feature.gherkin_dir / "user_auth.feature").write_text(feature_text)
-    # Production .gitignore policy (§5): state.json never lands in commits.
-    (feature.repo / ".gitignore").write_text(
-        ".sluice/features/*/.tdd/state.json\n"
-    )
+    # Production .gitignore policy (§5): the whole .sluice/ workspace is local.
+    (feature.repo / ".gitignore").write_text(".sluice/\n")
     if max_iterations is not None:
         cfg = feature.repo / ".sluice" / "config.yaml"
         cfg.write_text(
@@ -177,13 +175,12 @@ class TestHappyPath:
             "tests/test_user_auth.py::test_successful_login"
         ]
 
-        # Red commit: exact message, contains test file AND traceability.json.
+        # Red commit: exact message, test paths only — nothing under .sluice/.
         subject = _git(feature.repo, "log", "-1", "--format=%s").strip()
         assert subject == COMMIT_RED.format(slug="user-auth")
         shown = _git(feature.repo, "show", "--name-only", "HEAD")
         assert "tests/test_user_auth.py" in shown
-        assert ".sluice/features/user-auth/.tdd/traceability.json" in shown
-        assert "state.json" not in shown  # gitignored, never committed
+        assert ".sluice" not in shown  # whole workspace gitignored
 
         state = StateStore(ctx.feature_dir).load()
         assert state.phase == Phase.RED_COMMITTED.value

@@ -75,7 +75,7 @@ playbook exactly. Do not improvise responses to exit codes from memory.
   A denial is a design decision, not an obstacle: do not retry via different
   tools, shell redirection, or any other workaround.
 - **Never hand-create commits matching `tdd(...)`.** Commits like
-  `tdd(<slug>): spec/red/green ...` are made exclusively by the script; they
+  `tdd(<slug>): red/green ...` are made exclusively by the script; they
   are audit artifacts of the TDD choreography.
 - **Never edit files under `.sluice/features/*/.tdd/` by hand.**
   `state.json`, `traceability.json`, and `reports/` are owned by the script.

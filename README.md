@@ -65,9 +65,9 @@ human decisions return via `run --decision approve|reject [--feedback …]`.
 What the TDD skill lands in your repo:
 
 - `.sluice/` — config, one folder per feature (task statement, approved
-  `.feature` files, committed traceability matrix + reports; machine-local
-  `state.json` is gitignored).
-- Automated commits per feature: `tdd(<slug>): spec` → `red` →
+  `.feature` files, traceability matrix + reports, session state). The whole
+  workspace is gitignored: everything in it is machine-local.
+- Automated commits per feature: `tdd(<slug>): red` →
   [`red(n)` after approved escalations] → `green`. The red commit is the
   recovery anchor and the proof the tests failed before the implementation
   existed.

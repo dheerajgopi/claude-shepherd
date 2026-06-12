@@ -96,7 +96,6 @@ RESUMABLE_PHASES: dict[Phase, int] = {
 # Commit messages (§16)
 # ---------------------------------------------------------------------------
 
-COMMIT_SPEC = "tdd({slug}): spec — gherkin scenarios"
 COMMIT_RED = "tdd({slug}): red — failing tests"
 COMMIT_RED_AMENDED = "tdd({slug}): red({n}) — amended scenarios"
 COMMIT_GREEN = "tdd({slug}): green — implementation"
@@ -110,19 +109,21 @@ SLUICE_DIR = ".sluice"
 CONFIG_FILE = ".sluice/config.yaml"
 FEATURES_DIR = ".sluice/features"
 MANIFEST_FILE = ".sluice/manifest.json"
-# Per feature (relative to .sluice/features/<slug>/)
+# Per feature (relative to .sluice/features/<slug>/). The entire .sluice/
+# workspace is gitignored (§5): every artifact below is machine-local.
 TASK_FILE = "task.md"
 GHERKIN_DIR = "gherkin"
 TDD_DIR = ".tdd"
-STATE_FILE = ".tdd/state.json"          # gitignored
-TRACE_FILE = ".tdd/traceability.json"   # committed
-REPORTS_DIR = ".tdd/reports"            # committed
+STATE_FILE = ".tdd/state.json"
+TRACE_FILE = ".tdd/traceability.json"
+REPORTS_DIR = ".tdd/reports"
 
 BRANCH_PREFIX = "tdd/"  # feature branch = tdd/<slug>
 
-#: .gitignore entries appended by init (§5 version-control policy).
+#: .gitignore entries appended by init (§5 version-control policy):
+#: the whole workspace is machine-local, nothing under it is ever committed.
 GITIGNORE_ENTRIES = [
-    ".sluice/features/*/.tdd/state.json",
+    ".sluice/",
 ]
 
 
@@ -222,7 +223,7 @@ class FeatureState:
 
 
 # ---------------------------------------------------------------------------
-# traceability.json schema (§9, §10) — committed audit artifact
+# traceability.json schema (§9, §10) — machine-local audit artifact
 # ---------------------------------------------------------------------------
 
 COVERAGE_COVERED = "covered"

@@ -90,7 +90,7 @@ All sluice state lives in a `.sluice` folder at the repository root. Each featur
 
 Feature slugs are kebab-case, derived from the task title, collision-checked against existing folders. The slug doubles as the git branch suffix and the Gherkin namespace.
 
-Version-control policy within `.tdd/`: `state.json` is **gitignored** (machine-local session IDs and volatile phase data), while `traceability.json` and `reports/` are **committed** — they are audit artifacts that belong in history alongside the spec and red commits.
+Version-control policy: the entire `.sluice/` workspace is **gitignored** and machine-local. Nothing under it — config, task statements, gherkin, `state.json`, `traceability.json`, `reports/` — is ever committed; only test and implementation code enters history.
 
 ## 6. Initialization and CLI verbs
 
@@ -129,7 +129,7 @@ Additionally, `state.json` records the branch and base commit the feature was cr
 
 Using the `gherkin` model from config, the agent explores the repository **read-only** (tool surface restricted to Read/Glob/Grep, plus Write scoped to the feature's `gherkin/` folder), understands the task from `task.md`, and drafts `.feature` files — one scenario per behavior, with a short reviewer-facing rationale. The script then exits with code 10 (`AWAITING_APPROVAL`).
 
-The outer command presents the scenarios to the human via `AskUserQuestion`. If the human requests corrections, the script is re-invoked with the feedback and **resumes the same SDK session**, appending the feedback as a new turn — everything prior (system prompt, task, repo context, earlier drafts) remains a stable cached prefix. This revision cycle repeats until the human approves. On approval the script commits the spec: `tdd(<slug>): spec — gherkin scenarios`.
+The outer command presents the scenarios to the human via `AskUserQuestion`. If the human requests corrections, the script is re-invoked with the feedback and **resumes the same SDK session**, appending the feedback as a new turn — everything prior (system prompt, task, repo context, earlier drafts) remains a stable cached prefix. This revision cycle repeats until the human approves. On approval the script advances to Loop 2 — there is no spec commit, since the spec lives in the gitignored `.sluice/` workspace.
 
 ## 9. Loop 2 — Test generation
 
@@ -258,4 +258,4 @@ flowchart TD
 
 ## 16. Commit choreography
 
-The script refuses to start on a dirty working tree (untracked `.sluice` files excepted). Automated commits, in order: `tdd(<slug>): spec — gherkin scenarios` after Loop 1 approval; `tdd(<slug>): red — failing tests` after Loop 2 verification and **before Loop 3**; `tdd(<slug>): red(n) — amended scenarios` after each approved escalation re-sync; `tdd(<slug>): green — implementation` on completion.
+The script refuses to start on a dirty working tree (untracked `.sluice` files excepted). Automated commits, in order: `tdd(<slug>): red — failing tests` after Loop 2 verification and **before Loop 3**; `tdd(<slug>): red(n) — amended scenarios` after each approved escalation re-sync; `tdd(<slug>): green — implementation` on completion. Red and red(n) commits carry only `test.paths` content — `.sluice/` artifacts are gitignored and never committed.

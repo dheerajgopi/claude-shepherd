@@ -714,15 +714,15 @@ def _amend_pipeline(ctx: FeatureContext, runner: AgentRunner) -> LoopOutcome:
     if outcome.status is not LoopStatus.ADVANCE:
         return outcome  # phase stays AMENDING_GHERKIN; re-run recovers here
 
-    # (c) The renegotiation is visible in history: red(n) (§16).
+    # (c) The renegotiation is visible in history: red(n) (§16). Only test
+    #     paths are committed; the amended gherkin stays in gitignored .sluice/.
     ctx.state.red_commit_count += 1
     n = ctx.state.red_commit_count
     ctx.store.save(ctx.state)
-    feature_rel = ctx.feature_dir.relative_to(ctx.repo_root).as_posix()
     _commit_if_changes(
         ctx.repo_root,
         COMMIT_RED_AMENDED.format(slug=ctx.slug, n=n),
-        [*ctx.config.test.paths, feature_rel],
+        list(ctx.config.test.paths),
     )
 
     # (d) Back to implementation.

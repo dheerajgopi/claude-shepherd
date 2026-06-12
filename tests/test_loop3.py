@@ -138,9 +138,7 @@ def _setup_loop3(
     """Loop-3 entry world at RED_COMMITTED with a clean, committed tree."""
 
     (feature.gherkin_dir / "user_auth.feature").write_text(FEATURE_TEXT)
-    (feature.repo / ".gitignore").write_text(
-        ".sluice/features/*/.tdd/state.json\nfake_script.json*\n"
-    )
+    (feature.repo / ".gitignore").write_text(".sluice/\nfake_script.json*\n")
     (feature.repo / TEST_FILE).parent.mkdir(parents=True, exist_ok=True)
     (feature.repo / TEST_FILE).write_text(TEST_CONTENT)
     (feature.feature_dir / ".tdd").mkdir(parents=True, exist_ok=True)

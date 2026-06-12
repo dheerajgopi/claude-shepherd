@@ -417,13 +417,16 @@ def _syntax_errors(ctx: FeatureContext, matrix: TraceabilityMatrix) -> str:
 
 
 def _red_commit(ctx: FeatureContext, matrix: TraceabilityMatrix) -> LoopOutcome:
-    """Full coverage: red commit (§9, BEFORE Loop 3 — the recovery anchor)."""
+    """Full coverage: red commit (§9, BEFORE Loop 3 — the recovery anchor).
 
-    feature_rel = ctx.feature_dir.relative_to(ctx.repo_root).as_posix()
+    Only test paths are committed; the feature folder (gherkin, traceability)
+    lives under the gitignored .sluice/ workspace.
+    """
+
     tdd_git.commit_paths(
         ctx.repo_root,
         COMMIT_RED.format(slug=ctx.slug),
-        [*ctx.config.test.paths, feature_rel],
+        list(ctx.config.test.paths),
     )
     ctx.state.red_commit_count = 1
     ctx.store.transition(

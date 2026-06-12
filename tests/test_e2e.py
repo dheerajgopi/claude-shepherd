@@ -24,7 +24,6 @@ from tdd_contracts import (
     COMMIT_GREEN,
     COMMIT_RED,
     COMMIT_RED_AMENDED,
-    COMMIT_SPEC,
     ExitCode,
     Phase,
 )
@@ -211,7 +210,8 @@ class TestHappyPath:
         assert "user_auth.feature" in r.stdout
         assert _phase(repo) == Phase.AWAITING_APPROVAL.value
 
-        # 2. Approve → loop1 commit, loop2 (gen+verify+red), loop3 (impl+green).
+        # 2. Approve → loop2 (gen+verify+red), loop3 (impl+green); no spec
+        #    commit — .sluice/ is gitignored.
         r = step(
             ["run", "--decision", "approve"],
             [GEN_TESTS, VERIFY_COVERED, IMPLEMENT_GREEN],
@@ -219,19 +219,19 @@ class TestHappyPath:
         assert r.returncode == ExitCode.DONE, r.stderr
         assert _phase(repo) == Phase.DONE.value
 
-        # Commit choreography (§16), newest first.
+        # Commit choreography (§16), newest first; red and green only.
         subjects = _subjects(repo)
         assert subjects[0] == COMMIT_GREEN.format(slug="user-auth")
         assert subjects[1] == COMMIT_RED.format(slug="user-auth")
-        assert subjects[2] == COMMIT_SPEC.format(slug="user-auth")
+        assert [s for s in subjects if s.startswith("tdd(")] == subjects[:2]
 
-        # Audit artifacts committed; state.json not.
+        # Nothing under the machine-local .sluice/ ever enters a commit.
         shown = subprocess.run(
-            ["git", "show", "--name-only", "HEAD~1"], cwd=repo,
+            ["git", "log", "--name-only", "--format="], cwd=repo,
             check=True, capture_output=True, text=True,
         ).stdout
-        assert "traceability.json" in shown
-        assert "state.json" not in shown
+        assert "tests/test_user_auth.py" in shown
+        assert ".sluice" not in shown
 
         # Re-run after DONE: friendly exit 0.
         r = step(["run"], [])
@@ -265,7 +265,7 @@ class TestCoverageGap:
         data = yaml.safe_load(cfg.read_text())
         data["budgets"]["max_coverage_iterations"] = 1
         cfg.write_text(yaml.safe_dump(data, sort_keys=False))
-        subprocess.run(["git", "commit", "-aqm", "tighten"], cwd=repo, check=True)
+        # config.yaml is gitignored with the rest of .sluice/ — no commit needed.
 
         r = step(["run"], [DRAFT_GHERKIN])
         assert r.returncode == ExitCode.AWAITING_APPROVAL
@@ -337,7 +337,7 @@ class TestBudget:
         data = yaml.safe_load(cfg.read_text())
         data["budgets"]["max_cost_usd"] = 0.001
         cfg.write_text(yaml.safe_dump(data, sort_keys=False))
-        subprocess.run(["git", "commit", "-aqm", "tiny budget"], cwd=repo, check=True)
+        # config.yaml is gitignored with the rest of .sluice/ — no commit needed.
 
         # First draft run spends 0.01 (fake default) > 0.001 → the NEXT
         # invocation's guard trips before any run.

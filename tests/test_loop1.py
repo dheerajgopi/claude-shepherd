@@ -16,7 +16,6 @@ from types import SimpleNamespace
 import pytest
 
 from tdd_contracts import (
-    COMMIT_SPEC,
     GITIGNORE_ENTRIES,
     ExitCode,
     LoopStatus,
@@ -184,7 +183,7 @@ class TestApprove:
         assert _reload(ctx).phase == Phase.AWAITING_APPROVAL.value
 
     def test_full_path_draft_then_approve(self, feature, script_dir):
-        # production .gitignore policy: state.json never enters the commit
+        # production .gitignore policy: the whole .sluice/ workspace is local
         (feature.repo / ".gitignore").write_text(
             "\n".join(GITIGNORE_ENTRIES) + "\n"
         )
@@ -193,21 +192,18 @@ class TestApprove:
 
         draft = run_loop1(ctx, runner, None, None)
         assert draft.exit_code is ExitCode.AWAITING_APPROVAL
+        commits_before = _git(feature.repo, "rev-list", "--count", "HEAD").strip()
 
         outcome = run_loop1(ctx, runner, "approve", None)
 
         assert outcome.status is LoopStatus.ADVANCE
-        assert outcome.detail == "spec committed"
+        assert outcome.detail == "spec approved"
         assert _reload(ctx).phase == Phase.GHERKIN_APPROVED.value
 
-        subject = _git(feature.repo, "log", "-1", "--pretty=%s").strip()
-        assert subject == COMMIT_SPEC.format(slug="user-auth")
-        committed = _git(
-            feature.repo, "show", "--name-only", "--pretty=format:", "HEAD"
-        )
-        assert f"{GHERKIN_REL}/user-auth.feature" in committed
-        assert ".sluice/features/user-auth/task.md" in committed
-        assert "state.json" not in committed
+        # No spec commit: .sluice/ is gitignored, the spec stays machine-local.
+        commits_after = _git(feature.repo, "rev-list", "--count", "HEAD").strip()
+        assert commits_after == commits_before
+        assert (feature.repo / f"{GHERKIN_REL}/user-auth.feature").is_file()
 
 
 class TestFeedback:

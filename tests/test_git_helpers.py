@@ -116,7 +116,7 @@ class TestCommitPaths:
         readme.write_text(readme.read_text() + "\nchange one\n")
         app.write_text(app.read_text() + "\n# change two\n")
 
-        commit_paths(tmp_repo, "tdd(user-auth): spec — gherkin scenarios", ["README.md"])
+        commit_paths(tmp_repo, "tdd(user-auth): red — failing tests", ["README.md"])
 
         # The other modified file must remain uncommitted.
         status = _status(tmp_repo)
@@ -131,7 +131,7 @@ class TestCommitPaths:
             capture_output=True,
             text=True,
         ).stdout
-        assert show.splitlines()[0] == "tdd(user-auth): spec — gherkin scenarios"
+        assert show.splitlines()[0] == "tdd(user-auth): red — failing tests"
         assert "README.md" in show
         assert "src/app.py" not in show
 

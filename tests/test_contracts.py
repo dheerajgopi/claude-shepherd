@@ -8,7 +8,7 @@ from tdd_contracts import (
     COMMIT_GREEN,
     COMMIT_RED,
     COMMIT_RED_AMENDED,
-    COMMIT_SPEC,
+    GITIGNORE_ENTRIES,
     PHASE_TRANSITIONS,
     RESUMABLE_PHASES,
     ExitCode,
@@ -109,12 +109,7 @@ class TestResumablePhases:
 
 
 class TestCommitFormats:
-    """Commit messages per §16, exact."""
-
-    def test_spec(self) -> None:
-        assert COMMIT_SPEC.format(slug="user-auth") == (
-            "tdd(user-auth): spec — gherkin scenarios"
-        )
+    """Commit messages per §16, exact. No spec commit: .sluice/ is gitignored."""
 
     def test_red(self) -> None:
         assert COMMIT_RED.format(slug="user-auth") == (
@@ -130,3 +125,10 @@ class TestCommitFormats:
         assert COMMIT_GREEN.format(slug="user-auth") == (
             "tdd(user-auth): green — implementation"
         )
+
+
+class TestGitignorePolicy:
+    """§5 version-control policy: the whole workspace is machine-local."""
+
+    def test_whole_workspace_ignored(self) -> None:
+        assert GITIGNORE_ENTRIES == [".sluice/"]
