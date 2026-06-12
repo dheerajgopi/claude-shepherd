@@ -38,7 +38,7 @@ CLI grammar (pinned):
 
 ```
 tdd.py init [--force]
-tdd.py new <title...>
+tdd.py new <title...> [--task-stdin]
 tdd.py run [--feature SLUG] [--force] [--decision approve|reject] [--feedback TEXT]
 tdd.py status [--json]
 ```
@@ -51,8 +51,21 @@ tdd.py status [--json]
 
 ## Routing the request
 
-- **Brand-new task statement** → first run `tdd.py new "<title>"`, note the
-  slug it prints, then `tdd.py run --feature <slug>`.
+- **Brand-new task statement** → pipe the **full requirements** via a heredoc:
+
+  ```bash
+  python3 "${CLAUDE_PLUGIN_ROOT}/skills/tdd/scripts/tdd.py" new "<short title>" --task-stdin <<'EOF'
+  <full task statement: requirements, defaults, edge cases, acceptance criteria>
+  EOF
+  ```
+
+  Note the slug it prints, then `tdd.py run --feature <slug>`. The task
+  statement is the Gherkin agent's ONLY source of requirements — it never
+  sees this conversation. Carry over every concrete detail the user stated:
+  defaults (page sizes, limits, timeouts), edge cases, error behaviors,
+  acceptance criteria. Do not condense to a title; a detail dropped here is
+  invisible to every later loop. Never write the statement to a file (temp
+  files collide across concurrent agents) — always the heredoc.
 - **Existing feature slug** → `tdd.py run --feature <slug>` directly.
 - **Neither** → bare `tdd.py run` and let branch convention or exit 20
   resolve it.

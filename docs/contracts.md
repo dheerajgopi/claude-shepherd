@@ -24,11 +24,17 @@ in `skills/tdd/references/playbook.md`, setup.sh, prompts). Requirement referenc
 
 ```
 tdd.py init [--force]
-tdd.py new <title...>
+tdd.py new <title...> [--task-stdin]
 tdd.py run [--feature SLUG] [--force] [--decision approve|reject] [--feedback TEXT]
 tdd.py status [--json]
 ```
 
+- `--task-stdin` on `new` reads the **full task statement** for `task.md`
+  from stdin (pipe or heredoc — no temp files, so concurrent agents cannot
+  collide); the title still names the slug and branch. Without it, the title
+  is the task statement. `task.md` is write-once at `new` time: it is read
+  into Loop 1's first session turn and never re-read, so editing it after
+  `new` has no effect on the run.
 - The human-input channel is `--decision` / `--feedback` on `run`:
   - exit 10 → re-invoke with `--decision approve` **or** `--feedback "<corrections>"`
   - exit 12 → re-invoke with `--decision approve` or `--decision reject [--feedback "<why>"]`

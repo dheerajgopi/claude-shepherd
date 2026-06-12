@@ -132,7 +132,7 @@ GITIGNORE_ENTRIES = [
 # ---------------------------------------------------------------------------
 #
 #   tdd.py init [--force]
-#   tdd.py new <title...>
+#   tdd.py new <title...> [--task-stdin]
 #   tdd.py run [--feature SLUG] [--force]
 #              [--decision approve|reject] [--feedback TEXT]
 #   tdd.py status [--json]
@@ -141,6 +141,11 @@ GITIGNORE_ENTRIES = [
 # re-invokes `run` with the human's answer after a checkpoint exit (10/12).
 # `--feedback` alone (no --decision) means "corrections" for the exit-10
 # revision cycle. `--force` on run overrides BRANCH_MISMATCH (§7).
+# `--task-stdin` on new reads the full task statement for task.md from
+# stdin (pipe/heredoc — no temp files, so concurrent agents cannot
+# collide); the title still names the slug/branch. Without it, the title
+# is the task statement. task.md is write-once at `new` time — it is read
+# into Loop 1's first session turn and never re-read.
 
 DECISION_APPROVE = "approve"
 DECISION_REJECT = "reject"

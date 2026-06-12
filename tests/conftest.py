@@ -167,7 +167,7 @@ def feature(sluice_repo: Path) -> SimpleNamespace:
     return scaffold_feature(sluice_repo, "user-auth", checkout=True)
 
 
-def run_cli(args, cwd, env_extra=None) -> subprocess.CompletedProcess:
+def run_cli(args, cwd, env_extra=None, stdin=None) -> subprocess.CompletedProcess:
     """Run [python, tdd.py, *args] in cwd; returns CompletedProcess."""
 
     env = os.environ.copy()
@@ -179,6 +179,7 @@ def run_cli(args, cwd, env_extra=None) -> subprocess.CompletedProcess:
         capture_output=True,
         text=True,
         env=env,
+        input=stdin,
     )
 
 

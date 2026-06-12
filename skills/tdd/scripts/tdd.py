@@ -4,7 +4,7 @@
 Subcommands per the pinned grammar in docs/contracts.md:
 
     tdd.py init [--force]
-    tdd.py new <title...>
+    tdd.py new <title...> [--task-stdin]
     tdd.py run [--feature SLUG] [--force] [--decision approve|reject] [--feedback TEXT]
     tdd.py status [--json]
 
@@ -160,13 +160,33 @@ def cmd_init(force: bool) -> int:
     return int(ExitCode.DONE)
 
 
-def cmd_new(title: str) -> int:
-    """`tdd.py new <title...>` — scaffold a feature folder + tdd/<slug> branch (§6)."""
+def _read_task_statement() -> str:
+    """Read the full task statement from stdin (`--task-stdin`)."""
+
+    text = sys.stdin.read()
+    if not text.strip():
+        raise SluiceError(
+            ExitCode.INTERNAL_ERROR,
+            "--task-stdin was given but stdin is empty; pipe or heredoc the "
+            "task statement",
+        )
+    return text
+
+
+def cmd_new(title: str, task_stdin: bool = False) -> int:
+    """`tdd.py new <title...>` — scaffold a feature folder + tdd/<slug> branch (§6).
+
+    The slug and branch always derive from the title. task.md — the Loop 1
+    agent's only source of requirements — holds the full task statement read
+    from stdin when `--task-stdin` is given, else the title.
+    """
 
     cwd = Path.cwd()
     root = _require_repo_root(cwd, ExitCode.SLUICE_NOT_INITIALIZED)
     load_config(root)  # raises SLUICE_NOT_INITIALIZED if init has not run
     _refuse_dirty_tree(root)
+
+    task_text = _read_task_statement() if task_stdin else title
 
     try:
         slug = slugify(title)
@@ -190,7 +210,9 @@ def cmd_new(title: str) -> int:
     tdd_git.create_branch(root, branch)
     (feature_dir / GHERKIN_DIR).mkdir(parents=True)
     (feature_dir / REPORTS_DIR).mkdir(parents=True)
-    (feature_dir / TASK_FILE).write_text(title + "\n", encoding="utf-8")
+    (feature_dir / TASK_FILE).write_text(
+        task_text.rstrip("\n") + "\n", encoding="utf-8"
+    )
 
     state = FeatureState(
         slug=slug,
@@ -364,7 +386,17 @@ def _build_parser() -> argparse.ArgumentParser:
     )
 
     p_new = sub.add_parser("new", help="scaffold a feature folder + tdd/<slug> branch")
-    p_new.add_argument("title", nargs="+", help="feature title (written verbatim to task.md)")
+    p_new.add_argument(
+        "title", nargs="+", help="feature title (names the slug and branch)"
+    )
+    p_new.add_argument(
+        "--task-stdin",
+        action="store_true",
+        help=(
+            "read the full task statement for task.md from stdin "
+            "(pipe or heredoc); without it, the title is the task statement"
+        ),
+    )
 
     p_run = sub.add_parser("run", help="run the three-loop state machine")
     p_run.add_argument("--feature", help="explicit feature slug (always wins, §7)")
@@ -393,7 +425,7 @@ def main(argv: Optional[list[str]] = None) -> None:
         if args.command == "init":
             code = cmd_init(args.force)
         elif args.command == "new":
-            code = cmd_new(" ".join(args.title))
+            code = cmd_new(" ".join(args.title), args.task_stdin)
         elif args.command == "run":
             code = cmd_run(args.feature, args.force, args.decision, args.feedback)
         else:  # status

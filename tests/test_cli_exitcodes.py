@@ -84,7 +84,7 @@ class TestNew:
 
         feature_dir = tmp_repo / ".sluice" / "features" / "add-user-auth"
         assert feature_dir.is_dir()
-        # task.md is the task statement, verbatim (§6).
+        # Without --task-file, the title is the task statement (§6).
         assert (feature_dir / "task.md").read_text().strip() == "Add user auth"
 
         state = json.loads((feature_dir / ".tdd" / "state.json").read_text())
@@ -92,6 +92,39 @@ class TestNew:
         assert state["branch"] == "tdd/add-user-auth"
         assert state["phase"] in {p.value for p in Phase}
         assert len(state["base_commit"]) == 40
+
+    def test_new_task_stdin_becomes_task_md(self, tmp_repo) -> None:
+        assert run_cli(["init"], tmp_repo).returncode == 0
+        statement = (
+            "List users with pagination.\n\n"
+            "- Default page size is 20.\n- Max page size is 100.\n"
+        )
+
+        result = run_cli(
+            ["new", "Paginated user list", "--task-stdin"],
+            tmp_repo,
+            stdin=statement,
+        )
+        assert result.returncode == 0, result.stderr
+
+        # Slug/branch derive from the title; task.md holds the full statement.
+        assert _current_branch(tmp_repo) == "tdd/paginated-user-list"
+        task_md = (
+            tmp_repo / ".sluice" / "features" / "paginated-user-list" / "task.md"
+        )
+        assert task_md.read_text() == statement
+
+    def test_new_rejects_empty_task_stdin(self, tmp_repo) -> None:
+        assert run_cli(["init"], tmp_repo).returncode == 0
+
+        result = run_cli(
+            ["new", "Add user auth", "--task-stdin"], tmp_repo, stdin="  \n"
+        )
+
+        assert result.returncode != 0
+        assert "empty" in result.stderr
+        # Nothing scaffolded on refusal.
+        assert not (tmp_repo / ".sluice" / "features" / "add-user-auth").exists()
 
     def test_new_refuses_dirty_tree(self, tmp_repo) -> None:
         assert run_cli(["init"], tmp_repo).returncode == 0
