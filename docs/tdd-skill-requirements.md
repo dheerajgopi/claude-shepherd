@@ -1,4 +1,4 @@
-# TDD Skill & Harness Plugin — Requirements
+# TDD Skill & Sluice Plugin — Requirements
 
 ## 1. Purpose
 
@@ -12,16 +12,16 @@ The skill owns one feature's lifecycle from task statement to green tests. It do
 
 The skill follows the **checkpoint state machine** pattern. The script (`scripts/tdd.py`) runs headlessly via the Agent SDK and exits with a distinct code whenever human input is required. The outer Claude Code agent interprets the exit code, gathers the human's decision using its native `AskUserQuestion` tool, and re-invokes the script with that decision as input. The script resumes the relevant SDK session rather than starting fresh, which preserves the prompt-cache prefix across iterations.
 
-The TDD skill is not distributed standalone: it ships inside a **harness plugin** (§4). All operational guidance for the outer agent — exit-code handling, "do not fight the hooks," no hand-created `tdd(...)` commits — lives in the plugin's own artifacts: triggering and invocation rules in `SKILL.md`, and exit-code interpretation in the command definition (`/harness:tdd`), which is the component doing the interpreting. No content is injected into the target project's `CLAUDE.md`; instructions load only when the workflow is actually triggered and stay versioned with the harness.
+The TDD skill is not distributed standalone: it ships inside a **sluice plugin** (§4). All operational guidance for the outer agent — exit-code handling, "do not fight the hooks," no hand-created `tdd(...)` commits — lives in the plugin's own artifacts: triggering and invocation rules in `SKILL.md`, and exit-code interpretation in the command definition (`/sluice:tdd`), which is the component doing the interpreting. No content is injected into the target project's `CLAUDE.md`; instructions load only when the workflow is actually triggered and stay versioned with the sluice.
 
-## 4. Distribution — the harness plugin
+## 4. Distribution — the sluice plugin
 
-The harness is a separate repository structured as a **Claude Code plugin** (publishable as its own marketplace), bundling skills, commands, and per-project setup tooling. The plugin is not TDD-specific — the TDD skill and its outer-loop command are simply the first capabilities it ships. Capability distribution (skill, command, hooks) uses the native plugin mechanism; only project-workspace bootstrap is custom.
+Sluice is a separate repository structured as a **Claude Code plugin** (publishable as its own marketplace), bundling skills, commands, and per-project setup tooling. The plugin is not TDD-specific — the TDD skill and its outer-loop command are simply the first capabilities it ships. Capability distribution (skill, command, hooks) uses the native plugin mechanism; only project-workspace bootstrap is custom.
 
-### Harness repo layout
+### Sluice repo layout
 
 ```
-harness/
+sluice/
 ├── .claude-plugin/
 │   ├── plugin.json              # plugin manifest
 │   └── marketplace.json         # marketplace catalog (this repo as its own marketplace)
@@ -34,7 +34,7 @@ harness/
 │           ├── gherkin_prompt.md
 │           ├── testgen_prompt.md
 │           └── impl_prompt.md
-├── commands/                    # /harness:tdd — carries the exit-code contract (§13)
+├── commands/                    # /sluice:tdd — carries the exit-code contract (§13)
 ├── templates/
 │   ├── config.yaml              # default per-loop models, budgets
 │   └── gitignore.snippet
@@ -53,11 +53,11 @@ The TDD enforcement hooks (path-based edit denial in Loops 2–3) are **Agent SD
 Run once from a target project's root; idempotent; delegates rather than duplicates:
 
 1. **Preflight** — git repo root, Python version, `uv`/`pip` available; fail loudly with fixes, never leave a half-installed state.
-2. **Capability registration** — enable the harness plugin *project-scoped* by merging `enabledPlugins` into the project's `.claude/settings.json` (careful JSON merge with backup — this file may carry the team's existing config and is never overwritten). Because the settings file is committed, teammates who pull the repo get the harness without running anything.
+2. **Capability registration** — enable the sluice plugin *project-scoped* by merging `enabledPlugins` into the project's `.claude/settings.json` (careful JSON merge with backup — this file may carry the team's existing config and is never overwritten). Because the settings file is committed, teammates who pull the repo get the sluice without running anything.
 3. **Workspace bootstrap** — invoke `tdd.py init` (§6). The setup script is plumbing; init owns the logic.
-4. **Manifest** — write `.harness/manifest.json` recording the harness version (git SHA) and checksums of installed/merged artifacts, so a future `setup.sh update` can distinguish upstream changes from local modifications and refuse to clobber the latter.
+4. **Manifest** — write `.sluice/manifest.json` recording the sluice version (git SHA) and checksums of installed/merged artifacts, so a future `setup.sh update` can distinguish upstream changes from local modifications and refuse to clobber the latter.
 
-The harness leaves a deliberately small footprint in target projects: `.harness/` plus one settings entry. No edits to the project's own files.
+Sluice leaves a deliberately small footprint in target projects: `.sluice/` plus one settings entry. No edits to the project's own files.
 
 ### Versioning of `tdd.py`
 
@@ -65,15 +65,15 @@ Current decision: the plugin carries the script (one repo, simplest). The script
 
 ### Local development and testing
 
-During development the plugin is loaded directly, without a marketplace: `claude --plugin-dir /path/to/harness` from a scratch project, with `/reload-plugins` picking up edits mid-session. A locally loaded plugin with the same name takes precedence over an installed marketplace copy for that session, which is also the mechanism for testing in-development versions against real projects after publication. Before publishing a release, one pass through the local-marketplace route (`/plugin marketplace add /path/to/harness` + install) validates marketplace metadata, caching, and namespacing. Note that `--plugin-dir` exercises only the plugin surface; `setup.sh` (settings merge, init, manifest) runs outside the plugin system and is tested directly in the scratch project. Test installs are confined to disposable scratch projects, due in part to a known Claude Code issue where local/user-scope installs can block reinstallation into a different project.
+During development the plugin is loaded directly, without a marketplace: `claude --plugin-dir /path/to/sluice` from a scratch project, with `/reload-plugins` picking up edits mid-session. A locally loaded plugin with the same name takes precedence over an installed marketplace copy for that session, which is also the mechanism for testing in-development versions against real projects after publication. Before publishing a release, one pass through the local-marketplace route (`/plugin marketplace add /path/to/sluice` + install) validates marketplace metadata, caching, and namespacing. Note that `--plugin-dir` exercises only the plugin surface; `setup.sh` (settings merge, init, manifest) runs outside the plugin system and is tested directly in the scratch project. Test installs are confined to disposable scratch projects, due in part to a known Claude Code issue where local/user-scope installs can block reinstallation into a different project.
 
-## 5. Workspace layout (`.harness`)
+## 5. Workspace layout (`.sluice`)
 
-All harness state lives in a `.harness` folder at the repository root. Each feature is a folder under `.harness/features/`, and that feature's runtime state lives in a `.tdd` folder inside it.
+All sluice state lives in a `.sluice` folder at the repository root. Each feature is a folder under `.sluice/features/`, and that feature's runtime state lives in a `.tdd` folder inside it.
 
 ```
-.harness/
-├── config.yaml                    # harness-wide configuration
+.sluice/
+├── config.yaml                    # sluice-wide configuration
 └── features/
     ├── user-auth/
     │   ├── task.md                # original task statement, verbatim
@@ -96,18 +96,18 @@ Version-control policy within `.tdd/`: `state.json` is **gitignored** (machine-l
 The script is a single CLI with subcommands rather than a collection of scripts:
 
 ```
-tdd.py init                  # bootstrap .harness (explicit, never silent)
+tdd.py init                  # bootstrap .sluice (explicit, never silent)
 tdd.py new "Add user auth"   # scaffold a feature folder + tdd/<slug> branch
 tdd.py run [--feature slug]  # the three-loop state machine
 tdd.py status                # phases of all features
 ```
 
-**`init` is explicit, not automatic.** If `run` finds no `.harness` folder, it exits with code 22 (`HARNESS_NOT_INITIALIZED`); the outer command then offers initialization via `AskUserQuestion`. Silent auto-creation is rejected because init makes decisions a human must confirm — above all the detected test command and `test.paths`, which feed the Loop 2/3 enforcement hooks; a wrong auto-detected boundary would undermine the entire safety model.
+**`init` is explicit, not automatic.** If `run` finds no `.sluice` folder, it exits with code 22 (`SLUICE_NOT_INITIALIZED`); the outer command then offers initialization via `AskUserQuestion`. Silent auto-creation is rejected because init makes decisions a human must confirm — above all the detected test command and `test.paths`, which feed the Loop 2/3 enforcement hooks; a wrong auto-detected boundary would undermine the entire safety model.
 
 `init` performs the following, idempotently (re-running never overwrites an existing `config.yaml` without `--force`):
 
 1. Verify execution at a git repository root; refuse otherwise.
-2. Create `.harness/features/`.
+2. Create `.sluice/features/`.
 3. Run the deterministic convention scan once and prefill `config.yaml` with the detected test command, test paths, and default models — printing the result with an instruction to review, since detection is a best guess.
 4. Check preconditions (`claude-agent-sdk` importable, API auth available) so failures surface at init time rather than mid-Loop-1.
 5. Append `.gitignore` entries per the version-control policy in §5.
@@ -116,7 +116,7 @@ tdd.py status                # phases of all features
 
 ## 7. Active feature resolution
 
-When multiple features exist under `.harness/features/`, the script resolves which one is active in strict priority order, with **no inference and no guessing**:
+When multiple features exist under `.sluice/features/`, the script resolves which one is active in strict priority order, with **no inference and no guessing**:
 
 1. **Explicit argument** — `tdd.py --feature <slug>`. Always wins. The wrapping command threads the slug through every invocation once known.
 2. **Git branch convention** — if no argument is given, the current branch must match `tdd/<slug>` and a corresponding feature folder must exist. The script creates this branch when a feature starts, so the working context itself carries the feature identity. This also makes parallel features safe: separate worktrees on separate `tdd/*` branches never contend over shared state.
@@ -164,7 +164,7 @@ Completion requires the test command to exit 0 **and** the traceability matrix t
 ## 11. Configuration
 
 ```yaml
-# .harness/config.yaml
+# .sluice/config.yaml
 models:
   gherkin: claude-opus-4-8        # spec quality matters most
   testgen: claude-sonnet-4-6
@@ -196,7 +196,7 @@ The Agent SDK applies `cache_control` automatically; the script's responsibility
 | 13 | `BUDGET_EXCEEDED` — turn/cost/time limit hit | Surface status report |
 | 20 | `NO_FEATURE_RESOLVED` — no `--feature` arg, no `tdd/<slug>` branch | Present feature list, re-invoke with `--feature` |
 | 21 | `BRANCH_MISMATCH` — current branch ≠ branch recorded in state | Warn human; re-invoke with `--force` only if intended |
-| 22 | `HARNESS_NOT_INITIALIZED` — no `.harness` folder found | `AskUserQuestion`: offer to run `tdd.py init`, then review generated config |
+| 22 | `SLUICE_NOT_INITIALIZED` — no `.sluice` folder found | `AskUserQuestion`: offer to run `tdd.py init`, then review generated config |
 
 ## 14. Phase model
 
@@ -257,4 +257,4 @@ flowchart TD
 
 ## 16. Commit choreography
 
-The script refuses to start on a dirty working tree (untracked `.harness` files excepted). Automated commits, in order: `tdd(<slug>): spec — gherkin scenarios` after Loop 1 approval; `tdd(<slug>): red — failing tests` after Loop 2 verification and **before Loop 3**; `tdd(<slug>): red(n) — amended scenarios` after each approved escalation re-sync; `tdd(<slug>): green — implementation` on completion.
+The script refuses to start on a dirty working tree (untracked `.sluice` files excepted). Automated commits, in order: `tdd(<slug>): spec — gherkin scenarios` after Loop 1 approval; `tdd(<slug>): red — failing tests` after Loop 2 verification and **before Loop 3**; `tdd(<slug>): red(n) — amended scenarios` after each approved escalation re-sync; `tdd(<slug>): green — implementation` on completion.

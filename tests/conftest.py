@@ -1,4 +1,4 @@
-"""Shared fixtures for the TDD harness's own test suite.
+"""Shared fixtures for the TDD sluice's own test suite.
 
 Fixtures build their worlds with plain subprocess git + file writes — they
 must NEVER call the engine's `init`/`new` (fixtures cannot depend on the code
@@ -18,8 +18,8 @@ from types import SimpleNamespace
 
 import pytest
 
-HARNESS_ROOT = Path(__file__).resolve().parent.parent
-SCRIPTS_DIR = HARNESS_ROOT / "skills" / "tdd" / "scripts"
+SLUICE_ROOT = Path(__file__).resolve().parent.parent
+SCRIPTS_DIR = SLUICE_ROOT / "skills" / "tdd" / "scripts"
 TDD_PY = SCRIPTS_DIR / "tdd.py"
 
 # Module-level insertion: pytest.importorskip() at the top of test modules
@@ -50,8 +50,8 @@ def tmp_repo(tmp_path: Path) -> Path:
 
     repo = tmp_path
     _git(repo, "init", "-b", "main")
-    _git(repo, "config", "user.email", "harness-tests@example.com")
-    _git(repo, "config", "user.name", "Harness Tests")
+    _git(repo, "config", "user.email", "sluice-tests@example.com")
+    _git(repo, "config", "user.name", "Sluice Tests")
 
     (repo / "README.md").write_text("# Demo project\n\nFixture repo.\n")
     (repo / "pyproject.toml").write_text(
@@ -77,18 +77,18 @@ def tmp_repo(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def harness_repo(tmp_repo: Path) -> Path:
-    """tmp_repo with .harness/config.yaml written from HarnessConfig defaults."""
+def sluice_repo(tmp_repo: Path) -> Path:
+    """tmp_repo with .sluice/config.yaml written from SluiceConfig defaults."""
 
-    from tdd_contracts import HarnessConfig
+    from tdd_contracts import SluiceConfig
 
-    cfg = HarnessConfig()
+    cfg = SluiceConfig()
     cfg.test.command = "pytest -x -q"
     cfg.test.paths = ["tests"]
 
-    harness = tmp_repo / ".harness"
-    (harness / "features").mkdir(parents=True)
-    (harness / "config.yaml").write_text(
+    sluice = tmp_repo / ".sluice"
+    (sluice / "features").mkdir(parents=True)
+    (sluice / "config.yaml").write_text(
         "models:\n"
         f"  gherkin: {cfg.models.gherkin}\n"
         f"  testgen: {cfg.models.testgen}\n"
@@ -122,7 +122,7 @@ def scaffold_feature(repo: Path, slug: str, *, checkout: bool = True) -> SimpleN
     )
 
     branch = f"tdd/{slug}"
-    feature_dir = repo / ".harness" / "features" / slug
+    feature_dir = repo / ".sluice" / "features" / slug
     gherkin_dir = feature_dir / "gherkin"
     tdd_dir = feature_dir / ".tdd"
     gherkin_dir.mkdir(parents=True)
@@ -161,10 +161,10 @@ def scaffold_feature(repo: Path, slug: str, *, checkout: bool = True) -> SimpleN
 
 
 @pytest.fixture
-def feature(harness_repo: Path) -> SimpleNamespace:
+def feature(sluice_repo: Path) -> SimpleNamespace:
     """A scaffolded 'user-auth' feature on branch tdd/user-auth (checked out)."""
 
-    return scaffold_feature(harness_repo, "user-auth", checkout=True)
+    return scaffold_feature(sluice_repo, "user-auth", checkout=True)
 
 
 def run_cli(args, cwd, env_extra=None) -> subprocess.CompletedProcess:

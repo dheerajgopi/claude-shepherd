@@ -1,4 +1,4 @@
-"""State, configuration, and active-feature resolution for the TDD harness.
+"""State, configuration, and active-feature resolution for the TDD sluice.
 
 Owns the machine-local runtime surface defined in requirement §5/§7/§14:
 config.yaml parsing (`load_config`), the state.json store (`StateStore`),
@@ -31,7 +31,7 @@ from tdd_contracts import (
     TDD_DIR,
     ExitCode,
     FeatureState,
-    HarnessConfig,
+    SluiceConfig,
     HistoryEntry,
     ModelsConfig,
     Phase,
@@ -43,7 +43,7 @@ from tdd_contracts import (
 _MAX_SLUG_LEN = 50
 
 
-class HarnessError(Exception):
+class SluiceError(Exception):
     """An expected failure carrying the exit code the CLI must end with."""
 
     def __init__(self, exit_code: ExitCode, message: str) -> None:
@@ -70,17 +70,17 @@ def _config_section(cls: type, data: dict[str, Any], name: str) -> Any:
 
     raw = data.get(name) or {}
     if not isinstance(raw, dict):
-        raise HarnessError(
+        raise SluiceError(
             ExitCode.INTERNAL_ERROR,
             f"{CONFIG_FILE}: section '{name}' must be a mapping, got {type(raw).__name__}",
         )
     return cls(**_filtered_kwargs(cls, raw))
 
 
-def load_config(repo_root: Path) -> HarnessConfig:
-    """Parse .harness/config.yaml into a HarnessConfig.
+def load_config(repo_root: Path) -> SluiceConfig:
+    """Parse .sluice/config.yaml into a SluiceConfig.
 
-    Missing file raises HarnessError(HARNESS_NOT_INITIALIZED). Unknown keys
+    Missing file raises SluiceError(SLUICE_NOT_INITIALIZED). Unknown keys
     are ignored; missing keys fall back to the dataclass defaults. test.paths
     must be a list of relative path strings (it feeds the Loop 2/3 hooks).
     """
@@ -88,7 +88,7 @@ def load_config(repo_root: Path) -> HarnessConfig:
     try:
         import yaml
     except ImportError as exc:  # surfaced cleanly instead of a bare traceback
-        raise HarnessError(
+        raise SluiceError(
             ExitCode.INTERNAL_ERROR,
             "pyyaml is not installed in this interpreter; run `tdd.py init` "
             "preconditions or `pip install pyyaml`",
@@ -96,25 +96,25 @@ def load_config(repo_root: Path) -> HarnessConfig:
 
     config_path = repo_root / CONFIG_FILE
     if not config_path.is_file():
-        raise HarnessError(
-            ExitCode.HARNESS_NOT_INITIALIZED,
+        raise SluiceError(
+            ExitCode.SLUICE_NOT_INITIALIZED,
             f"no {CONFIG_FILE} found under {repo_root}; run `tdd.py init` first",
         )
     try:
         data = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     except yaml.YAMLError as exc:
-        raise HarnessError(
+        raise SluiceError(
             ExitCode.INTERNAL_ERROR, f"{CONFIG_FILE} is not valid YAML: {exc}"
         ) from exc
     if data is None:
         data = {}
     if not isinstance(data, dict):
-        raise HarnessError(
+        raise SluiceError(
             ExitCode.INTERNAL_ERROR,
             f"{CONFIG_FILE} must contain a mapping at the top level",
         )
 
-    config = HarnessConfig(
+    config = SluiceConfig(
         models=_config_section(ModelsConfig, data, "models"),
         test=_config_section(TestConfig, data, "test"),
         budgets=_config_section(BudgetsConfig, data, "budgets"),
@@ -122,13 +122,13 @@ def load_config(repo_root: Path) -> HarnessConfig:
 
     paths = config.test.paths
     if not isinstance(paths, list) or not all(isinstance(p, str) for p in paths):
-        raise HarnessError(
+        raise SluiceError(
             ExitCode.INTERNAL_ERROR,
             f"{CONFIG_FILE}: test.paths must be a list of strings, got {paths!r}",
         )
     for p in paths:
         if os.path.isabs(p):
-            raise HarnessError(
+            raise SluiceError(
                 ExitCode.INTERNAL_ERROR,
                 f"{CONFIG_FILE}: test.paths entries must be relative, got {p!r}",
             )
@@ -139,16 +139,16 @@ class StateStore:
     """Load/save/transition the gitignored state.json of one feature (§14)."""
 
     def __init__(self, feature_dir: Path) -> None:
-        """Bind the store to `feature_dir` (.harness/features/<slug>)."""
+        """Bind the store to `feature_dir` (.sluice/features/<slug>)."""
 
         self.feature_dir = feature_dir
         self.path = feature_dir / STATE_FILE
 
     def load(self) -> FeatureState:
-        """Read state.json; HarnessError(INTERNAL_ERROR) if missing or corrupt."""
+        """Read state.json; SluiceError(INTERNAL_ERROR) if missing or corrupt."""
 
         if not self.path.is_file():
-            raise HarnessError(
+            raise SluiceError(
                 ExitCode.INTERNAL_ERROR,
                 f"state file missing: {self.path} (state.json is machine-local; "
                 "if this feature was created elsewhere, start it fresh here)",
@@ -169,7 +169,7 @@ class StateStore:
             kwargs["budgets_spent"] = budgets
             return FeatureState(**kwargs)
         except (ValueError, TypeError, KeyError) as exc:
-            raise HarnessError(
+            raise SluiceError(
                 ExitCode.INTERNAL_ERROR,
                 f"state file corrupt: {self.path}: {exc}",
             ) from exc
@@ -193,19 +193,19 @@ class StateStore:
     ) -> FeatureState:
         """Validated phase transition: update phase, append history, save.
 
-        Raises HarnessError(INTERNAL_ERROR) if `state.phase -> new_phase` is
+        Raises SluiceError(INTERNAL_ERROR) if `state.phase -> new_phase` is
         not legal per tdd_contracts.validate_transition.
         """
 
         try:
             current = Phase(state.phase)
         except ValueError as exc:
-            raise HarnessError(
+            raise SluiceError(
                 ExitCode.INTERNAL_ERROR,
                 f"state has unknown phase {state.phase!r}",
             ) from exc
         if not validate_transition(current, new_phase):
-            raise HarnessError(
+            raise SluiceError(
                 ExitCode.INTERNAL_ERROR,
                 f"illegal phase transition: {current.value} -> {new_phase.value}",
             )
@@ -232,13 +232,13 @@ class FeatureContext:
     gherkin_dir: Path
     tdd_dir: Path
     reports_dir: Path
-    config: HarnessConfig
+    config: SluiceConfig
     state: FeatureState
     store: StateStore
 
 
 def list_features(repo_root: Path) -> list[tuple[str, str]]:
-    """All (slug, phase) pairs under .harness/features, phase 'UNKNOWN' if unreadable."""
+    """All (slug, phase) pairs under .sluice/features, phase 'UNKNOWN' if unreadable."""
 
     features_dir = repo_root / FEATURES_DIR
     out: list[tuple[str, str]] = []
@@ -249,7 +249,7 @@ def list_features(repo_root: Path) -> list[tuple[str, str]]:
             continue
         try:
             phase = StateStore(entry).load().phase
-        except HarnessError:
+        except SluiceError:
             phase = "UNKNOWN"
         out.append((entry.name, phase))
     return out
@@ -270,12 +270,12 @@ def resolve_feature(
     """Resolve the active feature per §7: explicit arg, then branch convention.
 
     No pointer file, no inference. Anything else raises
-    HarnessError(NO_FEATURE_RESOLVED) listing existing features and phases.
+    SluiceError(NO_FEATURE_RESOLVED) listing existing features and phases.
     The current branch must match state.branch unless `force`
-    (else HarnessError(BRANCH_MISMATCH)).
+    (else SluiceError(BRANCH_MISMATCH)).
     """
 
-    import tdd_git  # local import: tdd_git imports HarnessError from this module
+    import tdd_git  # local import: tdd_git imports SluiceError from this module
 
     config = load_config(repo_root)
     features_dir = repo_root / FEATURES_DIR
@@ -285,7 +285,7 @@ def resolve_feature(
         slug = feature_arg
         feature_dir = features_dir / slug
         if not feature_dir.is_dir():
-            raise HarnessError(
+            raise SluiceError(
                 ExitCode.NO_FEATURE_RESOLVED,
                 f"no feature folder for --feature {slug!r}. Existing features:\n"
                 + _feature_listing(repo_root),
@@ -296,7 +296,7 @@ def resolve_feature(
         slug = branch[len(BRANCH_PREFIX):]
         feature_dir = features_dir / slug
     else:
-        raise HarnessError(
+        raise SluiceError(
             ExitCode.NO_FEATURE_RESOLVED,
             f"no --feature given and current branch {branch!r} is not a "
             f"{BRANCH_PREFIX}<slug> branch with a matching feature folder. "
@@ -306,7 +306,7 @@ def resolve_feature(
     store = StateStore(feature_dir)
     state = store.load()
     if branch != state.branch and not force:
-        raise HarnessError(
+        raise SluiceError(
             ExitCode.BRANCH_MISMATCH,
             f"current branch {branch!r} does not match the branch recorded for "
             f"feature {slug!r} ({state.branch!r}); switch branches or pass "

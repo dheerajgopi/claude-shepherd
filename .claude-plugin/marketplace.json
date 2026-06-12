@@ -1,12 +1,12 @@
 {
-  "name": "harness-marketplace",
+  "name": "sluice-marketplace",
   "owner": {
     "name": "Dheeraj Gopinath",
     "email": "dheerajgopinath@gmail.com"
   },
   "plugins": [
     {
-      "name": "harness",
+      "name": "sluice",
       "source": "./",
       "description": "Engineering workflow skills and commands for Claude Code, with mechanical guardrails enforced by hooks. Currently ships the strict TDD skill.",
       "author": {

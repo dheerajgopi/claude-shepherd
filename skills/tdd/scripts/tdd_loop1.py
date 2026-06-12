@@ -38,7 +38,7 @@ from tdd_contracts import (
     RunResult,
     RunSpec,
 )
-from tdd_state import FeatureContext, HarnessError, utc_now_iso
+from tdd_state import FeatureContext, SluiceError, utc_now_iso
 
 #: Loop 1 tool surface (§8): read-only exploration + Write scoped by policy.
 LOOP1_ALLOWED_TOOLS = ["Read", "Glob", "Grep", "Write"]
@@ -73,7 +73,7 @@ def _budget_report(ctx: FeatureContext) -> Optional[str]:
     Checks cumulative cost, Loop 1 turns, and wall clock (anchoring
     budgets_spent.started_at on the first-ever run). Returns None when all
     budgets have headroom. The caller decides how to surface an exceeded
-    budget (checkpoint outcome vs. raised HarnessError); the phase is never
+    budget (checkpoint outcome vs. raised SluiceError); the phase is never
     transitioned, so a human can raise the budgets and re-run.
     """
 
@@ -359,14 +359,14 @@ def amend_scenarios(
 
     Phase transitions around amendment are owned by Loop 3 — none happen
     here. Because this is a nested call inside Loop 3's escalation handling,
-    budget exhaustion raises HarnessError(BUDGET_EXCEEDED) with the status
+    budget exhaustion raises SluiceError(BUDGET_EXCEEDED) with the status
     report (Loop 3 lets it propagate to the CLI), and a failed run raises
-    HarnessError(INTERNAL_ERROR).
+    SluiceError(INTERNAL_ERROR).
     """
 
     report = _budget_report(ctx)
     if report is not None:
-        raise HarnessError(ExitCode.BUDGET_EXCEEDED, report)
+        raise SluiceError(ExitCode.BUDGET_EXCEEDED, report)
 
     formatted = (
         f"test_file: {proposal['test_file']}\n"
@@ -386,7 +386,7 @@ def amend_scenarios(
     result = runner.run(_make_spec(ctx, prompt))
     _persist_run(ctx, result)
     if result.is_error:
-        raise HarnessError(
+        raise SluiceError(
             ExitCode.INTERNAL_ERROR,
             "loop1 amendment run failed: "
             + (result.error or "no error message"),

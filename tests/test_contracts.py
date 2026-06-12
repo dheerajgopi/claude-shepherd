@@ -30,7 +30,7 @@ class TestExitCodes:
             ("BUDGET_EXCEEDED", 13),
             ("NO_FEATURE_RESOLVED", 20),
             ("BRANCH_MISMATCH", 21),
-            ("HARNESS_NOT_INITIALIZED", 22),
+            ("SLUICE_NOT_INITIALIZED", 22),
             ("INTERNAL_ERROR", 1),
         ],
     )

@@ -51,7 +51,7 @@ TEST_CONTENT = (
     "    assert pathlib.Path('PASS').exists()\n"
 )
 
-GHERKIN_REL = ".harness/features/user-auth/gherkin/user_auth.feature"
+GHERKIN_REL = ".sluice/features/user-auth/gherkin/user_auth.feature"
 
 MATRIX_COVERED = json.dumps(
     {
@@ -164,7 +164,7 @@ def world(tmp_repo, tmp_path_factory):
     # is unnecessary: PASS is created mid-loop3 and committed by green).
     import yaml
 
-    cfg = tmp_repo / ".harness" / "config.yaml"
+    cfg = tmp_repo / ".sluice" / "config.yaml"
     data = yaml.safe_load(cfg.read_text())
     data["test"]["command"] = PASS_COMMAND
     data["test"]["paths"] = ["tests"]
@@ -173,7 +173,7 @@ def world(tmp_repo, tmp_path_factory):
         ["git", "add", "-A"], cwd=tmp_repo, check=True, capture_output=True
     )
     subprocess.run(
-        ["git", "commit", "-m", "configure harness"],
+        ["git", "commit", "-m", "configure sluice"],
         cwd=tmp_repo, check=True, capture_output=True,
     )
 
@@ -193,7 +193,7 @@ def _subjects(repo: Path) -> list[str]:
 
 def _phase(repo: Path) -> str:
     state = json.loads(
-        (repo / ".harness/features/user-auth/.tdd/state.json").read_text()
+        (repo / ".sluice/features/user-auth/.tdd/state.json").read_text()
     )
     return state["phase"]
 
@@ -261,7 +261,7 @@ class TestCoverageGap:
 
         import yaml
 
-        cfg = repo / ".harness" / "config.yaml"
+        cfg = repo / ".sluice" / "config.yaml"
         data = yaml.safe_load(cfg.read_text())
         data["budgets"]["max_coverage_iterations"] = 1
         cfg.write_text(yaml.safe_dump(data, sort_keys=False))
@@ -272,7 +272,7 @@ class TestCoverageGap:
 
         r = step(["run", "--decision", "approve"], [GEN_TESTS, VERIFY_MISSING])
         assert r.returncode == ExitCode.COVERAGE_GAP, r.stderr
-        gap = repo / ".harness/features/user-auth/.tdd/reports/coverage_gap.md"
+        gap = repo / ".sluice/features/user-auth/.tdd/reports/coverage_gap.md"
         assert gap.is_file()
         assert SCENARIO_ID in gap.read_text()
         assert _phase(repo) == Phase.VERIFYING_COVERAGE.value
@@ -288,7 +288,7 @@ class TestEscalation:
         )
         assert r.returncode == ExitCode.ESCALATED, r.stderr
         assert _phase(repo) == Phase.ESCALATED.value
-        report = repo / ".harness/features/user-auth/.tdd/reports/escalation_1.md"
+        report = repo / ".sluice/features/user-auth/.tdd/reports/escalation_1.md"
         assert report.is_file()
 
     def test_approve_amends_and_creates_red2(self, world) -> None:
@@ -310,7 +310,7 @@ class TestEscalation:
 
         # The renegotiation is auditable: resync revision bump in the matrix.
         matrix = json.loads(
-            (repo / ".harness/features/user-auth/.tdd/traceability.json").read_text()
+            (repo / ".sluice/features/user-auth/.tdd/traceability.json").read_text()
         )
         kinds = [rev["kind"] for rev in matrix["revisions"]]
         assert "resync" in kinds
@@ -333,7 +333,7 @@ class TestBudget:
 
         import yaml
 
-        cfg = repo / ".harness" / "config.yaml"
+        cfg = repo / ".sluice" / "config.yaml"
         data = yaml.safe_load(cfg.read_text())
         data["budgets"]["max_cost_usd"] = 0.001
         cfg.write_text(yaml.safe_dump(data, sort_keys=False))
@@ -364,7 +364,7 @@ class TestTraceabilityGate:
 
         # Tamper: matrix now maps a function that does not exist; make the
         # suite trivially green. A deleted/renamed test must not fake DONE.
-        trace = repo / ".harness/features/user-auth/.tdd/traceability.json"
+        trace = repo / ".sluice/features/user-auth/.tdd/traceability.json"
         trace.write_text(trace.read_text().replace("test_login", "test_ghost"))
         (repo / "PASS").write_text("1")
         subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
@@ -376,7 +376,7 @@ class TestTraceabilityGate:
         assert r.returncode == ExitCode.INTERNAL_ERROR
         assert "traceability" in (r.stdout + r.stderr).lower()
         violation = (
-            repo / ".harness/features/user-auth/.tdd/reports/traceability_violation.md"
+            repo / ".sluice/features/user-auth/.tdd/reports/traceability_violation.md"
         )
         assert violation.is_file()
         assert COMMIT_GREEN.format(slug="user-auth") not in _subjects(repo)

@@ -1,7 +1,7 @@
 """Tests for tdd_loop1 — Loop 1 (Gherkin specification, §8/§10/§12).
 
 Drives run_loop1/amend_scenarios in-process against the conftest fixtures
-(tmp_repo/harness_repo/feature) and a scripted FakeAgentRunner. Script files
+(tmp_repo/sluice_repo/feature) and a scripted FakeAgentRunner. Script files
 live OUTSIDE the fixture repo (tmp_path_factory) so the fake's bookkeeping
 never dirties the working tree.
 """
@@ -25,9 +25,9 @@ from tdd_contracts import (
 )
 from tdd_fake_runner import FakeAgentRunner
 from tdd_loop1 import amend_scenarios, run_loop1
-from tdd_state import HarnessError, StateStore, resolve_feature
+from tdd_state import SluiceError, StateStore, resolve_feature
 
-GHERKIN_REL = ".harness/features/user-auth/gherkin"
+GHERKIN_REL = ".sluice/features/user-auth/gherkin"
 GHERKIN_PROMPT = (
     Path(__file__).resolve().parent.parent
     / "skills" / "tdd" / "references" / "gherkin_prompt.md"
@@ -206,7 +206,7 @@ class TestApprove:
             feature.repo, "show", "--name-only", "--pretty=format:", "HEAD"
         )
         assert f"{GHERKIN_REL}/user-auth.feature" in committed
-        assert ".harness/features/user-auth/task.md" in committed
+        assert ".sluice/features/user-auth/task.md" in committed
         assert "state.json" not in committed
 
 
@@ -281,7 +281,7 @@ class TestBudgetGuard:
         # phase untouched so a human can raise budgets and re-run
         assert _reload(ctx).phase == Phase.DRAFTING_GHERKIN.value
 
-    def test_amend_raises_harness_error_when_over_budget(
+    def test_amend_raises_sluice_error_when_over_budget(
         self, feature, script_dir
     ):
         ctx = _ctx(feature)
@@ -290,7 +290,7 @@ class TestBudgetGuard:
         runner = _runner(script_dir, feature.repo, [])
         proposal = _proposal()
 
-        with pytest.raises(HarnessError) as excinfo:
+        with pytest.raises(SluiceError) as excinfo:
             amend_scenarios(ctx, runner, proposal)
 
         assert excinfo.value.exit_code is ExitCode.BUDGET_EXCEEDED

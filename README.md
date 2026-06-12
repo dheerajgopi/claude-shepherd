@@ -1,4 +1,4 @@
-# harness — skills & commands for Claude Code
+# Sluice — skills & commands for Claude Code
 
 A Claude Code plugin that packages engineering workflows as skills and
 commands. Where a workflow needs hard boundaries, they are **hooks, not
@@ -12,13 +12,13 @@ Pinned contracts (exit codes, schemas, CLI): [docs/contracts.md](docs/contracts.
 
 ```bash
 cd /path/to/your/project
-/path/to/harness/bin/setup.sh
+/path/to/sluice/bin/setup.sh
 ```
 
 Idempotent. It registers the plugin project-scoped in `.claude/settings.json`
-(committed, so teammates get it on pull), bootstraps the `.harness/`
-workspace, and records install state in `.harness/manifest.json`. **Review
-`.harness/config.yaml` afterwards** — especially `test.command` and
+(committed, so teammates get it on pull), bootstraps the `.sluice/`
+workspace, and records install state in `.sluice/manifest.json`. **Review
+`.sluice/config.yaml` afterwards** — especially `test.command` and
 `test.paths`, which feed the enforcement hooks.
 
 Requires: git, Python ≥ 3.10, `claude-agent-sdk` + `pyyaml` importable, and
@@ -26,7 +26,7 @@ the Claude Code CLI authenticated.
 
 ## Skills
 
-### TDD — `/harness:tdd`
+### TDD — `/sluice:tdd`
 
 Drives **strict test-driven development** for one feature at a time through
 three sequential loops:
@@ -45,14 +45,14 @@ Full requirements: [docs/tdd-skill-requirements.md](docs/tdd-skill-requirements.
 In Claude Code, in an installed project:
 
 ```
-/harness:tdd Add rate limiting to the login endpoint
+/sluice:tdd Add rate limiting to the login endpoint
 ```
 
 The command drives the engine and pauses at human checkpoints (scenario
 approval, escalations, coverage gaps). The engine is also usable directly:
 
 ```
-tdd.py init                  # bootstrap .harness (explicit, never silent)
+tdd.py init                  # bootstrap .sluice (explicit, never silent)
 tdd.py new "Add user auth"   # feature folder + tdd/<slug> branch
 tdd.py run [--feature slug]  # the three-loop state machine
 tdd.py status                # phases of all features
@@ -64,7 +64,7 @@ human decisions return via `run --decision approve|reject [--feedback …]`.
 
 What the TDD skill lands in your repo:
 
-- `.harness/` — config, one folder per feature (task statement, approved
+- `.sluice/` — config, one folder per feature (task statement, approved
   `.feature` files, committed traceability matrix + reports; machine-local
   `state.json` is gitignored).
 - Automated commits per feature: `tdd(<slug>): spec` → `red` →
@@ -78,7 +78,7 @@ What the TDD skill lands in your repo:
 ```bash
 uv venv .venv && uv pip install --python .venv/bin/python claude-agent-sdk pytest pyyaml
 .venv/bin/pytest                      # 200+ tests, no API calls (fake SDK seam)
-claude --plugin-dir /path/to/harness  # load the plugin surface in a scratch project
+claude --plugin-dir /path/to/sluice  # load the plugin surface in a scratch project
 ```
 
 Plugin surface: `.claude-plugin/plugin.json`, plus one folder per capability

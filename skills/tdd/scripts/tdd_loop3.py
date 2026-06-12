@@ -705,7 +705,7 @@ def _amend_pipeline(ctx: FeatureContext, runner: AgentRunner) -> LoopOutcome:
             "approval received but no escalation proposal found in reports/",
         )
 
-    # (a) Loop 1 amends only the affected scenarios. HarnessError
+    # (a) Loop 1 amends only the affected scenarios. SluiceError
     #     (e.g. BUDGET_EXCEEDED) propagates to tdd.py's top-level handler.
     amended_ids = tdd_loop1.amend_scenarios(ctx, runner, proposal)
 

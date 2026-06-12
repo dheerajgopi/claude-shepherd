@@ -45,7 +45,7 @@ def fake_env(tmp_path_factory) -> dict:
 
 
 class TestUninitialized:
-    def test_run_without_harness_exits_22(self, tmp_repo, fake_env) -> None:
+    def test_run_without_sluice_exits_22(self, tmp_repo, fake_env) -> None:
         result = run_cli(["run"], tmp_repo, env_extra=fake_env)
         assert result.returncode == 22, result.stderr
 
@@ -55,16 +55,16 @@ class TestInit:
         result = run_cli(["init"], tmp_repo)
         assert result.returncode == 0, result.stderr
 
-        config = tmp_repo / ".harness" / "config.yaml"
+        config = tmp_repo / ".sluice" / "config.yaml"
         assert config.exists()
         text = config.read_text()
         assert "pytest" in text       # detected from pyproject
         assert "tests" in text        # detected testpaths
-        assert (tmp_repo / ".harness" / "features").is_dir()
+        assert (tmp_repo / ".sluice" / "features").is_dir()
 
     def test_init_twice_is_idempotent(self, tmp_repo) -> None:
         assert run_cli(["init"], tmp_repo).returncode == 0
-        config = tmp_repo / ".harness" / "config.yaml"
+        config = tmp_repo / ".sluice" / "config.yaml"
         before = config.read_text()
 
         result = run_cli(["init"], tmp_repo)
@@ -82,7 +82,7 @@ class TestNew:
 
         assert _current_branch(tmp_repo) == "tdd/add-user-auth"
 
-        feature_dir = tmp_repo / ".harness" / "features" / "add-user-auth"
+        feature_dir = tmp_repo / ".sluice" / "features" / "add-user-auth"
         assert feature_dir.is_dir()
         # task.md is the task statement, verbatim (§6).
         assert (feature_dir / "task.md").read_text().strip() == "Add user auth"

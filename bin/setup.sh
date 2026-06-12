@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# setup.sh — per-project installer for the harness plugin (docs/tdd-skill-requirements.md §4).
+# setup.sh — per-project installer for the sluice plugin (docs/tdd-skill-requirements.md §4).
 #
 # Run once from a TARGET project's root:
-#   /path/to/harness/bin/setup.sh           # install (default)
-#   /path/to/harness/bin/setup.sh update    # report upstream vs local drift (no writes)
+#   /path/to/sluice/bin/setup.sh           # install (default)
+#   /path/to/sluice/bin/setup.sh update    # report upstream vs local drift (no writes)
 #
 # Idempotent. Preflight runs before any mutation, so a failure never leaves a
 # half-installed state. Workspace logic lives in `tdd.py init`; this script is
@@ -13,13 +13,13 @@ set -euo pipefail
 
 # --- roots -------------------------------------------------------------------
 
-HARNESS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SLUICE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TARGET_ROOT="$(pwd)"
 
-TDD_PY="$HARNESS_ROOT/skills/tdd/scripts/tdd.py"
+TDD_PY="$SLUICE_ROOT/skills/tdd/scripts/tdd.py"
 SETTINGS_FILE="$TARGET_ROOT/.claude/settings.json"
-MANIFEST_FILE="$TARGET_ROOT/.harness/manifest.json"   # tdd_contracts.MANIFEST_FILE
-CONFIG_FILE="$TARGET_ROOT/.harness/config.yaml"       # tdd_contracts.CONFIG_FILE
+MANIFEST_FILE="$TARGET_ROOT/.sluice/manifest.json"   # tdd_contracts.MANIFEST_FILE
+CONFIG_FILE="$TARGET_ROOT/.sluice/config.yaml"       # tdd_contracts.CONFIG_FILE
 
 # --- helpers -----------------------------------------------------------------
 
@@ -59,7 +59,7 @@ preflight() {
         die "must run from the git repository root.
   You are in:  $TARGET_ROOT
   Repo root:   $git_top
-  Fix: cd \"$git_top\" && \"$HARNESS_ROOT/bin/setup.sh\""
+  Fix: cd \"$git_top\" && \"$SLUICE_ROOT/bin/setup.sh\""
     fi
 
     # 2. python3 >= 3.10.
@@ -77,11 +77,11 @@ preflight() {
   Fix: install uv (https://docs.astral.sh/uv/) or 'python3 -m ensurepip --upgrade'."
     fi
 
-    # 4. claude CLI — warn only; the harness skill/command surface needs it,
+    # 4. claude CLI — warn only; Sluice's skill/command surface needs it,
     #    but setup itself does not.
     if ! command -v claude >/dev/null 2>&1; then
         warn "'claude' CLI not found on PATH.
-  The harness is driven from Claude Code, so you'll need it to use /harness:tdd.
+  Sluice is driven from Claude Code, so you'll need it to use /sluice:tdd.
   Install: npm install -g @anthropic-ai/claude-code  (or see https://docs.claude.com/en/docs/claude-code)"
     fi
 
@@ -98,16 +98,16 @@ preflight() {
 
 # --- capability registration (§4 step 2) --------------------------------------
 
-# Merges the harness plugin into TARGET's project-scoped .claude/settings.json.
+# Merges the sluice plugin into TARGET's project-scoped .claude/settings.json.
 # Embedded python (never jq/sed): the file may carry the team's existing config,
 # so we deep-merge ONLY `enabledPlugins` and leave every other key untouched.
 # A timestamped backup is taken iff the file exists and content will change.
 #
 # TODO(T3-LIVE): validate exact enabledPlugins key shape against a real
-# marketplace install. "harness@local": true (object form) is unverified; if it
+# marketplace install. "sluice@local": true (object form) is unverified; if it
 # turns out wrong, PLUGIN_KEY below is the one-line fix.
 register_plugin() {
-    info "==> Registering harness plugin in .claude/settings.json (project scope)"
+    info "==> Registering sluice plugin in .claude/settings.json (project scope)"
     mkdir -p "$TARGET_ROOT/.claude"
 
     SETTINGS_FILE="$SETTINGS_FILE" python3 - <<'PY'
@@ -117,7 +117,7 @@ import sys
 import time
 
 settings_file = os.environ["SETTINGS_FILE"]
-PLUGIN_KEY = "harness@local"  # TODO(T3-LIVE): see comment above register_plugin
+PLUGIN_KEY = "sluice@local"  # TODO(T3-LIVE): see comment above register_plugin
 
 if os.path.exists(settings_file):
     with open(settings_file, encoding="utf-8") as f:
@@ -176,9 +176,9 @@ PY
 # --- workspace bootstrap (§4 step 3) -------------------------------------------
 
 bootstrap() {
-    info "==> Bootstrapping .harness workspace (tdd.py init)"
+    info "==> Bootstrapping .sluice workspace (tdd.py init)"
     [ -f "$TDD_PY" ] || die "engine script not found: $TDD_PY
-  The harness checkout looks incomplete. Fix: git -C \"$HARNESS_ROOT\" pull (or re-clone)."
+  The Sluice checkout looks incomplete. Fix: git -C \"$SLUICE_ROOT\" pull (or re-clone)."
 
     # init owns the logic (config detection, .gitignore policy, idempotence);
     # propagate its output and stop on any nonzero exit.
@@ -191,16 +191,16 @@ bootstrap() {
 # --- manifest (§4 step 4) -------------------------------------------------------
 
 write_manifest() {
-    info "==> Writing .harness/manifest.json"
+    info "==> Writing .sluice/manifest.json"
 
-    local harness_sha
-    harness_sha="$(git -C "$HARNESS_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
+    local sluice_sha
+    sluice_sha="$(git -C "$SLUICE_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
 
     MANIFEST_FILE="$MANIFEST_FILE" \
     SETTINGS_FILE="$SETTINGS_FILE" \
     CONFIG_FILE="$CONFIG_FILE" \
     TARGET_ROOT="$TARGET_ROOT" \
-    HARNESS_SHA="$harness_sha" \
+    SLUICE_SHA="$sluice_sha" \
     python3 - <<'PY'
 import hashlib
 import json
@@ -213,14 +213,14 @@ def sha256_of(path):
     with open(path, "rb") as f:
         return hashlib.sha256(f.read()).hexdigest()
 
-# artifacts: target-root-relative path -> sha256 (HarnessManifest schema).
+# artifacts: target-root-relative path -> sha256 (SluiceManifest schema).
 artifacts = {}
 for path in (os.environ["SETTINGS_FILE"], os.environ["CONFIG_FILE"]):
     if os.path.exists(path):
         artifacts[os.path.relpath(path, target_root)] = sha256_of(path)
 
 manifest = {
-    "harness_sha": os.environ["HARNESS_SHA"],
+    "sluice_sha": os.environ["SLUICE_SHA"],
     "installed_at": datetime.now(timezone.utc).isoformat(),
     "artifacts": artifacts,
     "schema_version": 1,
@@ -231,7 +231,7 @@ os.makedirs(os.path.dirname(manifest_file), exist_ok=True)
 with open(manifest_file, "w", encoding="utf-8") as f:
     json.dump(manifest, f, indent=2, sort_keys=False)
     f.write("\n")
-print(f"    wrote {manifest_file} (harness_sha {manifest['harness_sha'][:12]})")
+print(f"    wrote {manifest_file} (sluice_sha {manifest['sluice_sha'][:12]})")
 PY
 }
 
@@ -241,23 +241,23 @@ summary() {
     cat <<EOF
 
 ================================================================
-Harness setup complete in: $TARGET_ROOT
+Sluice setup complete in: $TARGET_ROOT
 
 What was done
-  - Registered the harness plugin in .claude/settings.json
+  - Registered the sluice plugin in .claude/settings.json
     (project-scoped; committed, so teammates get it on pull)
-  - Bootstrapped the .harness/ workspace via 'tdd.py init'
-  - Recorded install state in .harness/manifest.json
+  - Bootstrapped the .sluice/ workspace via 'tdd.py init'
+  - Recorded install state in .sluice/manifest.json
 
 What to review (init's detection is a best guess)
-  - .harness/config.yaml -> test.command  (must run your test suite)
-  - .harness/config.yaml -> test.paths    (feeds the TDD edit-boundary hooks;
+  - .sluice/config.yaml -> test.command  (must run your test suite)
+  - .sluice/config.yaml -> test.paths    (feeds the TDD edit-boundary hooks;
     a wrong boundary undermines the safety model)
 
 How to use
-  - Open Claude Code in this project and run:  /harness:tdd
-  - Later, check for harness drift with:
-      "$HARNESS_ROOT/bin/setup.sh" update
+  - Open Claude Code in this project and run:  /sluice:tdd
+  - Later, check for sluice drift with:
+      "$SLUICE_ROOT/bin/setup.sh" update
 ================================================================
 EOF
 }
@@ -265,34 +265,34 @@ EOF
 # --- update (stub: report-only, never overwrites) -------------------------------
 
 cmd_update() {
-    info "==> harness update check (report-only; nothing is modified)"
+    info "==> sluice update check (report-only; nothing is modified)"
     [ -f "$MANIFEST_FILE" ] || die "no manifest at $MANIFEST_FILE.
-  Fix: run \"$HARNESS_ROOT/bin/setup.sh\" (install) first."
+  Fix: run \"$SLUICE_ROOT/bin/setup.sh\" (install) first."
 
-    local harness_sha
-    harness_sha="$(git -C "$HARNESS_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
+    local sluice_sha
+    sluice_sha="$(git -C "$SLUICE_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
 
     MANIFEST_FILE="$MANIFEST_FILE" \
     TARGET_ROOT="$TARGET_ROOT" \
-    HARNESS_SHA="$harness_sha" \
+    SLUICE_SHA="$sluice_sha" \
     python3 - <<'PY'
 import hashlib
 import json
 import os
 
 target_root = os.environ["TARGET_ROOT"]
-current_sha = os.environ["HARNESS_SHA"]
+current_sha = os.environ["SLUICE_SHA"]
 
 with open(os.environ["MANIFEST_FILE"], encoding="utf-8") as f:
     manifest = json.load(f)
 
-recorded_sha = manifest.get("harness_sha", "unknown")
-print(f"    installed harness_sha: {recorded_sha}")
-print(f"    current harness_sha:   {current_sha}")
+recorded_sha = manifest.get("sluice_sha", "unknown")
+print(f"    installed sluice_sha: {recorded_sha}")
+print(f"    current sluice_sha:   {current_sha}")
 if recorded_sha != current_sha:
-    print("    -> upstream harness has changed since install")
+    print("    -> upstream sluice has changed since install")
 else:
-    print("    -> harness unchanged upstream")
+    print("    -> sluice unchanged upstream")
 
 locally_modified = []
 for rel_path, recorded_hash in sorted(manifest.get("artifacts", {}).items()):

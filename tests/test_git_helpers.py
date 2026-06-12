@@ -55,16 +55,16 @@ class TestPlumbing:
 
 
 class TestIsDirty:
-    """Dirty-tree policy (§16): untracked `.harness` files are excepted."""
+    """Dirty-tree policy (§16): untracked `.sluice` files are excepted."""
 
     def test_clean_tree(self, tmp_repo: Path) -> None:
         assert is_dirty(tmp_repo) is False
 
-    def test_untracked_under_harness_is_clean(self, tmp_repo: Path) -> None:
-        harness = tmp_repo / ".harness" / "features" / "x"
-        harness.mkdir(parents=True)
-        (harness / "task.md").write_text("untracked harness file\n")
-        (tmp_repo / ".harness" / "config.yaml").write_text("test: {}\n")
+    def test_untracked_under_sluice_is_clean(self, tmp_repo: Path) -> None:
+        sluice = tmp_repo / ".sluice" / "features" / "x"
+        sluice.mkdir(parents=True)
+        (sluice / "task.md").write_text("untracked sluice file\n")
+        (tmp_repo / ".sluice" / "config.yaml").write_text("test: {}\n")
 
         assert is_dirty(tmp_repo) is False
 
@@ -77,12 +77,12 @@ class TestIsDirty:
         readme.write_text(readme.read_text() + "\nlocal edit\n")
         assert is_dirty(tmp_repo) is True
 
-    def test_modified_tracked_file_under_harness_still_counts(
+    def test_modified_tracked_file_under_sluice_still_counts(
         self, tmp_repo: Path
     ) -> None:
-        # The exception is for UNTRACKED .harness files only; a tracked,
-        # modified file under .harness must count as dirty.
-        cfg = tmp_repo / ".harness" / "config.yaml"
+        # The exception is for UNTRACKED .sluice files only; a tracked,
+        # modified file under .sluice must count as dirty.
+        cfg = tmp_repo / ".sluice" / "config.yaml"
         cfg.parent.mkdir(parents=True)
         cfg.write_text("a: 1\n")
         subprocess.run(

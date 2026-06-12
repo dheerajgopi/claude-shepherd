@@ -1,4 +1,4 @@
-"""Deterministic convention scan for the TDD harness (§6 step 3, §9).
+"""Deterministic convention scan for the TDD sluice (§6 step 3, §9).
 
 Pure-Python file inspection — no agent calls, no guessing. Detects the test
 command, framework, test paths, and an exemplar test file from well-known

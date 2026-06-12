@@ -1,4 +1,4 @@
-"""Shared contracts for the TDD harness engine.
+"""Shared contracts for the TDD sluice engine.
 
 This module is the single source of truth for everything two modules could
 disagree on: exit codes, phases and their legal transitions, on-disk schemas
@@ -30,7 +30,7 @@ class ExitCode(enum.IntEnum):
     BUDGET_EXCEEDED = 13          # turn/cost/time limit hit
     NO_FEATURE_RESOLVED = 20      # no --feature arg, no tdd/<slug> branch
     BRANCH_MISMATCH = 21          # current branch != branch recorded in state
-    HARNESS_NOT_INITIALIZED = 22  # no .harness folder found
+    SLUICE_NOT_INITIALIZED = 22  # no .sluice folder found
 
     # Conventional failure for unexpected errors (not part of the §13 table;
     # the outer command treats any other nonzero code as a hard error).
@@ -106,11 +106,11 @@ COMMIT_GREEN = "tdd({slug}): green — implementation"
 # Workspace layout (§5)
 # ---------------------------------------------------------------------------
 
-HARNESS_DIR = ".harness"
-CONFIG_FILE = ".harness/config.yaml"
-FEATURES_DIR = ".harness/features"
-MANIFEST_FILE = ".harness/manifest.json"
-# Per feature (relative to .harness/features/<slug>/)
+SLUICE_DIR = ".sluice"
+CONFIG_FILE = ".sluice/config.yaml"
+FEATURES_DIR = ".sluice/features"
+MANIFEST_FILE = ".sluice/manifest.json"
+# Per feature (relative to .sluice/features/<slug>/)
 TASK_FILE = "task.md"
 GHERKIN_DIR = "gherkin"
 TDD_DIR = ".tdd"
@@ -122,7 +122,7 @@ BRANCH_PREFIX = "tdd/"  # feature branch = tdd/<slug>
 
 #: .gitignore entries appended by init (§5 version-control policy).
 GITIGNORE_ENTRIES = [
-    ".harness/features/*/.tdd/state.json",
+    ".sluice/features/*/.tdd/state.json",
 ]
 
 
@@ -177,7 +177,7 @@ class BudgetsConfig:
 
 
 @dataclass
-class HarnessConfig:
+class SluiceConfig:
     models: ModelsConfig = field(default_factory=ModelsConfig)
     test: TestConfig = field(default_factory=TestConfig)
     budgets: BudgetsConfig = field(default_factory=BudgetsConfig)
@@ -299,8 +299,8 @@ VERIFIER_TRIAGE_JSON_SCHEMA: dict[str, Any] = {
 
 
 @dataclass
-class HarnessManifest:
-    harness_sha: str                          # git SHA of the harness repo
+class SluiceManifest:
+    sluice_sha: str                          # git SHA of the sluice repo
     installed_at: str                         # ISO-8601 UTC
     artifacts: dict[str, str] = field(default_factory=dict)  # path -> sha256
     schema_version: int = 1
@@ -402,7 +402,7 @@ class LoopOutcome:
 #   tdd_loop2.resync_tests(ctx, runner, scenario_ids: list[str]) -> LoopOutcome
 #   tdd_loop3.run_loop3(ctx, runner, decision: str | None, feedback: str | None) -> LoopOutcome
 #
-# `ctx` is tdd_state.FeatureContext: repo_root, slug, paths, HarnessConfig,
+# `ctx` is tdd_state.FeatureContext: repo_root, slug, paths, SluiceConfig,
 # FeatureState store handle, and git helpers — defined in T1-CORE and kept
 # minimal; loops receive everything through it.
 

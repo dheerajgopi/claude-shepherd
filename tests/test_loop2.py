@@ -1,6 +1,6 @@
 """Tests for tdd_loop2 — test generation + coverage verification (§9, §12).
 
-World-building uses the conftest fixtures (tmp_repo/harness_repo/feature) plus
+World-building uses the conftest fixtures (tmp_repo/sluice_repo/feature) plus
 direct state edits; the agent seam is FakeAgentRunner with per-test scripted
 runs. Loop 1 is never called: loop2 entry is set up by writing a .feature file
 and flipping state.phase to GHERKIN_APPROVED directly.
@@ -28,7 +28,7 @@ from tdd_fake_runner import FakeAgentRunner
 from tdd_state import StateStore, resolve_feature
 from tdd_trace import load_matrix, save_matrix
 
-TESTGEN_MODEL = "claude-sonnet-4-6"   # conftest harness_repo config defaults
+TESTGEN_MODEL = "claude-sonnet-4-6"   # conftest sluice_repo config defaults
 VERIFIER_MODEL = "claude-haiku-4-5"
 
 ONE_SCENARIO_FEATURE = """Feature: User auth
@@ -104,10 +104,10 @@ def _setup_loop2(
     (feature.gherkin_dir / "user_auth.feature").write_text(feature_text)
     # Production .gitignore policy (§5): state.json never lands in commits.
     (feature.repo / ".gitignore").write_text(
-        ".harness/features/*/.tdd/state.json\n"
+        ".sluice/features/*/.tdd/state.json\n"
     )
     if max_iterations is not None:
-        cfg = feature.repo / ".harness" / "config.yaml"
+        cfg = feature.repo / ".sluice" / "config.yaml"
         cfg.write_text(
             cfg.read_text().replace(
                 "max_coverage_iterations: 5",
@@ -182,7 +182,7 @@ class TestHappyPath:
         assert subject == COMMIT_RED.format(slug="user-auth")
         shown = _git(feature.repo, "show", "--name-only", "HEAD")
         assert "tests/test_user_auth.py" in shown
-        assert ".harness/features/user-auth/.tdd/traceability.json" in shown
+        assert ".sluice/features/user-auth/.tdd/traceability.json" in shown
         assert "state.json" not in shown  # gitignored, never committed
 
         state = StateStore(ctx.feature_dir).load()

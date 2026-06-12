@@ -1,9 +1,9 @@
 ---
-description: Run the harness plugin's strict TDD workflow for a feature (Gherkin spec → failing tests → implementation), handling every checkpoint exit code.
+description: Run the sluice plugin's strict TDD workflow for a feature (Gherkin spec → failing tests → implementation), handling every checkpoint exit code.
 argument-hint: [task description or feature slug]
 ---
 
-# /harness:tdd — TDD outer loop
+# /sluice:tdd — TDD outer loop
 
 You drive `tdd.py`, a headless, resumable TDD state machine. It exits with a
 distinct code whenever human input is needed; you interpret the code, gather
@@ -49,7 +49,7 @@ re-invocation.
 | 13 | BUDGET_EXCEEDED | Surface status report |
 | 20 | NO_FEATURE_RESOLVED | Present feature list, re-invoke with `--feature` |
 | 21 | BRANCH_MISMATCH | Warn human; re-invoke with `--force` only if intended |
-| 22 | HARNESS_NOT_INITIALIZED | Offer `tdd.py init`, then review generated config |
+| 22 | SLUICE_NOT_INITIALIZED | Offer `tdd.py init`, then review generated config |
 | 1 | INTERNAL_ERROR | Unexpected failure; surface stderr verbatim |
 
 ## Per-code playbook
@@ -59,7 +59,7 @@ All tests green, traceability intact. Report success to the user, including
 the script's stdout summary. Stop.
 
 ### 10 — AWAITING_APPROVAL (Gherkin drafted/revised)
-1. Read the drafted `.feature` files from `.harness/features/<slug>/gherkin/`.
+1. Read the drafted `.feature` files from `.sluice/features/<slug>/gherkin/`.
 2. Present them to the user via `AskUserQuestion` with options:
    **Approve** / **Give corrections**.
 3. On approve: re-invoke `run --feature <slug> --decision approve`.
@@ -68,11 +68,11 @@ the script's stdout summary. Stop.
    approval.
 
 ### 11 — COVERAGE_GAP
-Read the gap report from `.harness/features/<slug>/.tdd/reports/` and surface
+Read the gap report from `.sluice/features/<slug>/.tdd/reports/` and surface
 its content to the user. Stop — this needs human judgment, not a retry.
 
 ### 12 — ESCALATED (significant test change proposed)
-1. Read the proposal report from `.harness/features/<slug>/.tdd/reports/`.
+1. Read the proposal report from `.sluice/features/<slug>/.tdd/reports/`.
 2. Present it via `AskUserQuestion` with options: **Approve** / **Reject**.
 3. On approve: re-invoke `run --feature <slug> --decision approve`
    (the script amends the affected scenarios via Loop 1 and re-syncs tests).
@@ -81,7 +81,7 @@ its content to the user. Stop — this needs human judgment, not a retry.
 
 ### 13 — BUDGET_EXCEEDED
 Surface the status report (stdout and any report file under
-`.harness/features/<slug>/.tdd/reports/`) to the user. Stop.
+`.sluice/features/<slug>/.tdd/reports/`) to the user. Stop.
 
 ### 20 — NO_FEATURE_RESOLVED
 1. Run `python3 "${CLAUDE_PLUGIN_ROOT}/skills/tdd/scripts/tdd.py" status`.
@@ -94,10 +94,10 @@ feature's state. Only re-invoke with `--force` if the user explicitly confirms
 they intend to proceed on this branch. Otherwise stop (or help them switch to
 the recorded `tdd/<slug>` branch).
 
-### 22 — HARNESS_NOT_INITIALIZED
+### 22 — SLUICE_NOT_INITIALIZED
 1. Offer (via `AskUserQuestion`) to run
    `python3 "${CLAUDE_PLUGIN_ROOT}/skills/tdd/scripts/tdd.py" init`.
-2. After init, show the user the generated `.harness/config.yaml` for review —
+2. After init, show the user the generated `.sluice/config.yaml` for review —
    **especially `test.command` and `test.paths`**, which feed the Loop 2/3
    enforcement hooks; a wrong boundary undermines the safety model.
 3. Once the config is confirmed, resume the original `run` invocation.
@@ -111,7 +111,7 @@ Show stderr verbatim to the user. Stop. Do not retry blindly.
 - Always use long Bash timeouts (600000 ms) for `run`.
 - **Never** create commits matching `tdd(...)` by hand — the script owns them.
 - Never fight the script's PreToolUse hooks or edit
-  `.harness/features/*/.tdd/` files by hand (reading reports is expected).
+  `.sluice/features/*/.tdd/` files by hand (reading reports is expected).
 - `--force` is for exit 21 only.
 - If the user gives a brand-new task statement, first run
   `tdd.py new "<title>"`, then `run --feature <slug>`.

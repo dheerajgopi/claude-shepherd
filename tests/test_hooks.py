@@ -12,7 +12,7 @@ tdd_hooks = pytest.importorskip("tdd_hooks")  # parallel track (T1-HOOKS)
 from tdd_contracts import PathPolicyMode, WRITE_TOOLS  # noqa: E402
 from tdd_hooks import PathPolicy, is_path_allowed, make_pretooluse_hook  # noqa: E402
 
-GHERKIN = ".harness/features/user-auth/gherkin"
+GHERKIN = ".sluice/features/user-auth/gherkin"
 
 
 @pytest.fixture

@@ -1,9 +1,9 @@
-"""Thin git subprocess helpers for the TDD harness (stdlib only).
+"""Thin git subprocess helpers for the TDD sluice (stdlib only).
 
 Every helper shells out to `git` and converts failures into
-HarnessError(INTERNAL_ERROR) carrying git's stderr, so the CLI surfaces them
+SluiceError(INTERNAL_ERROR) carrying git's stderr, so the CLI surfaces them
 verbatim. The dirty-tree rule implements requirement §16: untracked files
-under .harness/ are excepted; any other change counts as dirty.
+under .sluice/ are excepted; any other change counts as dirty.
 """
 
 from __future__ import annotations
@@ -12,14 +12,14 @@ import subprocess
 from pathlib import Path
 from typing import Optional
 
-from tdd_contracts import HARNESS_DIR, ExitCode
-from tdd_state import HarnessError
+from tdd_contracts import SLUICE_DIR, ExitCode
+from tdd_state import SluiceError
 
 
 def git(args: list[str], cwd: Path) -> str:
     """Run `git <args>` in `cwd`; return stripped stdout.
 
-    Raises HarnessError(INTERNAL_ERROR) with git's stderr on any failure.
+    Raises SluiceError(INTERNAL_ERROR) with git's stderr on any failure.
     """
 
     try:
@@ -31,11 +31,11 @@ def git(args: list[str], cwd: Path) -> str:
             text=True,
         )
     except FileNotFoundError as exc:
-        raise HarnessError(
+        raise SluiceError(
             ExitCode.INTERNAL_ERROR, "git executable not found on PATH"
         ) from exc
     except subprocess.CalledProcessError as exc:
-        raise HarnessError(
+        raise SluiceError(
             ExitCode.INTERNAL_ERROR,
             f"git {' '.join(args)} failed (exit {exc.returncode}): "
             f"{(exc.stderr or '').strip()}",
@@ -48,7 +48,7 @@ def repo_root(cwd: Path) -> Optional[Path]:
 
     try:
         return Path(git(["rev-parse", "--show-toplevel"], cwd)).resolve()
-    except HarnessError:
+    except SluiceError:
         return None
 
 
@@ -67,8 +67,8 @@ def head_sha(repo: Path) -> str:
 def is_dirty(repo: Path, excepted_paths: tuple[str, ...] = ()) -> bool:
     """True if the working tree has changes, per the §16 dirty-tree rule.
 
-    Untracked files under .harness/ are ignored; modified tracked files
-    anywhere (including under .harness/) count as dirty. `excepted_paths`
+    Untracked files under .sluice/ are ignored; modified tracked files
+    anywhere (including under .sluice/) count as dirty. `excepted_paths`
     names exact extra paths to ignore in any status (the CLI passes
     ".gitignore", which `init` itself creates or appends to).
     """
@@ -82,9 +82,9 @@ def is_dirty(repo: Path, excepted_paths: tuple[str, ...] = ()) -> bool:
         if path in excepted_paths:
             continue
         if status == "??" and (
-            path == HARNESS_DIR
-            or path == f"{HARNESS_DIR}/"
-            or path.startswith(f"{HARNESS_DIR}/")
+            path == SLUICE_DIR
+            or path == f"{SLUICE_DIR}/"
+            or path.startswith(f"{SLUICE_DIR}/")
         ):
             continue
         return True
@@ -103,7 +103,7 @@ def branch_exists(repo: Path, name: str) -> bool:
     try:
         git(["rev-parse", "--verify", "--quiet", f"refs/heads/{name}"], repo)
         return True
-    except HarnessError:
+    except SluiceError:
         return False
 
 

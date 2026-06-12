@@ -35,7 +35,7 @@ from tdd_contracts import (
 from tdd_fake_runner import FakeAgentRunner
 from tdd_state import StateStore, resolve_feature
 
-IMPLEMENT_MODEL = "claude-sonnet-4-6"  # conftest harness_repo config defaults
+IMPLEMENT_MODEL = "claude-sonnet-4-6"  # conftest sluice_repo config defaults
 VERIFIER_MODEL = "claude-haiku-4-5"
 
 PASS_COMMAND = (
@@ -139,7 +139,7 @@ def _setup_loop3(
 
     (feature.gherkin_dir / "user_auth.feature").write_text(FEATURE_TEXT)
     (feature.repo / ".gitignore").write_text(
-        ".harness/features/*/.tdd/state.json\nfake_script.json*\n"
+        ".sluice/features/*/.tdd/state.json\nfake_script.json*\n"
     )
     (feature.repo / TEST_FILE).parent.mkdir(parents=True, exist_ok=True)
     (feature.repo / TEST_FILE).write_text(TEST_CONTENT)
@@ -148,7 +148,7 @@ def _setup_loop3(
         _trace_json(trace_tests if trace_tests is not None else [f"{TEST_FILE}::test_x"])
     )
 
-    cfg = feature.repo / ".harness" / "config.yaml"
+    cfg = feature.repo / ".sluice" / "config.yaml"
     import yaml
 
     data = yaml.safe_load(cfg.read_text())
@@ -230,7 +230,7 @@ class TestHappyPath:
         assert spec.path_policy_mode is PathPolicyMode.DENY_UNDER
         assert spec.path_policy_paths == [
             "tests",
-            ".harness/features/user-auth/gherkin",
+            ".sluice/features/user-auth/gherkin",
         ]
         assert spec.expose_propose_test_change is True
         assert "## Context" in spec.prompt

@@ -1,6 +1,6 @@
 # TDD skill contracts — the shared vocabulary
 
-Contracts for the harness plugin's TDD skill (other skills will pin their own).
+Contracts for the sluice plugin's TDD skill (other skills will pin their own).
 Source of truth: `skills/tdd/scripts/tdd_contracts.py` (stdlib-only, import it — never re-derive).
 This doc is the prose companion for artifacts that can't import Python (SKILL.md, the command,
 setup.sh, prompts). Requirement references (§n): `docs/tdd-skill-requirements.md`.
@@ -16,7 +16,7 @@ setup.sh, prompts). Requirement references (§n): `docs/tdd-skill-requirements.m
 | 13 | BUDGET_EXCEEDED | Surface status report |
 | 20 | NO_FEATURE_RESOLVED | Present feature list, re-invoke with `--feature` |
 | 21 | BRANCH_MISMATCH | Warn human; re-invoke with `--force` only if intended |
-| 22 | HARNESS_NOT_INITIALIZED | Offer `tdd.py init`, then review generated config |
+| 22 | SLUICE_NOT_INITIALIZED | Offer `tdd.py init`, then review generated config |
 | 1 | INTERNAL_ERROR | Unexpected failure; surface stderr verbatim |
 
 ## CLI grammar (§6) — pinned
@@ -47,8 +47,8 @@ VERIFYING_COVERAGE → RED_COMMITTED → IMPLEMENTING → (ESCALATED → AMENDIN
 
 | Path (per feature) | Schema (contracts module) | Git |
 |---|---|---|
-| `.harness/config.yaml` | `HarnessConfig` | committed |
-| `.harness/manifest.json` | `HarnessManifest` | committed |
+| `.sluice/config.yaml` | `SluiceConfig` | committed |
+| `.sluice/manifest.json` | `SluiceManifest` | committed |
 | `features/<slug>/task.md` | verbatim text | committed |
 | `features/<slug>/gherkin/*.feature` | Gherkin | committed |
 | `features/<slug>/.tdd/state.json` | `FeatureState` | **gitignored** |

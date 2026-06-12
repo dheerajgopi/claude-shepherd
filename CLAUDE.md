@@ -16,7 +16,7 @@ uv venv .venv && uv pip install --python .venv/bin/python claude-agent-sdk pytes
 .venv/bin/pytest tests/test_loop3.py      # one file
 .venv/bin/pytest tests/test_loop3.py -k escalation   # one test by keyword
 
-claude --plugin-dir /path/to/harness      # load the plugin surface in a scratch project
+claude --plugin-dir /path/to/sluice      # load the plugin surface in a scratch project
 bin/setup.sh                              # install into a target project (run from ITS root)
 ```
 
@@ -34,7 +34,7 @@ The TDD engine CLI (run from a target project root): `python3 skills/tdd/scripts
 
 **Automated commits** follow exact format strings: `tdd(<slug>): spec | red | red(<n>) | green` (see contracts module). Nothing outside the engine may create commits matching `tdd(...)`.
 
-**Target-project footprint:** a `.harness/` workspace (config.yaml, manifest.json, one folder per feature; `state.json` is gitignored, traceability + reports are committed) and one `enabledPlugins` entry in `.claude/settings.json`. Branch convention: `tdd/<slug>`.
+**Target-project footprint:** a `.sluice/` workspace (config.yaml, manifest.json, one folder per feature; `state.json` is gitignored, traceability + reports are committed) and one `enabledPlugins` entry in `.claude/settings.json`. Branch convention: `tdd/<slug>`.
 
 ## Test-suite conventions
 
