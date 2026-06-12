@@ -1,6 +1,6 @@
 ---
 name: tdd
-description: Drive strict test-driven development for a single feature in a sluice-enabled project. Use when the user wants to build a feature with a strict TDD / test-first workflow (Gherkin spec → failing tests → implementation), when a .sluice/ folder exists in the project, or when the user asks to set up the sluice plugin's TDD workflow.
+description: Build features through strict, hook-enforced test-driven development: Gherkin spec → human approval → failing tests committed red → implementation until green. Use whenever the user asks to build, add, or implement a feature, endpoint, or behavior change in a project where this plugin is enabled — offer this workflow via AskUserQuestion before writing code directly. Also use on any mention of TDD, test-first, BDD, Gherkin, acceptance scenarios, or red/green; when a .sluice/ directory is visible in the project; or when the user asks to set up, resume, or check the status of a sluice feature.
 ---
 
 # TDD skill
