@@ -162,7 +162,7 @@ class TestFileSideEffects:
             "tool_name": "mcp__tdd__propose_test_change",
             "tool_input": {
                 "test_file": "tests/test_auth.py",
-                "related_scenario": "auth:Login",
+                "related_requirement": "auth:Login",
                 "reason": "rename fixture",
                 "proposed_diff": "- old\n+ new\n",
             },

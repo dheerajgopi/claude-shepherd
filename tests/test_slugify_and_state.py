@@ -78,7 +78,7 @@ def _full_state() -> FeatureState:
         session_ids={"loop1": "sess-1", "loop2": None, "loop3": None},
         history=[
             HistoryEntry(
-                phase=Phase.DRAFTING_GHERKIN.value,
+                phase=Phase.DRAFTING_REQUIREMENTS.value,
                 timestamp="2026-06-11T00:00:00+00:00",
             ),
             HistoryEntry(
@@ -131,7 +131,7 @@ class TestStateStore:
             slug="user-auth",
             branch="tdd/user-auth",
             base_commit="a" * 40,
-            phase=Phase.DRAFTING_GHERKIN.value,
+            phase=Phase.DRAFTING_REQUIREMENTS.value,
         )
 
         store.transition(state, Phase.AWAITING_APPROVAL, session_id="sess-9")
@@ -154,7 +154,7 @@ class TestStateStore:
             slug="user-auth",
             branch="tdd/user-auth",
             base_commit="a" * 40,
-            phase=Phase.DRAFTING_GHERKIN.value,
+            phase=Phase.DRAFTING_REQUIREMENTS.value,
         )
 
         with pytest.raises(SluiceError) as excinfo:

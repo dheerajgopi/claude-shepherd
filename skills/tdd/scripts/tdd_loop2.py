@@ -1,20 +1,20 @@
 """Loop 2 — test generation + coverage verification (§9, §12).
 
-Turns approved Gherkin into executable tests using the `testgen` model, with
-the mechanical ALLOW_ONLY path policy restricting writes to the configured
-test paths, then verifies coverage with the cheap `verifier` model, which
-emits the traceability matrix (scenario → tests). Generation iterates on the
-gaps; full coverage produces the red commit (`tdd(<slug>): red — failing
-tests`) — the recovery anchor created BEFORE Loop 3 begins.
+Turns approved EARS requirements into executable tests using the `testgen`
+model, with the mechanical ALLOW_ONLY path policy restricting writes to the
+configured test paths, then verifies coverage with the cheap `verifier`
+model, which emits the traceability matrix (requirement → tests). Generation
+iterates on the gaps; full coverage produces the red commit (`tdd(<slug>):
+red — failing tests`) — the recovery anchor created BEFORE Loop 3 begins.
 
 Also owns `resync_tests` (§10): after an approved escalation amendment,
-re-sync ONLY the tests mapped to the amended scenarios, bumping their matrix
-revisions. Loop 3 owns the phases and the red(n) commit on that path.
+re-sync ONLY the tests mapped to the amended requirements, bumping their
+matrix revisions. Loop 3 owns the phases and the red(n) commit on that path.
 
 Prompt-cache discipline (§12): the generator session is created once and
 resumed on every subsequent iteration; the first prompt carries the stable
-sections (approved Gherkin, convention scan), later turns append ONLY the
-volatile coverage gaps. The verifier is stateless — one fresh session per
+sections (approved requirements, convention scan), later turns append ONLY
+the volatile coverage gaps. The verifier is stateless — one fresh session per
 pass. System prompts are loaded byte-stable from references/.
 """
 
@@ -31,6 +31,7 @@ from tdd_agent import build_prompt
 from tdd_contracts import (
     COMMIT_RED,
     COVERAGE_COVERED,
+    SPEC_FILE_GLOB,
     WRITE_TOOLS,
     AgentRunner,
     ExitCode,
@@ -38,9 +39,9 @@ from tdd_contracts import (
     LoopStatus,
     PathPolicyMode,
     Phase,
+    RequirementTrace,
     RunResult,
     RunSpec,
-    ScenarioTrace,
     TraceabilityMatrix,
 )
 from tdd_scan import _TEST_FILE_PATTERNS, scan_conventions
@@ -64,9 +65,9 @@ _TEST_FILE_CAP = 20_000     # chars per test file in the verifier prompt
 _GAP_REPORT_NAME = "coverage_gap.md"
 
 _RESYNC_INSTRUCTION = (
-    "The listed scenarios were amended after an approved escalation. Update "
-    "ONLY their mapped tests to match the amended expectations; do not touch "
-    "other tests."
+    "The listed requirements were amended after an approved escalation. "
+    "Update ONLY their mapped tests to match the amended expectations; do "
+    "not touch other tests."
 )
 
 
@@ -180,14 +181,14 @@ def _verifier_spec(ctx: FeatureContext, prompt: str, system_prompt: str) -> RunS
 # ---------------------------------------------------------------------------
 
 
-def _gherkin_content(ctx: FeatureContext) -> str:
-    """All .feature files under gherkin/, sorted, as one section."""
+def _requirements_content(ctx: FeatureContext) -> str:
+    """All EARS spec files under requirements/, sorted, as one section."""
 
     parts = []
-    for path in sorted(ctx.gherkin_dir.rglob("*.feature")):
-        rel = path.relative_to(ctx.gherkin_dir).as_posix()
+    for path in sorted(ctx.requirements_dir.rglob(SPEC_FILE_GLOB)):
+        rel = path.relative_to(ctx.requirements_dir).as_posix()
         parts.append(f"### {rel}\n\n{path.read_text(encoding='utf-8')}")
-    return "\n\n".join(parts) or "(no .feature files found)"
+    return "\n\n".join(parts) or "(no spec files found)"
 
 
 def _scan_summary(ctx: FeatureContext) -> str:
@@ -266,12 +267,12 @@ def _tests_section(ctx: FeatureContext, touched: Iterable[Path]) -> str:
 
 
 def _gap_text(matrix: TraceabilityMatrix) -> str:
-    """Gap section for the resumed generator: non-covered scenarios + notes."""
+    """Gap section for the resumed generator: non-covered requirements + notes."""
 
     lines = []
-    for s in matrix.scenarios:
+    for s in matrix.requirements:
         if s.status != COVERAGE_COVERED or not s.tests:
-            line = f"- {s.scenario_id}: {s.status}"
+            line = f"- {s.requirement_id}: {s.status}"
             if s.notes:
                 line += f" — {s.notes}"
             lines.append(line)
@@ -291,7 +292,7 @@ def _reentry_gap_text(ctx: FeatureContext) -> str:
             return text
     return (
         "Resuming after an interruption. Re-check the generated tests and "
-        "ensure every scenario is fully covered."
+        "ensure every requirement is fully covered."
     )
 
 
@@ -305,7 +306,7 @@ def _verifier_pass(
     runner: AgentRunner,
     system_prompt: str,
     sections: list[tuple[str, str]],
-) -> tuple[Optional[list[ScenarioTrace]], Optional[LoopOutcome], Optional[str]]:
+) -> tuple[Optional[list[RequirementTrace]], Optional[LoopOutcome], Optional[str]]:
     """One verifier pass with a single parse retry.
 
     Returns exactly one of: (parsed traces, None, None) on success,
@@ -346,45 +347,47 @@ def _verifier_pass(
 # ---------------------------------------------------------------------------
 
 
-def _feature_file_exists(ctx: FeatureContext, rel: str) -> bool:
-    return (ctx.gherkin_dir / rel).is_file() or (ctx.repo_root / rel).is_file()
+def _spec_file_exists(ctx: FeatureContext, rel: str) -> bool:
+    return (ctx.requirements_dir / rel).is_file() or (ctx.repo_root / rel).is_file()
 
 
 def _merge_into_matrix(
-    ctx: FeatureContext, matrix: TraceabilityMatrix, parsed: list[ScenarioTrace]
+    ctx: FeatureContext, matrix: TraceabilityMatrix, parsed: list[RequirementTrace]
 ) -> None:
     """Merge a verifier pass into the persistent matrix, preserving revisions.
 
-    Existing scenario_ids keep their `revision` (and the matrix keeps its
+    Existing requirement_ids keep their `revision` (and the matrix keeps its
     revisions log) but take the freshly reported tests/status/notes/
-    feature_file; new ids are appended. Scenarios the verifier no longer
-    reports are removed only when their feature file is gone, else kept with
+    spec_file; new ids are appended. Requirements the verifier no longer
+    reports are removed only when their spec file is gone, else kept with
     a note.
     """
 
-    existing = {s.scenario_id: s for s in matrix.scenarios}
+    existing = {s.requirement_id: s for s in matrix.requirements}
     reported: set[str] = set()
     for trace in parsed:
-        reported.add(trace.scenario_id)
-        old = existing.get(trace.scenario_id)
+        reported.add(trace.requirement_id)
+        old = existing.get(trace.requirement_id)
         if old is not None:
-            old.feature_file = trace.feature_file
+            old.spec_file = trace.spec_file
             old.tests = list(trace.tests)
             old.status = trace.status
             old.notes = trace.notes
         else:
-            matrix.scenarios.append(trace)
+            matrix.requirements.append(trace)
 
-    kept: list[ScenarioTrace] = []
-    for scenario in matrix.scenarios:
-        if scenario.scenario_id in reported:
-            kept.append(scenario)
-        elif _feature_file_exists(ctx, scenario.feature_file):
+    kept: list[RequirementTrace] = []
+    for requirement in matrix.requirements:
+        if requirement.requirement_id in reported:
+            kept.append(requirement)
+        elif _spec_file_exists(ctx, requirement.spec_file):
             stale = "not reported by the verifier in the latest pass"
-            scenario.notes = f"{scenario.notes}; {stale}" if scenario.notes else stale
-            kept.append(scenario)
-        # else: feature file gone — the scenario no longer exists; drop it.
-    matrix.scenarios[:] = kept
+            requirement.notes = (
+                f"{requirement.notes}; {stale}" if requirement.notes else stale
+            )
+            kept.append(requirement)
+        # else: spec file gone — the requirement no longer exists; drop it.
+    matrix.requirements[:] = kept
 
 
 # ---------------------------------------------------------------------------
@@ -398,7 +401,7 @@ def _syntax_errors(ctx: FeatureContext, matrix: TraceabilityMatrix) -> str:
     files = sorted(
         {
             ref.split("::", 1)[0]
-            for s in matrix.scenarios
+            for s in matrix.requirements
             for ref in s.tests
             if "::" in ref
         }
@@ -419,8 +422,8 @@ def _syntax_errors(ctx: FeatureContext, matrix: TraceabilityMatrix) -> str:
 def _red_commit(ctx: FeatureContext, matrix: TraceabilityMatrix) -> LoopOutcome:
     """Full coverage: red commit (§9, BEFORE Loop 3 — the recovery anchor).
 
-    Only test paths are committed; the feature folder (gherkin, traceability)
-    lives under the gitignored .sluice/ workspace.
+    Only test paths are committed; the feature folder (requirements,
+    traceability) lives under the gitignored .sluice/ workspace.
     """
 
     tdd_git.commit_paths(
@@ -434,12 +437,12 @@ def _red_commit(ctx: FeatureContext, matrix: TraceabilityMatrix) -> LoopOutcome:
         Phase.RED_COMMITTED,
         session_id=ctx.state.session_ids.get("loop2"),
     )
-    scenario_count = len(matrix.scenarios)
-    test_count = len({t for s in matrix.scenarios for t in s.tests})
+    requirement_count = len(matrix.requirements)
+    test_count = len({t for s in matrix.requirements for t in s.tests})
     return LoopOutcome(
         LoopStatus.ADVANCE,
         detail=(
-            f"red committed: {scenario_count} scenarios covered by "
+            f"red committed: {requirement_count} requirements covered by "
             f"{test_count} tests"
         ),
     )
@@ -460,10 +463,10 @@ def _write_gap_report(
     report_path = ctx.reports_dir / _GAP_REPORT_NAME
     report_path.write_text(report, encoding="utf-8")
     gaps = [
-        s for s in matrix.scenarios if s.status != COVERAGE_COVERED or not s.tests
+        s for s in matrix.requirements if s.status != COVERAGE_COVERED or not s.tests
     ]
     summary = (
-        f"{len(gaps)} of {len(matrix.scenarios)} scenario(s) not fully covered"
+        f"{len(gaps)} of {len(matrix.requirements)} requirement(s) not fully covered"
     )
     return report_path, summary
 
@@ -497,7 +500,7 @@ def _gap_exit(
 
 
 def run_loop2(ctx: FeatureContext, runner: AgentRunner) -> LoopOutcome:
-    """Generate tests from approved Gherkin and verify coverage (§9)."""
+    """Generate tests from approved requirements and verify coverage (§9)."""
 
     try:
         phase = Phase(ctx.state.phase)
@@ -507,7 +510,7 @@ def run_loop2(ctx: FeatureContext, runner: AgentRunner) -> LoopOutcome:
             ExitCode.INTERNAL_ERROR,
             f"unknown phase {ctx.state.phase!r}",
         )
-    if phase is Phase.GHERKIN_APPROVED:
+    if phase is Phase.REQUIREMENTS_APPROVED:
         ctx.store.transition(ctx.state, Phase.GENERATING_TESTS)
     elif phase not in (Phase.GENERATING_TESTS, Phase.VERIFYING_COVERAGE):
         return LoopOutcome(
@@ -519,7 +522,7 @@ def run_loop2(ctx: FeatureContext, runner: AgentRunner) -> LoopOutcome:
 
     generator_system = TESTGEN_PROMPT_FILE.read_text(encoding="utf-8")
     verifier_system = VERIFIER_PROMPT_FILE.read_text(encoding="utf-8")
-    gherkin = _gherkin_content(ctx)
+    requirements = _requirements_content(ctx)
     scan_summary = _scan_summary(ctx)  # deterministic pre-scan (§9)
 
     gap_text: Optional[str] = None
@@ -538,7 +541,7 @@ def run_loop2(ctx: FeatureContext, runner: AgentRunner) -> LoopOutcome:
         if ctx.state.session_ids.get("loop2") is None:
             # First-ever turn: stable sections only (§12 cache prefix).
             sections = [
-                ("Approved Gherkin", gherkin),
+                ("Approved requirements", requirements),
                 ("Project test conventions", scan_summary),
             ]
         else:
@@ -559,7 +562,7 @@ def run_loop2(ctx: FeatureContext, runner: AgentRunner) -> LoopOutcome:
             session_id=ctx.state.session_ids.get("loop2"),
         )
         verifier_sections = [
-            ("Gherkin", gherkin),
+            ("Requirements", requirements),
             ("Tests", _tests_section(ctx, touched)),
         ]
         parsed, outcome, parse_note = _verifier_pass(
@@ -572,8 +575,8 @@ def run_loop2(ctx: FeatureContext, runner: AgentRunner) -> LoopOutcome:
             iteration_notes.append(f"iteration {iteration}: {parse_note}")
             gap_text = (
                 "The coverage verifier could not produce a parseable matrix "
-                "last iteration. Re-check that every scenario has a clearly "
-                "named test tagged with its `# scenario:` comment.\n"
+                "last iteration. Re-check that every requirement has a clearly "
+                "named test tagged with its `# requirement:` comment.\n"
                 f"({parse_note})"
             )
             continue
@@ -595,7 +598,7 @@ def run_loop2(ctx: FeatureContext, runner: AgentRunner) -> LoopOutcome:
                         f"iteration {iteration}: syntax check failed:\n{errors}"
                     )
                     gap_text = (
-                        "All scenarios are covered, but these test files fail "
+                        "All requirements are covered, but these test files fail "
                         "a syntax-only compile check. Fix the syntax errors in "
                         "the test code itself; import errors for "
                         "not-yet-implemented modules are expected and are NOT "
@@ -617,9 +620,9 @@ def run_loop2(ctx: FeatureContext, runner: AgentRunner) -> LoopOutcome:
 
 
 def resync_tests(
-    ctx: FeatureContext, runner: AgentRunner, scenario_ids: list[str]
+    ctx: FeatureContext, runner: AgentRunner, requirement_ids: list[str]
 ) -> LoopOutcome:
-    """Re-sync ONLY the tests mapped to the amended scenarios (§10).
+    """Re-sync ONLY the tests mapped to the amended requirements (§10).
 
     No phase transitions and no commit here — Loop 3 owns both (the red(n)
     commit per the §15 flow).
@@ -640,34 +643,34 @@ def resync_tests(
     if guard is not None:
         return guard
 
-    ids = list(scenario_ids)
+    ids = list(requirement_ids)
     id_set = set(ids)
-    rows = [s for s in matrix.scenarios if s.scenario_id in id_set]
+    rows = [s for s in matrix.requirements if s.requirement_id in id_set]
 
-    # The .feature files containing the amended scenarios: from their matrix
-    # rows, falling back to the <stem>:<name> convention for unknown ids.
-    feature_files = sorted({s.feature_file for s in rows})
-    known = {s.scenario_id for s in rows}
-    for sid in ids:
-        if sid not in known and ":" in sid:
-            candidate = sid.split(":", 1)[0] + ".feature"
-            if (ctx.gherkin_dir / candidate).is_file() and candidate not in feature_files:
-                feature_files.append(candidate)
+    # The spec files containing the amended requirements: from their matrix
+    # rows, falling back to the <stem>:REQ-<nnn> convention for unknown ids.
+    spec_files = sorted({s.spec_file for s in rows})
+    known = {s.requirement_id for s in rows}
+    for rid in ids:
+        if rid not in known and ":" in rid:
+            candidate = rid.split(":", 1)[0] + ".md"
+            if (ctx.requirements_dir / candidate).is_file() and candidate not in spec_files:
+                spec_files.append(candidate)
 
     amended = "\n\n".join(
-        f"### {name}\n\n{(ctx.gherkin_dir / name).read_text(encoding='utf-8')}"
-        for name in feature_files
-        if (ctx.gherkin_dir / name).is_file()
-    ) or "(no feature files found for the given scenario ids)"
+        f"### {name}\n\n{(ctx.requirements_dir / name).read_text(encoding='utf-8')}"
+        for name in spec_files
+        if (ctx.requirements_dir / name).is_file()
+    ) or "(no spec files found for the given requirement ids)"
     affected = "\n".join(
-        f"- {s.scenario_id} -> {', '.join(s.tests) or '(no tests mapped)'}"
+        f"- {s.requirement_id} -> {', '.join(s.tests) or '(no tests mapped)'}"
         for s in rows
-    ) or "(no matrix rows for the given scenario ids)"
+    ) or "(no matrix rows for the given requirement ids)"
 
     # Generator: resume the loop2 session with the scoped amendment turn.
     generator_system = TESTGEN_PROMPT_FILE.read_text(encoding="utf-8")
     sections = [
-        ("Amended scenarios", amended),
+        ("Amended requirements", amended),
         ("Affected tests", affected),
         ("Instruction", _RESYNC_INSTRUCTION),
     ]
@@ -678,10 +681,10 @@ def resync_tests(
     if failure is not None:
         return failure
 
-    # One verifier pass (full gherkin + all tests: simpler, still correct).
+    # One verifier pass (full requirements + all tests: simpler, still correct).
     verifier_system = VERIFIER_PROMPT_FILE.read_text(encoding="utf-8")
     verifier_sections = [
-        ("Gherkin", _gherkin_content(ctx)),
+        ("Requirements", _requirements_content(ctx)),
         ("Tests", _tests_section(ctx, _touched_paths(result))),
     ]
     parsed, outcome, parse_note = _verifier_pass(
@@ -708,14 +711,14 @@ def resync_tests(
     )
     save_matrix(ctx.feature_dir, matrix)
 
-    affected_rows = [s for s in matrix.scenarios if s.scenario_id in id_set]
+    affected_rows = [s for s in matrix.requirements if s.requirement_id in id_set]
     if affected_rows and all(
         s.status == COVERAGE_COVERED and s.tests for s in affected_rows
     ):
         return LoopOutcome(
             LoopStatus.ADVANCE,
             detail=(
-                f"resync complete: {len(affected_rows)} amended scenario(s) "
+                f"resync complete: {len(affected_rows)} amended requirement(s) "
                 "covered again"
             ),
         )
@@ -724,6 +727,6 @@ def resync_tests(
     return LoopOutcome(
         LoopStatus.CHECKPOINT,
         ExitCode.COVERAGE_GAP,
-        f"{report_path}: amended scenarios not fully covered after resync "
+        f"{report_path}: amended requirements not fully covered after resync "
         f"({summary})",
     )

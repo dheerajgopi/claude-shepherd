@@ -39,8 +39,9 @@ re-invocation.
 All tests green, traceability intact. Report success to the user, including
 the script's stdout summary. Stop.
 
-### 10 — AWAITING_APPROVAL (Gherkin drafted/revised)
-1. Read the drafted `.feature` files from `.sluice/features/<slug>/gherkin/`.
+### 10 — AWAITING_APPROVAL (requirements drafted/revised)
+1. Read the drafted EARS spec (`.md`) files from
+   `.sluice/features/<slug>/requirements/`.
 2. Present them to the user via `AskUserQuestion` with options:
    **Approve** / **Give corrections**.
 3. On approve: re-invoke `run --feature <slug> --decision approve`.
@@ -56,7 +57,7 @@ its content to the user. Stop — this needs human judgment, not a retry.
 1. Read the proposal report from `.sluice/features/<slug>/.tdd/reports/`.
 2. Present it via `AskUserQuestion` with options: **Approve** / **Reject**.
 3. On approve: re-invoke `run --feature <slug> --decision approve`
-   (the script amends the affected scenarios via Loop 1 and re-syncs tests).
+   (the script amends the affected requirements via Loop 1 and re-syncs tests).
 4. On reject: ask why, then re-invoke
    `run --feature <slug> --decision reject --feedback "<why>"`.
 

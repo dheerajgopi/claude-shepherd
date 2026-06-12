@@ -53,7 +53,7 @@ class TestBranchConvention:
         ctx = resolve_feature(feature.repo, None, False)
         assert Path(ctx.repo_root).resolve() == feature.repo.resolve()
         assert Path(ctx.feature_dir).resolve() == feature.feature_dir.resolve()
-        assert Path(ctx.gherkin_dir).resolve() == feature.gherkin_dir.resolve()
+        assert Path(ctx.requirements_dir).resolve() == feature.requirements_dir.resolve()
         assert Path(ctx.tdd_dir).resolve() == feature.tdd_dir.resolve()
         assert ctx.state.slug == "user-auth"
         assert ctx.state.branch == "tdd/user-auth"

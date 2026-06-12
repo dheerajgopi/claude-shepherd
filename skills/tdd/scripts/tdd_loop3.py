@@ -1,7 +1,7 @@
 """Loop 3 — implementation + escalation channel (§10, §12, §15, §16).
 
 Runs the configured test command, feeds failures to the `implement` model
-(main code only — the DENY_UNDER path policy makes test/Gherkin edits
+(main code only — the DENY_UNDER path policy makes test/requirements edits
 mechanically impossible), and repeats until green. All test-modification
 pressure funnels through the `propose_test_change` custom tool: the cheap
 `verifier` model triages each proposal; minor/mechanical changes are applied
@@ -9,7 +9,7 @@ by THIS script (never an agent turn — the "agent cannot edit tests" invariant
 holds), significant or unsure ones escalate with exit 12.
 
 On an approved escalation, control returns to Loop 1 incrementally
-(`tdd_loop1.amend_scenarios`), Loop 2 re-syncs only the affected tests
+(`tdd_loop1.amend_requirements`), Loop 2 re-syncs only the affected tests
 (`tdd_loop2.resync_tests`), a new `red(n)` commit marks the renegotiation,
 and implementation resumes.
 
@@ -142,12 +142,12 @@ def _record_run(
 # ---------------------------------------------------------------------------
 
 
-def _gherkin_rel(ctx: FeatureContext) -> str:
-    return ctx.gherkin_dir.relative_to(ctx.repo_root).as_posix()
+def _requirements_rel(ctx: FeatureContext) -> str:
+    return ctx.requirements_dir.relative_to(ctx.repo_root).as_posix()
 
 
 def _implementer_spec(ctx: FeatureContext, prompt: str) -> RunSpec:
-    """Implementer: resumed loop3 session, DENY_UNDER tests + gherkin (§10)."""
+    """Implementer: resumed loop3 session, DENY_UNDER tests + requirements (§10)."""
 
     remaining = max(
         0.0, ctx.config.budgets.max_cost_usd - ctx.state.budgets_spent.cost_usd
@@ -159,7 +159,7 @@ def _implementer_spec(ctx: FeatureContext, prompt: str) -> RunSpec:
         session_id=ctx.state.session_ids.get("loop3"),
         allowed_tools=["Read", "Glob", "Grep", "Write", "Edit"],
         path_policy_mode=PathPolicyMode.DENY_UNDER,
-        path_policy_paths=[*ctx.config.test.paths, _gherkin_rel(ctx)],
+        path_policy_paths=[*ctx.config.test.paths, _requirements_rel(ctx)],
         expose_propose_test_change=True,
         max_turns=ctx.config.budgets.max_turns_per_loop,
         max_budget_usd=remaining or None,
@@ -208,34 +208,32 @@ def _run_test_command(ctx: FeatureContext) -> tuple[int, str]:
 # ---------------------------------------------------------------------------
 
 
-def _scenario_text(ctx: FeatureContext, scenario_id: str) -> str:
-    """The related scenario's text, located by `<stem>:<name>` convention.
+def _requirement_text(ctx: FeatureContext, requirement_id: str) -> str:
+    """The related requirement's text, located by `<stem>:REQ-<nnn>` convention.
 
-    Falls back to the whole .feature file, then to a not-found note — triage
-    still proceeds (the verifier is told what's missing).
+    Extracts the `## REQ-<nnn>` heading block (up to the next `##` heading)
+    from the spec file. Falls back to the whole spec file, then to a
+    not-found note — triage still proceeds (the verifier is told what's
+    missing).
     """
 
-    stem, _, name = scenario_id.partition(":")
-    path = ctx.gherkin_dir / f"{stem}.feature"
+    stem, _, req_id = requirement_id.partition(":")
+    path = ctx.requirements_dir / f"{stem}.md"
     if not path.is_file():
-        candidates = list(ctx.gherkin_dir.rglob("*.feature"))
+        candidates = list(ctx.requirements_dir.rglob("*.md"))
         if len(candidates) == 1:
             path = candidates[0]
         else:
-            return f"(scenario {scenario_id!r}: feature file not found)"
+            return f"(requirement {requirement_id!r}: spec file not found)"
     content = path.read_text(encoding="utf-8", errors="replace")
-    if name:
+    if req_id:
         pattern = re.compile(
-            rf"^\s*Scenario(?: Outline)?:\s*{re.escape(name.strip())}\s*$",
-            re.MULTILINE,
+            rf"^##\s+{re.escape(req_id.strip())}\b.*$", re.MULTILINE
         )
         match = pattern.search(content)
         if match:
             rest = content[match.start():]
-            nxt = re.search(
-                r"^\s*Scenario(?: Outline)?:", rest[match.end() - match.start():],
-                re.MULTILINE,
-            )
+            nxt = re.search(r"^##\s+", rest[match.end() - match.start():], re.MULTILINE)
             block = rest if nxt is None else rest[: match.end() - match.start() + nxt.start()]
             return block.rstrip()
     return content
@@ -261,11 +259,14 @@ def _triage_proposal(
         (
             "Proposal",
             f"test_file: {proposal.get('test_file', '?')}\n"
-            f"related_scenario: {proposal.get('related_scenario', '?')}\n"
+            f"related_requirement: {proposal.get('related_requirement', '?')}\n"
             f"reason: {proposal.get('reason', '?')}\n\n"
             f"```diff\n{proposal.get('proposed_diff', '')}\n```",
         ),
-        ("Scenario", _scenario_text(ctx, str(proposal.get("related_scenario", "")))),
+        (
+            "Requirement",
+            _requirement_text(ctx, str(proposal.get("related_requirement", ""))),
+        ),
         ("Current test content", test_content),
     ]
 
@@ -444,7 +445,7 @@ def _write_escalation(
         "",
         f"- timestamp: {utc_now_iso()}",
         f"- test_file: {proposal.get('test_file', '?')}",
-        f"- related_scenario: {proposal.get('related_scenario', '?')}",
+        f"- related_requirement: {proposal.get('related_requirement', '?')}",
         f"- reason: {proposal.get('reason', '?')}",
         f"- triage verdict: **{verdict}** — {rationale}",
     ]
@@ -456,7 +457,7 @@ def _write_escalation(
         for extra in also_proposed:
             body.append(
                 f"- {extra.get('test_file', '?')} "
-                f"({extra.get('related_scenario', '?')}): {extra.get('reason', '?')}"
+                f"({extra.get('related_requirement', '?')}): {extra.get('reason', '?')}"
             )
     md_path.write_text("\n".join(body) + "\n", encoding="utf-8")
     json_path.write_text(
@@ -540,7 +541,7 @@ def _process_proposals(
                 if matrix is not None:
                     bump_revisions(
                         matrix,
-                        [str(proposal.get("related_scenario", ""))],
+                        [str(proposal.get("related_requirement", ""))],
                         kind="auto_applied_minor",
                         description=f"{test_file}: {proposal.get('reason', '')}",
                     )
@@ -660,8 +661,8 @@ def _main_cycle(
             sections = [
                 (
                     "Context",
-                    "Implement until the test suite passes. Tests and Gherkin "
-                    "are read-only contracts. Test command: "
+                    "Implement until the test suite passes. Tests and "
+                    "requirements are read-only contracts. Test command: "
                     f"{ctx.config.test.command}",
                 ),
                 ("Test output", output),
@@ -691,7 +692,7 @@ def _main_cycle(
 def _amend_pipeline(ctx: FeatureContext, runner: AgentRunner) -> LoopOutcome:
     """Approved escalation (§10): Loop 1 amend → Loop 2 resync → red(n) →
     back to implementation. Entered from ESCALATED (after the transition to
-    AMENDING_GHERKIN) and from AMENDING_GHERKIN crash recovery.
+    AMENDING_REQUIREMENTS) and from AMENDING_REQUIREMENTS crash recovery.
     """
 
     import tdd_loop1
@@ -705,17 +706,17 @@ def _amend_pipeline(ctx: FeatureContext, runner: AgentRunner) -> LoopOutcome:
             "approval received but no escalation proposal found in reports/",
         )
 
-    # (a) Loop 1 amends only the affected scenarios. SluiceError
+    # (a) Loop 1 amends only the affected requirements. SluiceError
     #     (e.g. BUDGET_EXCEEDED) propagates to tdd.py's top-level handler.
-    amended_ids = tdd_loop1.amend_scenarios(ctx, runner, proposal)
+    amended_ids = tdd_loop1.amend_requirements(ctx, runner, proposal)
 
     # (b) Loop 2 re-syncs only the mapped tests.
     outcome = tdd_loop2.resync_tests(ctx, runner, amended_ids)
     if outcome.status is not LoopStatus.ADVANCE:
-        return outcome  # phase stays AMENDING_GHERKIN; re-run recovers here
+        return outcome  # phase stays AMENDING_REQUIREMENTS; re-run recovers here
 
     # (c) The renegotiation is visible in history: red(n) (§16). Only test
-    #     paths are committed; the amended gherkin stays in gitignored .sluice/.
+    #     paths are committed; the amended spec stays in gitignored .sluice/.
     ctx.state.red_commit_count += 1
     n = ctx.state.red_commit_count
     ctx.store.save(ctx.state)
@@ -738,7 +739,7 @@ def _resolve_escalation(
     feedback: Optional[str],
 ) -> LoopOutcome:
     if decision == "approve":
-        ctx.store.transition(ctx.state, Phase.AMENDING_GHERKIN)
+        ctx.store.transition(ctx.state, Phase.AMENDING_REQUIREMENTS)
         return _amend_pipeline(ctx, runner)
 
     if decision == "reject":
@@ -798,11 +799,11 @@ def run_loop3(
         return _main_cycle(ctx, runner)
     if phase is Phase.ESCALATED:
         return _resolve_escalation(ctx, runner, decision, feedback)
-    if phase is Phase.AMENDING_GHERKIN:
+    if phase is Phase.AMENDING_REQUIREMENTS:
         # Crash recovery mid-amendment: re-run the pipeline from the saved
-        # proposal. amend_scenarios may re-run against already-amended
-        # scenarios; the instruction is idempotent-leaning ("amend ONLY what
-        # the proposal requires") and the resync re-verifies coverage.
+        # proposal. amend_requirements may re-run against already-amended
+        # requirements; the instruction is idempotent-leaning ("amend ONLY
+        # what the proposal requires") and the resync re-verifies coverage.
         return _amend_pipeline(ctx, runner)
     if phase is Phase.GREEN:
         # Crash between the green commit and the DONE transition.

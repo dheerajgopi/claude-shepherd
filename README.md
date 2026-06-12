@@ -32,10 +32,11 @@ Drives **strict test-driven development** for one feature at a time through
 three sequential loops:
 
 1. **Specification** — an agent explores your repo read-only and drafts
-   Gherkin scenarios; a human approves them.
-2. **Test generation** — approved scenarios become executable tests in your
-   existing framework, verified scenario-by-scenario via a traceability
-   matrix, then committed *red* before any implementation exists.
+   EARS requirements (`WHEN …, THE SYSTEM SHALL …`); a human approves them.
+2. **Test generation** — approved requirements become executable tests in
+   your existing framework, verified requirement-by-requirement via a
+   traceability matrix, then committed *red* before any implementation
+   exists.
 3. **Implementation** — an agent edits main code only until the suite is
    green; test edits are mechanically denied and must go through an
    auditable escalation channel.
@@ -48,7 +49,7 @@ In Claude Code, in an installed project:
 /sluice:tdd Add rate limiting to the login endpoint
 ```
 
-The command drives the engine and pauses at human checkpoints (scenario
+The command drives the engine and pauses at human checkpoints (requirements
 approval, escalations, coverage gaps). The engine is also usable directly:
 
 ```
@@ -65,7 +66,7 @@ human decisions return via `run --decision approve|reject [--feedback …]`.
 What the TDD skill lands in your repo:
 
 - `.sluice/` — config, one folder per feature (task statement, approved
-  `.feature` files, traceability matrix + reports, session state). The whole
+  EARS spec files, traceability matrix + reports, session state). The whole
   workspace is gitignored: everything in it is machine-local.
 - Automated commits per feature: `tdd(<slug>): red` →
   [`red(n)` after approved escalations] → `green`. The red commit is the

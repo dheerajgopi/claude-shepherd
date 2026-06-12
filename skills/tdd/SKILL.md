@@ -1,6 +1,6 @@
 ---
 name: tdd
-description: Build features through strict, hook-enforced test-driven development: Gherkin spec → human approval → failing tests committed red → implementation until green. Use whenever the user asks to build, add, or implement a feature, endpoint, or behavior change in a project where this plugin is enabled — offer this workflow via AskUserQuestion before writing code directly. Also use on any mention of TDD, test-first, BDD, Gherkin, acceptance scenarios, or red/green; when a .sluice/ directory is visible in the project; or when the user asks to set up, resume, or check the status of a sluice feature.
+description: Build features through strict, hook-enforced test-driven development: EARS requirements spec → human approval → failing tests committed red → implementation until green. Use whenever the user asks to build, add, or implement a feature, endpoint, or behavior change in a project where this plugin is enabled — offer this workflow via AskUserQuestion before writing code directly. Also use on any mention of TDD, test-first, EARS, requirements spec, acceptance criteria, or red/green; when a .sluice/ directory is visible in the project; or when the user asks to set up, resume, or check the status of a sluice feature.
 ---
 
 # TDD skill
@@ -8,8 +8,8 @@ description: Build features through strict, hook-enforced test-driven developmen
 Drives one feature's full TDD lifecycle through a headless Python orchestrator
 (`tdd.py`, built on the Claude Agent SDK) that runs three sequential loops:
 
-1. **Gherkin specification** — drafts `.feature` files for human approval.
-2. **Test generation** — writes failing tests from approved scenarios, verifies
+1. **EARS specification** — drafts requirements spec files for human approval.
+2. **Test generation** — writes failing tests from approved requirements, verifies
    coverage via a traceability matrix, commits the red state.
 3. **Implementation** — edits main code only until tests are green, then commits.
 
@@ -60,7 +60,7 @@ tdd.py status [--json]
   ```
 
   Note the slug it prints, then `tdd.py run --feature <slug>`. The task
-  statement is the Gherkin agent's ONLY source of requirements — it never
+  statement is the spec agent's ONLY source of requirements — it never
   sees this conversation. Carry over every concrete detail the user stated:
   defaults (page sizes, limits, timeouts), edge cases, error behaviors,
   acceptance criteria. Do not condense to a title; a detail dropped here is

@@ -90,7 +90,7 @@ def sluice_repo(tmp_repo: Path) -> Path:
     (sluice / "features").mkdir(parents=True)
     (sluice / "config.yaml").write_text(
         "models:\n"
-        f"  gherkin: {cfg.models.gherkin}\n"
+        f"  requirements: {cfg.models.requirements}\n"
         f"  testgen: {cfg.models.testgen}\n"
         f"  verifier: {cfg.models.verifier}\n"
         f"  implement: {cfg.models.implement}\n"
@@ -123,9 +123,9 @@ def scaffold_feature(repo: Path, slug: str, *, checkout: bool = True) -> SimpleN
 
     branch = f"tdd/{slug}"
     feature_dir = repo / ".sluice" / "features" / slug
-    gherkin_dir = feature_dir / "gherkin"
+    requirements_dir = feature_dir / "requirements"
     tdd_dir = feature_dir / ".tdd"
-    gherkin_dir.mkdir(parents=True)
+    requirements_dir.mkdir(parents=True)
     (tdd_dir / "reports").mkdir(parents=True)
     (feature_dir / "task.md").write_text(f"Build the {slug} feature.\n")
 
@@ -140,9 +140,9 @@ def scaffold_feature(repo: Path, slug: str, *, checkout: bool = True) -> SimpleN
         slug=slug,
         branch=branch,
         base_commit=base_commit,
-        phase=Phase.DRAFTING_GHERKIN.value,
+        phase=Phase.DRAFTING_REQUIREMENTS.value,
         history=[
-            HistoryEntry(phase=Phase.DRAFTING_GHERKIN.value, timestamp=now)
+            HistoryEntry(phase=Phase.DRAFTING_REQUIREMENTS.value, timestamp=now)
         ],
     )
     state_path = tdd_dir / "state.json"
@@ -153,7 +153,7 @@ def scaffold_feature(repo: Path, slug: str, *, checkout: bool = True) -> SimpleN
         slug=slug,
         branch=branch,
         feature_dir=feature_dir,
-        gherkin_dir=gherkin_dir,
+        requirements_dir=requirements_dir,
         tdd_dir=tdd_dir,
         state_path=state_path,
         base_commit=base_commit,

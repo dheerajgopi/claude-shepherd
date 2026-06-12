@@ -27,7 +27,7 @@ def build_prompt(sections: list[tuple[str, str]]) -> str:
     Each (name, content) pair becomes ``## <name>\\n\\n<content>``.
 
     §12 stability rule: callers MUST order sections stable -> volatile —
-    task statement, approved Gherkin, conventions first; the latest test
+    task statement, approved requirements, conventions first; the latest test
     output LAST — and must NOT embed timestamps or other mutable status in
     early sections. The prompt-cache prefix invalidates everything downstream
     of a changed early block, so early sections must be byte-stable across
@@ -96,7 +96,7 @@ class SdkAgentRunner:
                 "to change tests; direct edits are denied.",
                 {
                     "test_file": str,
-                    "related_scenario": str,
+                    "related_requirement": str,
                     "reason": str,
                     "proposed_diff": str,
                 },

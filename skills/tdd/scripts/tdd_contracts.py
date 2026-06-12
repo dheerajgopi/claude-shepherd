@@ -24,8 +24,8 @@ from typing import Any, Callable, Optional, Protocol
 
 class ExitCode(enum.IntEnum):
     DONE = 0                      # all tests green, traceability intact
-    AWAITING_APPROVAL = 10        # Gherkin drafted/revised, needs human review
-    COVERAGE_GAP = 11             # scenarios uncoverable after max iterations
+    AWAITING_APPROVAL = 10        # requirements drafted/revised, needs human review
+    COVERAGE_GAP = 11             # requirements uncoverable after max iterations
     ESCALATED = 12                # significant test change proposed
     BUDGET_EXCEEDED = 13          # turn/cost/time limit hit
     NO_FEATURE_RESOLVED = 20      # no --feature arg, no tdd/<slug> branch
@@ -43,15 +43,15 @@ class ExitCode(enum.IntEnum):
 
 
 class Phase(str, enum.Enum):
-    DRAFTING_GHERKIN = "DRAFTING_GHERKIN"
+    DRAFTING_REQUIREMENTS = "DRAFTING_REQUIREMENTS"
     AWAITING_APPROVAL = "AWAITING_APPROVAL"
-    GHERKIN_APPROVED = "GHERKIN_APPROVED"
+    REQUIREMENTS_APPROVED = "REQUIREMENTS_APPROVED"
     GENERATING_TESTS = "GENERATING_TESTS"
     VERIFYING_COVERAGE = "VERIFYING_COVERAGE"
     RED_COMMITTED = "RED_COMMITTED"
     IMPLEMENTING = "IMPLEMENTING"
     ESCALATED = "ESCALATED"
-    AMENDING_GHERKIN = "AMENDING_GHERKIN"
+    AMENDING_REQUIREMENTS = "AMENDING_REQUIREMENTS"
     GREEN = "GREEN"
     DONE = "DONE"
     # FAILED_<reason> terminals are stored as FAILED with a reason field in
@@ -62,15 +62,15 @@ class Phase(str, enum.Enum):
 #: Legal phase transitions. The state store must refuse any transition not
 #: listed here (FAILED is reachable from anywhere and is terminal).
 PHASE_TRANSITIONS: dict[Phase, tuple[Phase, ...]] = {
-    Phase.DRAFTING_GHERKIN: (Phase.AWAITING_APPROVAL,),
-    Phase.AWAITING_APPROVAL: (Phase.DRAFTING_GHERKIN, Phase.GHERKIN_APPROVED),
-    Phase.GHERKIN_APPROVED: (Phase.GENERATING_TESTS,),
+    Phase.DRAFTING_REQUIREMENTS: (Phase.AWAITING_APPROVAL,),
+    Phase.AWAITING_APPROVAL: (Phase.DRAFTING_REQUIREMENTS, Phase.REQUIREMENTS_APPROVED),
+    Phase.REQUIREMENTS_APPROVED: (Phase.GENERATING_TESTS,),
     Phase.GENERATING_TESTS: (Phase.VERIFYING_COVERAGE,),
     Phase.VERIFYING_COVERAGE: (Phase.GENERATING_TESTS, Phase.RED_COMMITTED),
     Phase.RED_COMMITTED: (Phase.IMPLEMENTING,),
     Phase.IMPLEMENTING: (Phase.ESCALATED, Phase.GREEN),
-    Phase.ESCALATED: (Phase.AMENDING_GHERKIN, Phase.IMPLEMENTING),
-    Phase.AMENDING_GHERKIN: (Phase.RED_COMMITTED,),
+    Phase.ESCALATED: (Phase.AMENDING_REQUIREMENTS, Phase.IMPLEMENTING),
+    Phase.AMENDING_REQUIREMENTS: (Phase.RED_COMMITTED,),
     Phase.GREEN: (Phase.DONE,),
     Phase.DONE: (),
     Phase.FAILED: (),
@@ -79,15 +79,15 @@ PHASE_TRANSITIONS: dict[Phase, tuple[Phase, ...]] = {
 #: Phases at which `run` may be (re-)entered after a crash or checkpoint exit.
 #: The dispatcher maps each to the loop that owns it.
 RESUMABLE_PHASES: dict[Phase, int] = {
-    Phase.DRAFTING_GHERKIN: 1,
+    Phase.DRAFTING_REQUIREMENTS: 1,
     Phase.AWAITING_APPROVAL: 1,
-    Phase.GHERKIN_APPROVED: 2,
+    Phase.REQUIREMENTS_APPROVED: 2,
     Phase.GENERATING_TESTS: 2,
     Phase.VERIFYING_COVERAGE: 2,
     Phase.RED_COMMITTED: 3,
     Phase.IMPLEMENTING: 3,
     Phase.ESCALATED: 3,
-    Phase.AMENDING_GHERKIN: 3,
+    Phase.AMENDING_REQUIREMENTS: 3,
     Phase.GREEN: 3,
 }
 
@@ -97,7 +97,7 @@ RESUMABLE_PHASES: dict[Phase, int] = {
 # ---------------------------------------------------------------------------
 
 COMMIT_RED = "tdd({slug}): red — failing tests"
-COMMIT_RED_AMENDED = "tdd({slug}): red({n}) — amended scenarios"
+COMMIT_RED_AMENDED = "tdd({slug}): red({n}) — amended requirements"
 COMMIT_GREEN = "tdd({slug}): green — implementation"
 
 
@@ -112,7 +112,13 @@ MANIFEST_FILE = ".sluice/manifest.json"
 # Per feature (relative to .sluice/features/<slug>/). The entire .sluice/
 # workspace is gitignored (§5): every artifact below is machine-local.
 TASK_FILE = "task.md"
-GHERKIN_DIR = "gherkin"
+REQUIREMENTS_DIR = "requirements"
+#: EARS spec files are markdown; one `## REQ-<nnn>: <title>` heading per
+#: requirement, each holding exactly one EARS statement (WHEN/WHILE/WHERE/
+#: IF…THEN/ubiquitous) plus an optional examples table. requirement_id is
+#: "<spec-file-stem>:REQ-<nnn>"; ids are never renumbered or reused.
+SPEC_FILE_GLOB = "*.md"
+REQUIREMENT_HEADING_PATTERN = r"^##\s+(REQ-\d+)\b.*$"
 TDD_DIR = ".tdd"
 STATE_FILE = ".tdd/state.json"
 TRACE_FILE = ".tdd/traceability.json"
@@ -161,7 +167,7 @@ RUNNER_ENV_VAR = "TDD_RUNNER"  # value: "fake:<path-to-script-json>" | unset = r
 
 @dataclass
 class ModelsConfig:
-    gherkin: str = "claude-opus-4-8"
+    requirements: str = "claude-opus-4-8"
     testgen: str = "claude-sonnet-4-6"
     verifier: str = "claude-haiku-4-5"
     implement: str = "claude-sonnet-4-6"
@@ -238,9 +244,9 @@ COVERAGE_STATUSES = (COVERAGE_COVERED, COVERAGE_PARTIAL, COVERAGE_MISSING)
 
 
 @dataclass
-class ScenarioTrace:
-    scenario_id: str                 # "<feature-file-stem>:<scenario name>"
-    feature_file: str                # path relative to gherkin/
+class RequirementTrace:
+    requirement_id: str              # "<spec-file-stem>:REQ-<nnn>"
+    spec_file: str                   # path relative to requirements/
     revision: int                    # bumped on each approved amendment (§10)
     tests: list[str] = field(default_factory=list)  # "path::test_function"
     status: str = COVERAGE_MISSING   # one of COVERAGE_STATUSES
@@ -249,18 +255,18 @@ class ScenarioTrace:
 
 @dataclass
 class TraceRevision:
-    """Audit log entry: any applied test change or scenario amendment."""
+    """Audit log entry: any applied test change or requirement amendment."""
 
     timestamp: str                   # ISO-8601 UTC
     kind: str                        # "auto_applied_minor" | "escalation_approved" | "resync"
-    scenario_ids: list[str] = field(default_factory=list)
+    requirement_ids: list[str] = field(default_factory=list)
     description: str = ""
 
 
 @dataclass
 class TraceabilityMatrix:
     slug: str
-    scenarios: list[ScenarioTrace] = field(default_factory=list)
+    requirements: list[RequirementTrace] = field(default_factory=list)
     revisions: list[TraceRevision] = field(default_factory=list)
     schema_version: int = 1
 
@@ -269,16 +275,16 @@ class TraceabilityMatrix:
 #: verifier_coverage_prompt.md; parsed with bounded retry in Loop 2).
 VERIFIER_MATRIX_JSON_SCHEMA: dict[str, Any] = {
     "type": "object",
-    "required": ["scenarios"],
+    "required": ["requirements"],
     "properties": {
-        "scenarios": {
+        "requirements": {
             "type": "array",
             "items": {
                 "type": "object",
-                "required": ["scenario_id", "feature_file", "tests", "status"],
+                "required": ["requirement_id", "spec_file", "tests", "status"],
                 "properties": {
-                    "scenario_id": {"type": "string"},
-                    "feature_file": {"type": "string"},
+                    "requirement_id": {"type": "string"},
+                    "spec_file": {"type": "string"},
                     "tests": {"type": "array", "items": {"type": "string"}},
                     "status": {"enum": list(COVERAGE_STATUSES)},
                     "notes": {"type": "string"},
@@ -403,9 +409,9 @@ class LoopOutcome:
 # Signatures pinned for the loop modules (implemented in Wave 2):
 #
 #   tdd_loop1.run_loop1(ctx, runner, decision: str | None, feedback: str | None) -> LoopOutcome
-#   tdd_loop1.amend_scenarios(ctx, runner, proposal: dict) -> list[str]   # amended scenario_ids
+#   tdd_loop1.amend_requirements(ctx, runner, proposal: dict) -> list[str]  # amended requirement_ids
 #   tdd_loop2.run_loop2(ctx, runner) -> LoopOutcome
-#   tdd_loop2.resync_tests(ctx, runner, scenario_ids: list[str]) -> LoopOutcome
+#   tdd_loop2.resync_tests(ctx, runner, requirement_ids: list[str]) -> LoopOutcome
 #   tdd_loop3.run_loop3(ctx, runner, decision: str | None, feedback: str | None) -> LoopOutcome
 #
 # `ctx` is tdd_state.FeatureContext: repo_root, slug, paths, SluiceConfig,

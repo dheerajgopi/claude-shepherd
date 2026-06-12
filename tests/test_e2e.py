@@ -8,7 +8,7 @@ chaining → exit codes at the process boundary → commit choreography.
 
 The scratch project's test command is the PASS-marker trick: it exits 0 iff
 a PASS file exists at the repo root, so scripted implementer runs flip
-red → green by writing PASS (allowed under DENY_UNDER tests/+gherkin).
+red → green by writing PASS (allowed under DENY_UNDER tests/+requirements).
 """
 
 from __future__ import annotations
@@ -33,31 +33,32 @@ PASS_COMMAND = (
     "sys.exit(0 if pathlib.Path('PASS').exists() else 1)\""
 )
 
-SCENARIO_ID = "user_auth:Login succeeds"
+REQUIREMENT_ID = "user_auth:REQ-001"
 
-FEATURE_TEXT = """Feature: User auth
+SPEC_TEXT = """# User auth
 
-  Scenario: Login succeeds
-    Given a registered user
-    When they submit valid credentials
-    Then they are logged in
+Rationale: pin the login behavior.
+
+## REQ-001: Login succeeds
+
+WHEN a registered user submits valid credentials, THE SYSTEM SHALL log them in.
 """
 
 TEST_CONTENT = (
-    "# scenario: user_auth:Login succeeds\n"
+    "# requirement: user_auth:REQ-001\n"
     "import pathlib\n\n"
     "def test_login():\n"
     "    assert pathlib.Path('PASS').exists()\n"
 )
 
-GHERKIN_REL = ".sluice/features/user-auth/gherkin/user_auth.feature"
+SPEC_REL = ".sluice/features/user-auth/requirements/user_auth.md"
 
 MATRIX_COVERED = json.dumps(
     {
-        "scenarios": [
+        "requirements": [
             {
-                "scenario_id": SCENARIO_ID,
-                "feature_file": "user_auth.feature",
+                "requirement_id": REQUIREMENT_ID,
+                "spec_file": "user_auth.md",
                 "tests": ["tests/test_user_auth.py::test_login"],
                 "status": "covered",
             }
@@ -67,10 +68,10 @@ MATRIX_COVERED = json.dumps(
 
 MATRIX_MISSING = json.dumps(
     {
-        "scenarios": [
+        "requirements": [
             {
-                "scenario_id": SCENARIO_ID,
-                "feature_file": "user_auth.feature",
+                "requirement_id": REQUIREMENT_ID,
+                "spec_file": "user_auth.md",
                 "tests": [],
                 "status": "missing",
                 "notes": "nothing exercises login",
@@ -81,10 +82,10 @@ MATRIX_MISSING = json.dumps(
 
 # Scripted runs, by role -----------------------------------------------------
 
-DRAFT_GHERKIN = {
-    "text": "Drafted. Scenario: Login succeeds — happy-path login.",
+DRAFT_REQUIREMENTS = {
+    "text": "Drafted. REQ-001: Login succeeds — happy-path login.",
     "session_id": "l1-sess",
-    "files": [{"path": GHERKIN_REL, "content": FEATURE_TEXT}],
+    "files": [{"path": SPEC_REL, "content": SPEC_TEXT}],
 }
 GEN_TESTS = {
     "text": "tests written",
@@ -109,7 +110,7 @@ def _propose(reason: str) -> dict:
                 "tool_name": "propose_test_change",
                 "tool_input": {
                     "test_file": "tests/test_user_auth.py",
-                    "related_scenario": SCENARIO_ID,
+                    "related_requirement": REQUIREMENT_ID,
                     "reason": reason,
                     "proposed_diff": "@@ -4,1 +4,1 @@\n-    assert pathlib.Path('PASS').exists()\n+    assert True\n",
                 },
@@ -122,10 +123,10 @@ def _verdict(v: str) -> dict:
     return {"text": json.dumps({"verdict": v, "rationale": f"{v} per triage"})}
 
 
-AMEND_GHERKIN = {
-    "text": f"done\nAMENDED: {SCENARIO_ID}",
+AMEND_REQUIREMENTS = {
+    "text": f"done\nAMENDED: {REQUIREMENT_ID}",
     "session_id": "l1-sess",
-    "files": [{"path": GHERKIN_REL, "content": FEATURE_TEXT + "    # amended\n"}],
+    "files": [{"path": SPEC_REL, "content": SPEC_TEXT + "    # amended\n"}],
 }
 RESYNC_TESTS = {
     "text": "resynced",
@@ -205,9 +206,9 @@ class TestHappyPath:
         repo, step = world
 
         # 1. Draft → checkpoint 10.
-        r = step(["run"], [DRAFT_GHERKIN])
+        r = step(["run"], [DRAFT_REQUIREMENTS])
         assert r.returncode == ExitCode.AWAITING_APPROVAL, r.stderr
-        assert "user_auth.feature" in r.stdout
+        assert "user_auth.md" in r.stdout
         assert _phase(repo) == Phase.AWAITING_APPROVAL.value
 
         # 2. Approve → loop2 (gen+verify+red), loop3 (impl+green); no spec
@@ -240,10 +241,10 @@ class TestHappyPath:
     def test_correction_cycle_resumes_session(self, world) -> None:
         repo, step = world
 
-        r = step(["run"], [DRAFT_GHERKIN])
+        r = step(["run"], [DRAFT_REQUIREMENTS])
         assert r.returncode == ExitCode.AWAITING_APPROVAL
 
-        r = step(["run", "--feedback", "split the scenario"], [DRAFT_GHERKIN])
+        r = step(["run", "--feedback", "split the requirement"], [DRAFT_REQUIREMENTS])
         assert r.returncode == ExitCode.AWAITING_APPROVAL
         assert _phase(repo) == Phase.AWAITING_APPROVAL.value
 
@@ -256,7 +257,7 @@ class TestHappyPath:
 
 
 class TestCoverageGap:
-    def test_uncoverable_scenarios_exit_11(self, world) -> None:
+    def test_uncoverable_requirements_exit_11(self, world) -> None:
         repo, step = world
 
         import yaml
@@ -267,20 +268,20 @@ class TestCoverageGap:
         cfg.write_text(yaml.safe_dump(data, sort_keys=False))
         # config.yaml is gitignored with the rest of .sluice/ — no commit needed.
 
-        r = step(["run"], [DRAFT_GHERKIN])
+        r = step(["run"], [DRAFT_REQUIREMENTS])
         assert r.returncode == ExitCode.AWAITING_APPROVAL
 
         r = step(["run", "--decision", "approve"], [GEN_TESTS, VERIFY_MISSING])
         assert r.returncode == ExitCode.COVERAGE_GAP, r.stderr
         gap = repo / ".sluice/features/user-auth/.tdd/reports/coverage_gap.md"
         assert gap.is_file()
-        assert SCENARIO_ID in gap.read_text()
+        assert REQUIREMENT_ID in gap.read_text()
         assert _phase(repo) == Phase.VERIFYING_COVERAGE.value
 
 
 class TestEscalation:
     def _to_escalated(self, repo, step) -> None:
-        r = step(["run"], [DRAFT_GHERKIN])
+        r = step(["run"], [DRAFT_REQUIREMENTS])
         assert r.returncode == ExitCode.AWAITING_APPROVAL
         r = step(
             ["run", "--decision", "approve"],
@@ -298,7 +299,7 @@ class TestEscalation:
         # Approve: loop1 amend, loop2 resync (gen+verify), loop3 to green.
         r = step(
             ["run", "--decision", "approve"],
-            [AMEND_GHERKIN, RESYNC_TESTS, VERIFY_COVERED, IMPLEMENT_GREEN],
+            [AMEND_REQUIREMENTS, RESYNC_TESTS, VERIFY_COVERED, IMPLEMENT_GREEN],
         )
         assert r.returncode == ExitCode.DONE, r.stderr
 
@@ -341,7 +342,7 @@ class TestBudget:
 
         # First draft run spends 0.01 (fake default) > 0.001 → the NEXT
         # invocation's guard trips before any run.
-        r = step(["run"], [DRAFT_GHERKIN])
+        r = step(["run"], [DRAFT_REQUIREMENTS])
         assert r.returncode == ExitCode.AWAITING_APPROVAL
         r = step(["run", "--feedback", "more"], [])
         assert r.returncode == ExitCode.BUDGET_EXCEEDED, r.stderr
@@ -352,7 +353,7 @@ class TestTraceabilityGate:
     def test_tampered_matrix_blocks_green(self, world) -> None:
         repo, step = world
 
-        r = step(["run"], [DRAFT_GHERKIN])
+        r = step(["run"], [DRAFT_REQUIREMENTS])
         assert r.returncode == ExitCode.AWAITING_APPROVAL
         # Stop right after red: loop3's first implement run errors out.
         r = step(
@@ -389,7 +390,7 @@ class TestCrashRecovery:
 
         repo, step = world
 
-        r = step(["run"], [DRAFT_GHERKIN])
+        r = step(["run"], [DRAFT_REQUIREMENTS])
         assert r.returncode == ExitCode.AWAITING_APPROVAL
         before = len(_subjects(repo))
 

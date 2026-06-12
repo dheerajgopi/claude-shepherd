@@ -32,7 +32,7 @@ from tdd_contracts import (
     DECISION_APPROVE,
     DECISION_REJECT,
     FEATURES_DIR,
-    GHERKIN_DIR,
+    REQUIREMENTS_DIR,
     GITIGNORE_ENTRIES,
     SLUICE_DIR,
     REPORTS_DIR,
@@ -208,7 +208,7 @@ def cmd_new(title: str, task_stdin: bool = False) -> int:
 
     base_commit = tdd_git.head_sha(root)
     tdd_git.create_branch(root, branch)
-    (feature_dir / GHERKIN_DIR).mkdir(parents=True)
+    (feature_dir / REQUIREMENTS_DIR).mkdir(parents=True)
     (feature_dir / REPORTS_DIR).mkdir(parents=True)
     (feature_dir / TASK_FILE).write_text(
         task_text.rstrip("\n") + "\n", encoding="utf-8"
@@ -218,9 +218,9 @@ def cmd_new(title: str, task_stdin: bool = False) -> int:
         slug=slug,
         branch=branch,
         base_commit=base_commit,
-        phase=Phase.DRAFTING_GHERKIN.value,
+        phase=Phase.DRAFTING_REQUIREMENTS.value,
         history=[
-            HistoryEntry(phase=Phase.DRAFTING_GHERKIN.value, timestamp=utc_now_iso())
+            HistoryEntry(phase=Phase.DRAFTING_REQUIREMENTS.value, timestamp=utc_now_iso())
         ],
     )
     StateStore(feature_dir).save(state)

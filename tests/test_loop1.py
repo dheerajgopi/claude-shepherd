@@ -1,6 +1,6 @@
-"""Tests for tdd_loop1 — Loop 1 (Gherkin specification, §8/§10/§12).
+"""Tests for tdd_loop1 — Loop 1 (EARS requirements specification, §8/§10/§12).
 
-Drives run_loop1/amend_scenarios in-process against the conftest fixtures
+Drives run_loop1/amend_requirements in-process against the conftest fixtures
 (tmp_repo/sluice_repo/feature) and a scripted FakeAgentRunner. Script files
 live OUTSIDE the fixture repo (tmp_path_factory) so the fake's bookkeeping
 never dirties the working tree.
@@ -23,26 +23,31 @@ from tdd_contracts import (
     Phase,
 )
 from tdd_fake_runner import FakeAgentRunner
-from tdd_loop1 import amend_scenarios, run_loop1
+from tdd_loop1 import amend_requirements, run_loop1
 from tdd_state import SluiceError, StateStore, resolve_feature
 
-GHERKIN_REL = ".sluice/features/user-auth/gherkin"
-GHERKIN_PROMPT = (
+REQUIREMENTS_REL = ".sluice/features/user-auth/requirements"
+REQUIREMENTS_PROMPT = (
     Path(__file__).resolve().parent.parent
-    / "skills" / "tdd" / "references" / "gherkin_prompt.md"
+    / "skills" / "tdd" / "references" / "requirements_prompt.md"
 )
 
-#: A scripted draft run: one .feature inside gherkin/ plus one write OUTSIDE
-#: the policy paths (must be denied by the REAL ALLOW_ONLY policy).
+#: A scripted draft run: one spec file inside requirements/ plus one write
+#: OUTSIDE the policy paths (must be denied by the REAL ALLOW_ONLY policy).
 DRAFT_RUN = {
-    "text": "Drafted.\n- Login succeeds: happy path login",
+    "text": "Drafted.\n- REQ-001 Login succeeds: happy path login",
     "session_id": "sess-l1",
     "cost_usd": 0.42,
     "num_turns": 5,
     "files": [
         {
-            "path": f"{GHERKIN_REL}/user-auth.feature",
-            "content": "Feature: User auth\n  Scenario: Login succeeds\n",
+            "path": f"{REQUIREMENTS_REL}/user-auth.md",
+            "content": (
+                "# User auth\n\n"
+                "## REQ-001: Login succeeds\n\n"
+                "WHEN valid credentials are submitted, "
+                "THE SYSTEM SHALL start a session.\n"
+            ),
         },
         {"path": "src/evil.py", "content": "# must never land\n"},
     ],
@@ -93,7 +98,7 @@ class TestFreshDraft:
         assert outcome.status is LoopStatus.CHECKPOINT
         assert outcome.exit_code is ExitCode.AWAITING_APPROVAL
         assert int(outcome.exit_code) == 10
-        assert f"{GHERKIN_REL}/user-auth.feature" in outcome.detail
+        assert f"{REQUIREMENTS_REL}/user-auth.md" in outcome.detail
         assert "--decision approve" in outcome.detail
 
         state = _reload(ctx)
@@ -112,8 +117,8 @@ class TestFreshDraft:
 
         run_loop1(ctx, runner, None, None)
 
-        assert (feature.gherkin_dir / "user-auth.feature").is_file()
-        # the write outside gherkin/ was denied by the real ALLOW_ONLY policy
+        assert (feature.requirements_dir / "user-auth.md").is_file()
+        # the write outside requirements/ was denied by the real ALLOW_ONLY policy
         assert not (feature.repo / "src" / "evil.py").exists()
 
     def test_runspec_fields(self, feature, script_dir):
@@ -124,11 +129,11 @@ class TestFreshDraft:
 
         (spec,) = runner.received
         assert spec.session_id is None  # first-ever run starts a new session
-        assert spec.model == ctx.config.models.gherkin
-        assert spec.system_prompt == GHERKIN_PROMPT.read_text(encoding="utf-8")
+        assert spec.model == ctx.config.models.requirements
+        assert spec.system_prompt == REQUIREMENTS_PROMPT.read_text(encoding="utf-8")
         assert spec.allowed_tools == ["Read", "Glob", "Grep", "Write"]
         assert spec.path_policy_mode is PathPolicyMode.ALLOW_ONLY
-        assert spec.path_policy_paths == [GHERKIN_REL]
+        assert spec.path_policy_paths == [REQUIREMENTS_REL]
         assert spec.max_turns == ctx.config.budgets.max_turns_per_loop
         assert spec.max_budget_usd == pytest.approx(
             ctx.config.budgets.max_cost_usd
@@ -146,7 +151,7 @@ class TestFreshDraft:
         assert prompt.startswith("## Task\n\n" + task_text)
         assert "## Feature" in prompt
         assert f"Slug: {feature.slug}" in prompt
-        assert str(feature.gherkin_dir) in prompt
+        assert str(feature.requirements_dir) in prompt
 
     def test_runner_error_fails_internal_error(self, feature, script_dir):
         ctx = _ctx(feature)
@@ -163,13 +168,13 @@ class TestFreshDraft:
         assert outcome.exit_code is ExitCode.INTERNAL_ERROR
         state = _reload(ctx)
         # run accounting persisted even on error; phase NOT transitioned
-        assert state.phase == Phase.DRAFTING_GHERKIN.value
+        assert state.phase == Phase.DRAFTING_REQUIREMENTS.value
         assert state.session_ids["loop1"] == "sess-err"
         assert state.budgets_spent.cost_usd == pytest.approx(0.05)
 
 
 class TestApprove:
-    def test_approve_without_feature_files_fails(self, feature, script_dir):
+    def test_approve_without_spec_files_fails(self, feature, script_dir):
         ctx = _ctx(feature)
         _set_phase(ctx, Phase.AWAITING_APPROVAL)
         runner = _runner(script_dir, feature.repo, [])
@@ -198,12 +203,12 @@ class TestApprove:
 
         assert outcome.status is LoopStatus.ADVANCE
         assert outcome.detail == "spec approved"
-        assert _reload(ctx).phase == Phase.GHERKIN_APPROVED.value
+        assert _reload(ctx).phase == Phase.REQUIREMENTS_APPROVED.value
 
         # No spec commit: .sluice/ is gitignored, the spec stays machine-local.
         commits_after = _git(feature.repo, "rev-list", "--count", "HEAD").strip()
         assert commits_after == commits_before
-        assert (feature.repo / f"{GHERKIN_REL}/user-auth.feature").is_file()
+        assert (feature.repo / f"{REQUIREMENTS_REL}/user-auth.md").is_file()
 
 
 class TestFeedback:
@@ -218,7 +223,7 @@ class TestFeedback:
         )
         run_loop1(ctx, runner, None, None)
 
-        outcome = run_loop1(ctx, runner, "reject", "Add a lockout scenario")
+        outcome = run_loop1(ctx, runner, "reject", "Add a lockout requirement")
 
         assert outcome.status is LoopStatus.CHECKPOINT
         assert outcome.exit_code is ExitCode.AWAITING_APPROVAL
@@ -227,24 +232,24 @@ class TestFeedback:
         second = runner.received[1]
         assert second.session_id == "sess-l1"  # resumed the persisted session
         assert "## Reviewer feedback" in second.prompt
-        assert "Add a lockout scenario" in second.prompt
+        assert "Add a lockout requirement" in second.prompt
 
         state = _reload(ctx)
         assert state.phase == Phase.AWAITING_APPROVAL.value
         assert state.budgets_spent.cost_usd == pytest.approx(0.52)
         assert state.budgets_spent.turns_loop1 == 7
-        # phase cycled AWAITING_APPROVAL -> DRAFTING_GHERKIN -> AWAITING_APPROVAL
+        # phase cycled AWAITING_APPROVAL -> DRAFTING_REQUIREMENTS -> AWAITING_APPROVAL
         phases = [h.phase for h in state.history]
         assert phases[-2:] == [
-            Phase.DRAFTING_GHERKIN.value,
+            Phase.DRAFTING_REQUIREMENTS.value,
             Phase.AWAITING_APPROVAL.value,
         ]
 
     def test_awaiting_with_no_input_is_idempotent(self, feature, script_dir):
         ctx = _ctx(feature)
         _set_phase(ctx, Phase.AWAITING_APPROVAL)
-        (feature.gherkin_dir / "user-auth.feature").write_text(
-            "Feature: User auth\n"
+        (feature.requirements_dir / "user-auth.md").write_text(
+            "## REQ-001: Login succeeds\n"
         )
         runner = _runner(script_dir, feature.repo, [])
 
@@ -253,7 +258,7 @@ class TestFeedback:
         assert outcome.status is LoopStatus.CHECKPOINT
         assert outcome.exit_code is ExitCode.AWAITING_APPROVAL
         assert "awaiting review" in outcome.detail.lower()
-        assert f"{GHERKIN_REL}/user-auth.feature" in outcome.detail
+        assert f"{REQUIREMENTS_REL}/user-auth.md" in outcome.detail
         assert runner.received == []  # no agent run consumed
         assert _reload(ctx).phase == Phase.AWAITING_APPROVAL.value
 
@@ -275,7 +280,7 @@ class TestBudgetGuard:
         assert "cost" in outcome.detail
         assert runner.received == []  # NO run consumed
         # phase untouched so a human can raise budgets and re-run
-        assert _reload(ctx).phase == Phase.DRAFTING_GHERKIN.value
+        assert _reload(ctx).phase == Phase.DRAFTING_REQUIREMENTS.value
 
     def test_amend_raises_sluice_error_when_over_budget(
         self, feature, script_dir
@@ -287,7 +292,7 @@ class TestBudgetGuard:
         proposal = _proposal()
 
         with pytest.raises(SluiceError) as excinfo:
-            amend_scenarios(ctx, runner, proposal)
+            amend_requirements(ctx, runner, proposal)
 
         assert excinfo.value.exit_code is ExitCode.BUDGET_EXCEEDED
         assert runner.received == []
@@ -309,13 +314,13 @@ class TestWrongPhase:
 def _proposal() -> dict:
     return {
         "test_file": "tests/test_auth.py",
-        "related_scenario": "user-auth:Login succeeds",
+        "related_requirement": "user-auth:REQ-001",
         "reason": "assertion encodes the wrong lockout threshold",
         "proposed_diff": "- assert attempts == 3\n+ assert attempts == 5\n",
     }
 
 
-class TestAmendScenarios:
+class TestAmendRequirements:
     def test_parses_amended_line(self, feature, script_dir):
         ctx = _ctx(feature)
         ctx.state.session_ids["loop1"] = "sess-l1"
@@ -324,21 +329,21 @@ class TestAmendScenarios:
             script_dir,
             feature.repo,
             [{
-                "text": "Edited the scenario.\n"
-                        "AMENDED: user-auth:Login succeeds, user-auth:Lockout",
+                "text": "Edited the requirement.\n"
+                        "AMENDED: user-auth:REQ-001, user-auth:REQ-002",
                 "session_id": "sess-l1",
                 "cost_usd": 0.2,
                 "num_turns": 3,
             }],
         )
 
-        ids = amend_scenarios(ctx, runner, _proposal())
+        ids = amend_requirements(ctx, runner, _proposal())
 
-        assert ids == ["user-auth:Login succeeds", "user-auth:Lockout"]
+        assert ids == ["user-auth:REQ-001", "user-auth:REQ-002"]
         (spec,) = runner.received
         assert spec.session_id == "sess-l1"  # resumed the Loop 1 session
         assert spec.path_policy_mode is PathPolicyMode.ALLOW_ONLY
-        assert spec.path_policy_paths == [GHERKIN_REL]
+        assert spec.path_policy_paths == [REQUIREMENTS_REL]
         assert "## Approved test-change proposal" in spec.prompt
         assert "```diff" in spec.prompt
         assert "AMENDED:" in spec.prompt  # the instruction names the marker
@@ -347,9 +352,9 @@ class TestAmendScenarios:
         assert state.budgets_spent.cost_usd == pytest.approx(0.2)
         assert state.budgets_spent.turns_loop1 == 3
         # phase transitions around amendment are owned by Loop 3
-        assert state.phase == Phase.DRAFTING_GHERKIN.value
+        assert state.phase == Phase.DRAFTING_REQUIREMENTS.value
 
-    def test_falls_back_to_related_scenario(self, feature, script_dir):
+    def test_falls_back_to_related_requirement(self, feature, script_dir):
         ctx = _ctx(feature)
         runner = _runner(
             script_dir,
@@ -357,18 +362,18 @@ class TestAmendScenarios:
             [{"text": "Edited, forgot the marker line."}],
         )
 
-        ids = amend_scenarios(ctx, runner, _proposal())
+        ids = amend_requirements(ctx, runner, _proposal())
 
-        assert ids == ["user-auth:Login succeeds"]
+        assert ids == ["user-auth:REQ-001"]
 
-    def test_related_scenario_always_included(self, feature, script_dir):
+    def test_related_requirement_always_included(self, feature, script_dir):
         ctx = _ctx(feature)
         runner = _runner(
             script_dir,
             feature.repo,
-            [{"text": "AMENDED: user-auth:Other behaviour"}],
+            [{"text": "AMENDED: user-auth:REQ-009"}],
         )
 
-        ids = amend_scenarios(ctx, runner, _proposal())
+        ids = amend_requirements(ctx, runner, _proposal())
 
-        assert ids == ["user-auth:Other behaviour", "user-auth:Login succeeds"]
+        assert ids == ["user-auth:REQ-009", "user-auth:REQ-001"]

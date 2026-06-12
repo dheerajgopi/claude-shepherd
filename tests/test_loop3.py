@@ -7,7 +7,7 @@ OUTSIDE the repo (the green commit sweeps `.` — nothing stray may dirty it).
 
 The "test command" trick: config test.command exits 0 iff a PASS marker file
 exists at the repo root, so scripted implementer runs flip red→green by
-writing PASS (allowed: DENY_UNDER only protects tests/ and gherkin/).
+writing PASS (allowed: DENY_UNDER only protects tests/ and requirements/).
 """
 
 from __future__ import annotations
@@ -43,19 +43,20 @@ PASS_COMMAND = (
     "sys.exit(0 if pathlib.Path('PASS').exists() else 1)\""
 )
 
-SCENARIO_ID = "user_auth:Login succeeds"
+REQUIREMENT_ID = "user_auth:REQ-001"
 
-FEATURE_TEXT = """Feature: User auth
+SPEC_TEXT = """# User auth
 
-  Scenario: Login succeeds
-    Given a registered user
-    When they submit valid credentials
-    Then they are logged in
+Rationale: pin the login behavior.
+
+## REQ-001: Login succeeds
+
+WHEN a registered user submits valid credentials, THE SYSTEM SHALL log them in.
 """
 
 TEST_FILE = "tests/test_feature.py"
 TEST_CONTENT = (
-    "# scenario: user_auth:Login succeeds\n"
+    "# requirement: user_auth:REQ-001\n"
     "import pathlib\n"
     "\n"
     "def test_x():\n"
@@ -66,7 +67,7 @@ MINOR_DIFF = (
     "--- a/tests/test_feature.py\n"
     "+++ b/tests/test_feature.py\n"
     "@@ -1,2 +1,2 @@\n"
-    " # scenario: user_auth:Login succeeds\n"
+    " # requirement: user_auth:REQ-001\n"
     "-import pathlib\n"
     "+import pathlib  # stdlib\n"
 )
@@ -75,7 +76,7 @@ BROKEN_DIFF = (
     "--- a/tests/test_feature.py\n"
     "+++ b/tests/test_feature.py\n"
     "@@ -1,2 +1,2 @@\n"
-    " # scenario: THIS CONTEXT DOES NOT EXIST\n"
+    " # requirement: THIS CONTEXT DOES NOT EXIST\n"
     "-import nonexistent\n"
     "+import pathlib\n"
 )
@@ -86,7 +87,7 @@ def _proposal(diff: str = MINOR_DIFF, reason: str = "fix import") -> dict:
         "tool_name": "propose_test_change",
         "tool_input": {
             "test_file": TEST_FILE,
-            "related_scenario": SCENARIO_ID,
+            "related_requirement": REQUIREMENT_ID,
             "reason": reason,
             "proposed_diff": diff,
         },
@@ -112,10 +113,10 @@ def _trace_json(tests: list[str]) -> str:
     return json.dumps(
         {
             "slug": "user-auth",
-            "scenarios": [
+            "requirements": [
                 {
-                    "scenario_id": SCENARIO_ID,
-                    "feature_file": "user_auth.feature",
+                    "requirement_id": REQUIREMENT_ID,
+                    "spec_file": "user_auth.md",
                     "revision": 1,
                     "tests": tests,
                     "status": "covered",
@@ -137,7 +138,7 @@ def _setup_loop3(
 ):
     """Loop-3 entry world at RED_COMMITTED with a clean, committed tree."""
 
-    (feature.gherkin_dir / "user_auth.feature").write_text(FEATURE_TEXT)
+    (feature.requirements_dir / "user_auth.md").write_text(SPEC_TEXT)
     (feature.repo / ".gitignore").write_text(".sluice/\nfake_script.json*\n")
     (feature.repo / TEST_FILE).parent.mkdir(parents=True, exist_ok=True)
     (feature.repo / TEST_FILE).write_text(TEST_CONTENT)
@@ -184,16 +185,16 @@ def _stub_sibling_loops(
 
     loop1 = types.ModuleType("tdd_loop1")
 
-    def amend_scenarios(ctx, runner, proposal):
+    def amend_requirements(ctx, runner, proposal):
         calls["amend"] = proposal
         return amended_ids
 
-    loop1.amend_scenarios = amend_scenarios
+    loop1.amend_requirements = amend_requirements
 
     loop2 = types.ModuleType("tdd_loop2")
 
-    def resync_tests(ctx, runner, scenario_ids):
-        calls["resync"] = scenario_ids
+    def resync_tests(ctx, runner, requirement_ids):
+        calls["resync"] = requirement_ids
         return resync_outcome
 
     loop2.resync_tests = resync_tests
@@ -228,7 +229,7 @@ class TestHappyPath:
         assert spec.path_policy_mode is PathPolicyMode.DENY_UNDER
         assert spec.path_policy_paths == [
             "tests",
-            ".sluice/features/user-auth/gherkin",
+            ".sluice/features/user-auth/requirements",
         ]
         assert spec.expose_propose_test_change is True
         assert "## Context" in spec.prompt
@@ -313,14 +314,14 @@ class TestProposals:
         from tdd_trace import load_matrix
 
         matrix = load_matrix(ctx.feature_dir)
-        assert matrix.scenarios[0].revision == 2
+        assert matrix.requirements[0].revision == 2
         assert matrix.revisions[-1].kind == "auto_applied_minor"
 
         triage_spec = runner.received[1]
         assert triage_spec.model == VERIFIER_MODEL
         assert triage_spec.allowed_tools == []
         assert "## Proposal" in triage_spec.prompt
-        assert "Login succeeds" in triage_spec.prompt  # scenario located
+        assert "Login succeeds" in triage_spec.prompt  # requirement located
 
     def test_significant_escalates(self, feature) -> None:
         ctx = _setup_loop3(feature)
@@ -445,7 +446,7 @@ class TestEscalationResolution:
         calls: dict = {}
         _stub_sibling_loops(
             monkeypatch,
-            amended_ids=[SCENARIO_ID],
+            amended_ids=[REQUIREMENT_ID],
             resync_outcome=LoopOutcome(LoopStatus.ADVANCE, detail="resynced"),
             calls=calls,
         )
@@ -460,7 +461,7 @@ class TestEscalationResolution:
 
         assert outcome.status is LoopStatus.ADVANCE
         assert calls["amend"]["test_file"] == TEST_FILE
-        assert calls["resync"] == [SCENARIO_ID]
+        assert calls["resync"] == [REQUIREMENT_ID]
 
         subjects = _git(feature.repo, "log", "--format=%s").splitlines()
         assert subjects[0] == COMMIT_GREEN.format(slug="user-auth")
@@ -479,7 +480,7 @@ class TestEscalationResolution:
             LoopStatus.CHECKPOINT, ExitCode.COVERAGE_GAP, "resync gap"
         )
         _stub_sibling_loops(
-            monkeypatch, amended_ids=[SCENARIO_ID], resync_outcome=gap, calls=calls
+            monkeypatch, amended_ids=[REQUIREMENT_ID], resync_outcome=gap, calls=calls
         )
         runner = _runner(feature, [])
 
@@ -487,7 +488,7 @@ class TestEscalationResolution:
 
         assert outcome.exit_code is ExitCode.COVERAGE_GAP
         state = StateStore(ctx.feature_dir).load()
-        assert state.phase == Phase.AMENDING_GHERKIN.value  # recovery anchor
+        assert state.phase == Phase.AMENDING_REQUIREMENTS.value  # recovery anchor
 
 
 class TestGuards:
@@ -548,7 +549,7 @@ class TestGuards:
         assert outcome.exit_code is ExitCode.INTERNAL_ERROR
 
     def test_defensive_on_wrong_phase(self, feature) -> None:
-        ctx = _setup_loop3(feature, phase=Phase.DRAFTING_GHERKIN)
+        ctx = _setup_loop3(feature, phase=Phase.DRAFTING_REQUIREMENTS)
         runner = _runner(feature, [])
 
         outcome = tdd_loop3.run_loop3(ctx, runner, None, None)

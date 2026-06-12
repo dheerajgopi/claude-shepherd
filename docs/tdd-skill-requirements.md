@@ -2,7 +2,7 @@
 
 ## 1. Purpose
 
-A Claude Code skill that drives strict test-driven development for a single feature through three sequential loops: specification (Gherkin), test generation, and implementation. The skill invokes a Python script built on the **Claude Agent SDK**. The script is a headless, resumable, phase-based state machine; all human interaction is delegated to the outer Claude Code session (which will later be wrapped in a command). Tests are authored and approved before any implementation code exists, and mechanical guardrails — not prompt instructions — prevent the agent from crossing the spec/test/implementation boundaries.
+A Claude Code skill that drives strict test-driven development for a single feature through three sequential loops: specification (EARS requirements), test generation, and implementation. The skill invokes a Python script built on the **Claude Agent SDK**. The script is a headless, resumable, phase-based state machine; all human interaction is delegated to the outer Claude Code session (which will later be wrapped in a command). Tests are authored and approved before any implementation code exists, and mechanical guardrails — not prompt instructions — prevent the agent from crossing the spec/test/implementation boundaries.
 
 ## 2. Scope and non-goals
 
@@ -32,7 +32,7 @@ sluice/
 │       │   └── tdd.py           # phased orchestrator (Claude Agent SDK)
 │       └── references/
 │           ├── playbook.md      # exit-code contract + per-code playbook (§13)
-│           ├── gherkin_prompt.md
+│           ├── requirements_prompt.md
 │           ├── testgen_prompt.md
 │           └── impl_prompt.md
 ├── commands/                    # /sluice:tdd — thin entry point invoking the skill
@@ -78,19 +78,19 @@ All sluice state lives in a `.sluice` folder at the repository root. Each featur
 └── features/
     ├── user-auth/
     │   ├── task.md                # original task statement, verbatim
-    │   ├── gherkin/
-    │   │   └── *.feature          # approved scenarios (the contract)
+    │   ├── requirements/
+    │   │   └── *.md               # approved EARS requirements (the contract)
     │   └── .tdd/
     │       ├── state.json         # phase, session IDs, branch, history
-    │       ├── traceability.json  # scenario → test mapping with revisions
+    │       ├── traceability.json  # requirement → test mapping with revisions
     │       └── reports/           # gap reports, escalation proposals
     └── payment-retry/
         └── ...
 ```
 
-Feature slugs are kebab-case, derived from the task title, collision-checked against existing folders. The slug doubles as the git branch suffix and the Gherkin namespace.
+Feature slugs are kebab-case, derived from the task title, collision-checked against existing folders. The slug doubles as the git branch suffix and the spec namespace.
 
-Version-control policy: the entire `.sluice/` workspace is **gitignored** and machine-local. Nothing under it — config, task statements, gherkin, `state.json`, `traceability.json`, `reports/` — is ever committed; only test and implementation code enters history.
+Version-control policy: the entire `.sluice/` workspace is **gitignored** and machine-local. Nothing under it — config, task statements, requirements, `state.json`, `traceability.json`, `reports/` — is ever committed; only test and implementation code enters history.
 
 ## 6. Initialization and CLI verbs
 
@@ -125,21 +125,21 @@ When multiple features exist under `.sluice/features/`, the script resolves whic
 
 Additionally, `state.json` records the branch and base commit the feature was created on. On every invocation the script verifies the current branch matches the recorded one; a mismatch exits with code 21 (`BRANCH_MISMATCH`) unless `--force` is passed. There is deliberately no `ACTIVE` pointer file: pointer files go stale across branch switches, worktrees, and crashed runs, and a stale pointer silently corrupts the wrong feature's state.
 
-## 8. Loop 1 — Gherkin specification
+## 8. Loop 1 — EARS requirements specification
 
-Using the `gherkin` model from config, the agent explores the repository **read-only** (tool surface restricted to Read/Glob/Grep, plus Write scoped to the feature's `gherkin/` folder), understands the task from `task.md`, and drafts `.feature` files — one scenario per behavior, with a short reviewer-facing rationale. The script then exits with code 10 (`AWAITING_APPROVAL`).
+Using the `requirements` model from config, the agent explores the repository **read-only** (tool surface restricted to Read/Glob/Grep, plus Write scoped to the feature's `requirements/` folder), understands the task from `task.md`, and drafts markdown spec files — one `## REQ-<nnn>: <title>` section per behavior, each holding exactly one EARS statement (`WHEN/WHILE/WHERE/IF…THEN/ubiquitous`, optionally with an examples table), with a short reviewer-facing rationale per file. Requirement ids (`<spec-file-stem>:REQ-<nnn>`) are sequential and never renumbered or reused. The script then exits with code 10 (`AWAITING_APPROVAL`).
 
-The outer command presents the scenarios to the human via `AskUserQuestion`. If the human requests corrections, the script is re-invoked with the feedback and **resumes the same SDK session**, appending the feedback as a new turn — everything prior (system prompt, task, repo context, earlier drafts) remains a stable cached prefix. This revision cycle repeats until the human approves. On approval the script advances to Loop 2 — there is no spec commit, since the spec lives in the gitignored `.sluice/` workspace.
+The outer command presents the requirements to the human via `AskUserQuestion`. If the human requests corrections, the script is re-invoked with the feedback and **resumes the same SDK session**, appending the feedback as a new turn — everything prior (system prompt, task, repo context, earlier drafts) remains a stable cached prefix. This revision cycle repeats until the human approves. On approval the script advances to Loop 2 — there is no spec commit, since the spec lives in the gitignored `.sluice/` workspace.
 
 ## 9. Loop 2 — Test generation
 
-Using the `testgen` model, this loop turns approved Gherkin into executable tests in the codebase's **existing** framework and conventions; it must never introduce a framework or convention not already present.
+Using the `testgen` model, this loop turns approved EARS requirements into executable tests in the codebase's **existing** framework and conventions; it must never introduce a framework or convention not already present.
 
 **Convention detection** runs first as a cheap deterministic pre-scan in Python (test config files, test directory layout, an exemplar test file), injected into the prompt so agent turns aren't spent rediscovering the obvious.
 
 **Boundary enforcement is mechanical.** A PreToolUse hook (or `canUseTool` callback) denies any Write/Edit whose path falls outside the configured test paths, returning a clear denial reason. The prompt also states the rule, but the hook is the enforcement.
 
-**Coverage verification** uses the cheap `verifier` model: it receives the Gherkin and the generated tests and must emit a structured JSON **traceability matrix** (scenario → test function(s) → covered/partial/missing) written to `traceability.json`. Generation iterates on the gaps. If gaps remain after the configured maximum iterations, the script writes a gap report to `.tdd/reports/` and exits with code 11 (`COVERAGE_GAP`) — it raises the issue rather than silently degrading.
+**Coverage verification** uses the cheap `verifier` model: it receives the requirements and the generated tests and must emit a structured JSON **traceability matrix** (requirement → test function(s) → covered/partial/missing) written to `traceability.json`. Generation iterates on the gaps. If gaps remain after the configured maximum iterations, the script writes a gap report to `.tdd/reports/` and exits with code 11 (`COVERAGE_GAP`) — it raises the issue rather than silently degrading.
 
 The suite is **expected not to compile/pass** at this point, since tests reference implementation that doesn't exist yet. An optional syntax-only check on test files distinguishes malformed tests from missing-implementation errors.
 
@@ -147,16 +147,16 @@ On full coverage the script commits the red state: `tdd(<slug>): red — failing
 
 ## 10. Loop 3 — Implementation
 
-Using the `implement` model, the agent runs the configured test command, reads failures, edits **main code only**, and repeats until green. The hook polarity inverts: direct Edit/Write on test paths (and on the Gherkin folder) is now denied — the tests are the contract, and "fixing the test to make it pass" must be impossible as a silent action.
+Using the `implement` model, the agent runs the configured test command, reads failures, edits **main code only**, and repeats until green. The hook polarity inverts: direct Edit/Write on test paths (and on the requirements folder) is now denied — the tests are the contract, and "fixing the test to make it pass" must be impossible as a silent action.
 
 ### Escalation channel (test changes)
 
-The agent is given one custom tool, `propose_test_change(test_file, related_scenario, reason, proposed_diff)`, funneling all test-modification pressure through a single auditable channel. The `verifier` model triages each proposal with one question — **does the change alter what the test expects?**
+The agent is given one custom tool, `propose_test_change(test_file, related_requirement, reason, proposed_diff)`, funneling all test-modification pressure through a single auditable channel. The `verifier` model triages each proposal with one question — **does the change alter what the test expects?**
 
 - **Minor / mechanical** (import path, fixture name, syntax error; no change to behavioral expectations): the script auto-applies the scoped edit, logs it in `traceability.json` with a revision note, and the loop continues.
-- **Significant** (changed assertion values, weakened conditions, added/removed scenarios), or any triage verdict of "unsure": the script writes the proposal to `.tdd/reports/`, sets phase `ESCALATED`, and exits with code 12. **Only significant changes escalate.**
+- **Significant** (changed assertion values, weakened conditions, added/removed tests), or any triage verdict of "unsure": the script writes the proposal to `.tdd/reports/`, sets phase `ESCALATED`, and exits with code 12. **Only significant changes escalate.**
 
-On human approval of an escalation, control returns to **Loop 1, incrementally**: the Loop 1 session is resumed with the proposal as feedback and only the affected scenarios are amended; Loop 2 then re-syncs only the tests mapped to those scenarios via the traceability matrix (scenario `revision` fields are bumped); a **new** red commit is created — `tdd(<slug>): red(n) — amended scenarios` — so each spec renegotiation is visible in history; then Loop 3 resumes. On rejection, Loop 3 resumes with the rejection as feedback. The cache invalidation caused by amending early-prefix Gherkin content is accepted; escalations are rare and correctness wins.
+On human approval of an escalation, control returns to **Loop 1, incrementally**: the Loop 1 session is resumed with the proposal as feedback and only the affected requirements are amended; Loop 2 then re-syncs only the tests mapped to those requirements via the traceability matrix (requirement `revision` fields are bumped); a **new** red commit is created — `tdd(<slug>): red(n) — amended requirements` — so each spec renegotiation is visible in history; then Loop 3 resumes. On rejection, Loop 3 resumes with the rejection as feedback. The cache invalidation caused by amending early-prefix requirements content is accepted; escalations are rare and correctness wins.
 
 ### Completion and budgets
 
@@ -167,7 +167,7 @@ Completion requires the test command to exit 0 **and** the traceability matrix t
 ```yaml
 # .sluice/config.yaml
 models:
-  gherkin: claude-opus-4-8        # spec quality matters most
+  requirements: claude-opus-4-8   # spec quality matters most
   testgen: claude-sonnet-4-6
   verifier: claude-haiku-4-5      # coverage matrix + escalation triage
   implement: claude-sonnet-4-6
@@ -184,15 +184,15 @@ Per-feature overrides may be recorded in `state.json`. Models must not be switch
 
 ## 12. Prompt caching strategy
 
-The Agent SDK applies `cache_control` automatically; the script's responsibility is prefix stability and session reuse. Within each loop, every iteration **resumes** the same session and appends a turn — never restarts. Content is ordered by stability: fixed system prompt → task statement → approved Gherkin → convention-scan results, with volatile content (latest test output) last; no timestamps or mutable status may appear in early prompt sections. The cache hierarchy invalidates everything downstream of a changed early block, so amendments to Gherkin knowingly forfeit downstream cache. Human approval checkpoints frequently exceed the default 5-minute cache TTL, so the optimization target is the tight machine loops — Loop 2's verifier iterations and Loop 3's test-fix cycles — with the 1-hour TTL an option only if approval rounds are fast. Loops run as flat single-agent sessions; subagent fan-out is avoided due to a known SDK issue where subagent requests skip prompt caching.
+The Agent SDK applies `cache_control` automatically; the script's responsibility is prefix stability and session reuse. Within each loop, every iteration **resumes** the same session and appends a turn — never restarts. Content is ordered by stability: fixed system prompt → task statement → approved requirements → convention-scan results, with volatile content (latest test output) last; no timestamps or mutable status may appear in early prompt sections. The cache hierarchy invalidates everything downstream of a changed early block, so amendments to requirements knowingly forfeit downstream cache. Human approval checkpoints frequently exceed the default 5-minute cache TTL, so the optimization target is the tight machine loops — Loop 2's verifier iterations and Loop 3's test-fix cycles — with the 1-hour TTL an option only if approval rounds are fast. Loops run as flat single-agent sessions; subagent fan-out is avoided due to a known SDK issue where subagent requests skip prompt caching.
 
 ## 13. Exit-code contract
 
 | Code | Meaning | Outer command's action |
 |------|---------|------------------------|
 | 0 | `DONE` — all tests green, traceability intact | Report success |
-| 10 | `AWAITING_APPROVAL` — Gherkin drafted/revised | `AskUserQuestion`: approve or give corrections |
-| 11 | `COVERAGE_GAP` — scenarios uncoverable after max iterations | Surface gap report to human |
+| 10 | `AWAITING_APPROVAL` — requirements drafted/revised | `AskUserQuestion`: approve or give corrections |
+| 11 | `COVERAGE_GAP` — requirements uncoverable after max iterations | Surface gap report to human |
 | 12 | `ESCALATED` — significant test change proposed | `AskUserQuestion`: approve (→ Loop 1 amend) or reject |
 | 13 | `BUDGET_EXCEEDED` — turn/cost/time limit hit | Surface status report |
 | 20 | `NO_FEATURE_RESOLVED` — no `--feature` arg, no `tdd/<slug>` branch | Present feature list, re-invoke with `--feature` |
@@ -201,7 +201,7 @@ The Agent SDK applies `cache_control` automatically; the script's responsibility
 
 ## 14. Phase model
 
-`DRAFTING_GHERKIN → AWAITING_APPROVAL → GHERKIN_APPROVED → GENERATING_TESTS → VERIFYING_COVERAGE → RED_COMMITTED → IMPLEMENTING → (ESCALATED ⇄ AMENDING_GHERKIN) → GREEN → DONE`, plus `FAILED_<reason>` terminals. Every transition appends `{phase, timestamp, session_id}` to a `history` array in `state.json`, serving as both crash-recovery input and audit log. The script must be safely re-runnable from any recorded phase.
+`DRAFTING_REQUIREMENTS → AWAITING_APPROVAL → REQUIREMENTS_APPROVED → GENERATING_TESTS → VERIFYING_COVERAGE → RED_COMMITTED → IMPLEMENTING → (ESCALATED ⇄ AMENDING_REQUIREMENTS) → GREEN → DONE`, plus `FAILED_<reason>` terminals. Every transition appends `{phase, timestamp, session_id}` to a `history` array in `state.json`, serving as both crash-recovery input and audit log. The script must be safely re-runnable from any recorded phase.
 
 ## 15. Flow
 
@@ -214,21 +214,21 @@ flowchart TD
     V -->|"Mismatch, no --force"| E21[/Exit 21: BRANCH_MISMATCH/]
     V -->|OK| P{Dispatch on phase}
 
-    subgraph L1["Loop 1 — Gherkin Spec (model: gherkin)"]
-        G1[Explore repo read-only, draft .feature files] --> G2[/Exit 10: AWAITING_APPROVAL/]
+    subgraph L1["Loop 1 — EARS Requirements Spec (model: requirements)"]
+        G1[Explore repo read-only, draft EARS spec files] --> G2[/Exit 10: AWAITING_APPROVAL/]
         G2 --> G3{Human review via AskUserQuestion}
-        G3 -->|Corrections| G4[Resume session with feedback, revise scenarios]
+        G3 -->|Corrections| G4[Resume session with feedback, revise requirements]
         G4 --> G2
-        G3 -->|Approved| G5[Commit: spec]
+        G3 -->|Approved| G5[Spec approved - no commit]
     end
 
-    P -->|New / DRAFTING_GHERKIN| G1
+    P -->|New / DRAFTING_REQUIREMENTS| G1
     G5 --> T1
 
     subgraph L2["Loop 2 — Test Generation (models: testgen + verifier)"]
         T1[Deterministic convention scan] --> T2[Generate tests - hook allows writes only under test paths]
-        T2 --> T3[Verifier builds traceability matrix scenario to test]
-        T3 --> T4{All scenarios covered?}
+        T2 --> T3[Verifier builds traceability matrix requirement to test]
+        T3 --> T4{All requirements covered?}
         T4 -->|"Gaps, iter < max"| T2
         T4 -->|"Gaps, iter >= max"| E11[/Exit 11: COVERAGE_GAP + gap report/]
         T4 -->|Fully covered| T5[Commit: red]
@@ -251,11 +251,11 @@ flowchart TD
 
     E12 --> H{Human decision via AskUserQuestion}
     H -->|Reject| I5
-    H -->|Approve| A1[Amend affected scenarios - resume Loop 1 session]
+    H -->|Approve| A1[Amend affected requirements - resume Loop 1 session]
     A1 --> A2[Re-sync only affected tests in Loop 2]
     A2 --> A3["Commit: red(n) amended"] --> I1
 ```
 
 ## 16. Commit choreography
 
-The script refuses to start on a dirty working tree (untracked `.sluice` files excepted). Automated commits, in order: `tdd(<slug>): red — failing tests` after Loop 2 verification and **before Loop 3**; `tdd(<slug>): red(n) — amended scenarios` after each approved escalation re-sync; `tdd(<slug>): green — implementation` on completion. Red and red(n) commits carry only `test.paths` content — `.sluice/` artifacts are gitignored and never committed.
+The script refuses to start on a dirty working tree (untracked `.sluice` files excepted). Automated commits, in order: `tdd(<slug>): red — failing tests` after Loop 2 verification and **before Loop 3**; `tdd(<slug>): red(n) — amended requirements` after each approved escalation re-sync; `tdd(<slug>): green — implementation` on completion. Red and red(n) commits carry only `test.paths` content — `.sluice/` artifacts are gitignored and never committed.

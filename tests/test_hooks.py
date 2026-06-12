@@ -12,12 +12,12 @@ tdd_hooks = pytest.importorskip("tdd_hooks")  # parallel track (T1-HOOKS)
 from tdd_contracts import PathPolicyMode, WRITE_TOOLS  # noqa: E402
 from tdd_hooks import PathPolicy, is_path_allowed, make_pretooluse_hook  # noqa: E402
 
-GHERKIN = ".sluice/features/user-auth/gherkin"
+REQUIREMENTS = ".sluice/features/user-auth/requirements"
 
 
 @pytest.fixture
 def repo(tmp_path: Path) -> Path:
-    for d in ("tests", "src", "tests-extra", GHERKIN):
+    for d in ("tests", "src", "tests-extra", REQUIREMENTS):
         (tmp_path / d).mkdir(parents=True)
     return tmp_path
 
@@ -25,14 +25,14 @@ def repo(tmp_path: Path) -> Path:
 @pytest.fixture
 def allow_policy(repo: Path) -> PathPolicy:
     return PathPolicy(
-        mode=PathPolicyMode.ALLOW_ONLY, paths=["tests", GHERKIN], repo_root=repo
+        mode=PathPolicyMode.ALLOW_ONLY, paths=["tests", REQUIREMENTS], repo_root=repo
     )
 
 
 @pytest.fixture
 def deny_policy(repo: Path) -> PathPolicy:
     return PathPolicy(
-        mode=PathPolicyMode.DENY_UNDER, paths=["tests", GHERKIN], repo_root=repo
+        mode=PathPolicyMode.DENY_UNDER, paths=["tests", REQUIREMENTS], repo_root=repo
     )
 
 
@@ -44,7 +44,7 @@ def _denied_flag(event) -> bool:
 
 class TestAllowOnly:
     @pytest.mark.parametrize(
-        "rel", ["tests/test_login.py", "tests/sub/test_deep.py", GHERKIN + "/auth.feature"]
+        "rel", ["tests/test_login.py", "tests/sub/test_deep.py", REQUIREMENTS + "/auth.md"]
     )
     def test_allows_under_each_listed_path(self, repo, allow_policy, rel) -> None:
         allowed, reason = is_path_allowed(
@@ -131,7 +131,7 @@ class TestDenyUnder:
         assert allowed, reason
 
     @pytest.mark.parametrize(
-        "rel", ["tests/test_login.py", "tests/sub/x.py", GHERKIN + "/auth.feature"]
+        "rel", ["tests/test_login.py", "tests/sub/x.py", REQUIREMENTS + "/auth.md"]
     )
     def test_denies_under_each_listed_path(self, repo, deny_policy, rel) -> None:
         allowed, reason = is_path_allowed(

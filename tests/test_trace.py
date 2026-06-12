@@ -14,7 +14,7 @@ from tdd_contracts import (  # noqa: E402
     COVERAGE_COVERED,
     COVERAGE_MISSING,
     COVERAGE_PARTIAL,
-    ScenarioTrace,
+    RequirementTrace,
     TraceabilityMatrix,
     asdict_state,
 )
@@ -29,32 +29,32 @@ from tdd_trace import (  # noqa: E402
 )
 
 
-def _scn(sid: str, status: str, tests=None, revision: int = 1) -> ScenarioTrace:
-    return ScenarioTrace(
-        scenario_id=sid,
-        feature_file="auth.feature",
+def _scn(sid: str, status: str, tests=None, revision: int = 1) -> RequirementTrace:
+    return RequirementTrace(
+        requirement_id=sid,
+        spec_file="auth.md",
         revision=revision,
         tests=list(tests or []),
         status=status,
     )
 
 
-def _matrix(*scenarios: ScenarioTrace) -> TraceabilityMatrix:
-    return TraceabilityMatrix(slug="user-auth", scenarios=list(scenarios))
+def _matrix(*requirements: RequirementTrace) -> TraceabilityMatrix:
+    return TraceabilityMatrix(slug="user-auth", requirements=list(requirements))
 
 
 CLEAN_JSON = json.dumps(
     {
-        "scenarios": [
+        "requirements": [
             {
-                "scenario_id": "auth:Successful login",
-                "feature_file": "auth.feature",
+                "requirement_id": "auth:Successful login",
+                "spec_file": "auth.md",
                 "tests": ["tests/test_auth.py::test_login"],
                 "status": "covered",
             },
             {
-                "scenario_id": "auth:Lockout after retries",
-                "feature_file": "auth.feature",
+                "requirement_id": "auth:Lockout after retries",
+                "spec_file": "auth.md",
                 "tests": [],
                 "status": "missing",
                 "notes": "no test found",
@@ -66,14 +66,14 @@ CLEAN_JSON = json.dumps(
 
 class TestParseVerifierMatrix:
     def test_clean_json(self) -> None:
-        scenarios = parse_verifier_matrix(CLEAN_JSON)
-        assert len(scenarios) == 2
-        first = scenarios[0]
-        assert first.scenario_id == "auth:Successful login"
-        assert first.feature_file == "auth.feature"
+        requirements = parse_verifier_matrix(CLEAN_JSON)
+        assert len(requirements) == 2
+        first = requirements[0]
+        assert first.requirement_id == "auth:Successful login"
+        assert first.spec_file == "auth.md"
         assert first.tests == ["tests/test_auth.py::test_login"]
         assert first.status == COVERAGE_COVERED
-        assert scenarios[1].status == COVERAGE_MISSING
+        assert requirements[1].status == COVERAGE_MISSING
 
     def test_fenced_json_with_surrounding_prose(self) -> None:
         text = (
@@ -81,9 +81,9 @@ class TestParseVerifierMatrix:
             "```json\n" + CLEAN_JSON + "\n```\n\n"
             "Let me know if anything needs adjusting."
         )
-        scenarios = parse_verifier_matrix(text)
-        assert len(scenarios) == 2
-        assert scenarios[0].scenario_id == "auth:Successful login"
+        requirements = parse_verifier_matrix(text)
+        assert len(requirements) == 2
+        assert requirements[0].requirement_id == "auth:Successful login"
 
     def test_garbage_raises_value_error(self) -> None:
         with pytest.raises(ValueError) as excinfo:
@@ -93,10 +93,10 @@ class TestParseVerifierMatrix:
     def test_invalid_status_raises(self) -> None:
         bad = json.dumps(
             {
-                "scenarios": [
+                "requirements": [
                     {
-                        "scenario_id": "auth:Login",
-                        "feature_file": "auth.feature",
+                        "requirement_id": "auth:Login",
+                        "spec_file": "auth.md",
                         "tests": [],
                         "status": "kinda-covered",
                     }
@@ -169,7 +169,7 @@ class TestMatrixValidates:
 
 
 class TestBumpRevisions:
-    def test_increments_only_targeted_scenarios(self) -> None:
+    def test_increments_only_targeted_requirements(self) -> None:
         m = _matrix(
             _scn("auth:a", COVERAGE_COVERED, ["tests/t.py::test_a"], revision=1),
             _scn("auth:b", COVERAGE_COVERED, ["tests/t.py::test_b"], revision=1),
@@ -177,7 +177,7 @@ class TestBumpRevisions:
 
         bump_revisions(m, ["auth:a"], "escalation_approved", "weakened assertion approved")
 
-        by_id = {s.scenario_id: s for s in m.scenarios}
+        by_id = {s.requirement_id: s for s in m.requirements}
         assert by_id["auth:a"].revision == 2
         assert by_id["auth:b"].revision == 1
 
@@ -189,7 +189,7 @@ class TestBumpRevisions:
         assert len(m.revisions) == 1
         rev = m.revisions[-1]
         assert rev.kind == "auto_applied_minor"
-        assert rev.scenario_ids == ["auth:a"]
+        assert rev.requirement_ids == ["auth:a"]
         assert rev.description == "fixed import path"
         # timestamp parseable ISO-8601
         datetime.fromisoformat(rev.timestamp.replace("Z", "+00:00"))

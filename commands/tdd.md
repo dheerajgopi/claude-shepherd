@@ -1,5 +1,5 @@
 ---
-description: Run the sluice plugin's strict TDD workflow for a feature (Gherkin spec → failing tests → implementation), handling every checkpoint exit code.
+description: Run the sluice plugin's strict TDD workflow for a feature (EARS requirements spec → failing tests → implementation), handling every checkpoint exit code.
 argument-hint: [task description or feature slug]
 ---
 

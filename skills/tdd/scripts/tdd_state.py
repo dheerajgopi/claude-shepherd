@@ -25,7 +25,7 @@ from tdd_contracts import (
     BudgetsSpent,
     CONFIG_FILE,
     FEATURES_DIR,
-    GHERKIN_DIR,
+    REQUIREMENTS_DIR,
     REPORTS_DIR,
     STATE_FILE,
     TDD_DIR,
@@ -229,7 +229,7 @@ class FeatureContext:
     repo_root: Path
     slug: str
     feature_dir: Path
-    gherkin_dir: Path
+    requirements_dir: Path
     tdd_dir: Path
     reports_dir: Path
     config: SluiceConfig
@@ -316,7 +316,7 @@ def resolve_feature(
         repo_root=repo_root,
         slug=slug,
         feature_dir=feature_dir,
-        gherkin_dir=feature_dir / GHERKIN_DIR,
+        requirements_dir=feature_dir / REQUIREMENTS_DIR,
         tdd_dir=feature_dir / TDD_DIR,
         reports_dir=feature_dir / REPORTS_DIR,
         config=config,

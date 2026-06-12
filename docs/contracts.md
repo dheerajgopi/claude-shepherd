@@ -45,10 +45,11 @@ tdd.py status [--json]
 
 ## Phases (§14)
 
-`DRAFTING_GHERKIN → AWAITING_APPROVAL ⇄ (corrections) → GHERKIN_APPROVED → GENERATING_TESTS ⇄
-VERIFYING_COVERAGE → RED_COMMITTED → IMPLEMENTING → (ESCALATED → AMENDING_GHERKIN → RED_COMMITTED)
-→ GREEN → DONE`, `FAILED` reachable from anywhere, terminal. Legal transitions:
-`PHASE_TRANSITIONS` in the contracts module; the state store refuses anything else.
+`DRAFTING_REQUIREMENTS → AWAITING_APPROVAL ⇄ (corrections) → REQUIREMENTS_APPROVED →
+GENERATING_TESTS ⇄ VERIFYING_COVERAGE → RED_COMMITTED → IMPLEMENTING → (ESCALATED →
+AMENDING_REQUIREMENTS → RED_COMMITTED) → GREEN → DONE`, `FAILED` reachable from anywhere,
+terminal. Legal transitions: `PHASE_TRANSITIONS` in the contracts module; the state store
+refuses anything else.
 
 ## On-disk artifacts (§5)
 
@@ -60,18 +61,30 @@ The entire `.sluice/` workspace is **gitignored** (init appends `.sluice/` to
 | `.sluice/config.yaml` | `SluiceConfig` |
 | `.sluice/manifest.json` | `SluiceManifest` |
 | `features/<slug>/task.md` | verbatim text |
-| `features/<slug>/gherkin/*.feature` | Gherkin |
+| `features/<slug>/requirements/*.md` | EARS spec files |
 | `features/<slug>/.tdd/state.json` | `FeatureState` |
 | `features/<slug>/.tdd/traceability.json` | `TraceabilityMatrix` |
 | `features/<slug>/.tdd/reports/*` | markdown + json |
 
 Branch convention: `tdd/<slug>` (`BRANCH_PREFIX`). No ACTIVE pointer file, ever (§7).
 
+## EARS spec format (§8) — pinned
+
+Spec files are markdown: a title, a 2–4 line `Rationale:` block for the reviewer, then one
+`## REQ-<nnn>: <title>` heading per requirement. Each requirement is exactly ONE EARS
+statement — `THE SYSTEM SHALL …` (ubiquitous), `WHEN …, THE SYSTEM SHALL …` (event),
+`WHILE …, THE SYSTEM SHALL …` (state), `WHERE …, THE SYSTEM SHALL …` (optional feature),
+`IF …, THEN THE SYSTEM SHALL …` (unwanted behavior), or a complex combination — optionally
+followed by a markdown examples table whose every row must be covered by a test.
+`requirement_id` is `<spec-file-stem>:REQ-<nnn>` (e.g. `login:REQ-003`); ids are sequential,
+zero-padded, and never renumbered or reused. Tests are tagged `# requirement: <requirement_id>`.
+Declarative only: no function names, endpoints, classes, tables, or UI widgets.
+
 ## Commit messages (§16) — format strings, exact
 
 ```
 tdd(<slug>): red — failing tests
-tdd(<slug>): red(<n>) — amended scenarios
+tdd(<slug>): red(<n>) — amended requirements
 tdd(<slug>): green — implementation
 ```
 
@@ -83,8 +96,8 @@ red(n) commits carry only `test.paths` content.
 ## Path policy (the mechanical boundary, §9–10)
 
 - Loops 1–2: `ALLOW_ONLY` — Write/Edit/MultiEdit/NotebookEdit permitted only under the listed
-  paths (Loop 1: the feature's `gherkin/`; Loop 2: `test.paths` from config).
-- Loop 3: `DENY_UNDER` — same tools denied under `test.paths` + the `gherkin/` folder.
+  paths (Loop 1: the feature's `requirements/`; Loop 2: `test.paths` from config).
+- Loop 3: `DENY_UNDER` — same tools denied under `test.paths` + the `requirements/` folder.
 - Enforced by a PreToolUse hook (verified deny shape in `docs/sdk-notes.md` §2); the pure decision
   function `is_path_allowed(tool_name, tool_input, policy)` lives in `tdd_hooks.py` and is the
   unit-tested core. Auto-applied minor test edits are direct Python file writes by the

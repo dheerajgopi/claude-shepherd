@@ -1,10 +1,10 @@
 """Traceability matrix persistence, parsing, and validation (§9, §10).
 
-The matrix (scenario → test mapping with revisions) is the committed audit
+The matrix (requirement → test mapping with revisions) is the committed audit
 artifact at .tdd/traceability.json. This module loads/saves it atomically,
 parses the verifier model's (possibly noisy) JSON output against the pinned
-schema shape, and answers the two questions the loops ask: is every scenario
-covered, and do the mapped tests still exist on disk?
+schema shape, and answers the two questions the loops ask: is every
+requirement covered, and do the mapped tests still exist on disk?
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from tdd_contracts import (
     COVERAGE_COVERED,
     COVERAGE_STATUSES,
     TRACE_FILE,
-    ScenarioTrace,
+    RequirementTrace,
     TraceabilityMatrix,
     TraceRevision,
     asdict_state,
@@ -45,16 +45,16 @@ def load_matrix(feature_dir: Path) -> Optional[TraceabilityMatrix]:
         return None
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-        scenarios = [
-            ScenarioTrace(**_filtered_kwargs(ScenarioTrace, s))
-            for s in data.get("scenarios", [])
+        requirements = [
+            RequirementTrace(**_filtered_kwargs(RequirementTrace, s))
+            for s in data.get("requirements", [])
         ]
         revisions = [
             TraceRevision(**_filtered_kwargs(TraceRevision, r))
             for r in data.get("revisions", [])
         ]
         kwargs = _filtered_kwargs(TraceabilityMatrix, data)
-        kwargs["scenarios"] = scenarios
+        kwargs["requirements"] = requirements
         kwargs["revisions"] = revisions
         return TraceabilityMatrix(**kwargs)
     except (ValueError, TypeError, KeyError) as exc:
@@ -104,13 +104,13 @@ def _extract_first_json_object(text: str) -> str:
     raise ValueError("unbalanced braces: no complete JSON object in verifier output")
 
 
-def parse_verifier_matrix(text: str) -> list[ScenarioTrace]:
-    """Parse the verifier model's coverage output into ScenarioTrace entries.
+def parse_verifier_matrix(text: str) -> list[RequirementTrace]:
+    """Parse the verifier model's coverage output into RequirementTrace entries.
 
     Extracts the FIRST JSON object from possibly-noisy text and validates it
     manually against the VERIFIER_MATRIX_JSON_SCHEMA shape (no jsonschema
     dependency). Raises ValueError with specifics on any violation. Parsed
-    scenarios carry revision=0; Loop 2 merges revisions when re-syncing.
+    requirements carry revision=0; Loop 2 merges revisions when re-syncing.
     """
 
     raw = _extract_first_json_object(text)
@@ -120,28 +120,28 @@ def parse_verifier_matrix(text: str) -> list[ScenarioTrace]:
         raise ValueError(f"verifier output is not valid JSON: {exc}") from exc
     if not isinstance(data, dict):
         raise ValueError(f"verifier output must be a JSON object, got {type(data).__name__}")
-    scenarios = data.get("scenarios")
-    if not isinstance(scenarios, list):
-        raise ValueError("verifier output missing required 'scenarios' array")
+    requirements = data.get("requirements")
+    if not isinstance(requirements, list):
+        raise ValueError("verifier output missing required 'requirements' array")
 
     errors: list[str] = []
-    traces: list[ScenarioTrace] = []
-    for idx, item in enumerate(scenarios):
-        where = f"scenarios[{idx}]"
+    traces: list[RequirementTrace] = []
+    for idx, item in enumerate(requirements):
+        where = f"requirements[{idx}]"
         if not isinstance(item, dict):
             errors.append(f"{where}: not an object")
             continue
         missing = [
-            k for k in ("scenario_id", "feature_file", "tests", "status") if k not in item
+            k for k in ("requirement_id", "spec_file", "tests", "status") if k not in item
         ]
         if missing:
             errors.append(f"{where}: missing required key(s) {missing}")
             continue
-        if not isinstance(item["scenario_id"], str):
-            errors.append(f"{where}: scenario_id must be a string")
+        if not isinstance(item["requirement_id"], str):
+            errors.append(f"{where}: requirement_id must be a string")
             continue
-        if not isinstance(item["feature_file"], str):
-            errors.append(f"{where}: feature_file must be a string")
+        if not isinstance(item["spec_file"], str):
+            errors.append(f"{where}: spec_file must be a string")
             continue
         tests = item["tests"]
         if not isinstance(tests, list) or not all(isinstance(t, str) for t in tests):
@@ -157,9 +157,9 @@ def parse_verifier_matrix(text: str) -> list[ScenarioTrace]:
             errors.append(f"{where}: notes must be a string when present")
             continue
         traces.append(
-            ScenarioTrace(
-                scenario_id=item["scenario_id"],
-                feature_file=item["feature_file"],
+            RequirementTrace(
+                requirement_id=item["requirement_id"],
+                spec_file=item["spec_file"],
                 revision=0,
                 tests=list(tests),
                 status=item["status"],
@@ -172,16 +172,16 @@ def parse_verifier_matrix(text: str) -> list[ScenarioTrace]:
 
 
 def matrix_fully_covered(matrix: TraceabilityMatrix) -> bool:
-    """True if every scenario is status=covered with at least one mapped test.
+    """True if every requirement is status=covered with at least one mapped test.
 
     An empty matrix is NOT fully covered — coverage cannot be faked by
-    reporting no scenarios.
+    reporting no requirements.
     """
 
-    if not matrix.scenarios:
+    if not matrix.requirements:
         return False
     return all(
-        s.status == COVERAGE_COVERED and len(s.tests) >= 1 for s in matrix.scenarios
+        s.status == COVERAGE_COVERED and len(s.tests) >= 1 for s in matrix.requirements
     )
 
 
@@ -194,11 +194,11 @@ def matrix_validates(repo_root: Path, matrix: TraceabilityMatrix) -> tuple[bool,
     """
 
     problems: list[str] = []
-    for scenario in matrix.scenarios:
-        for ref in scenario.tests:
+    for requirement in matrix.requirements:
+        for ref in requirement.tests:
             if "::" not in ref:
                 problems.append(
-                    f"{scenario.scenario_id}: malformed test reference {ref!r} "
+                    f"{requirement.requirement_id}: malformed test reference {ref!r} "
                     "(expected path::test_function)"
                 )
                 continue
@@ -206,13 +206,13 @@ def matrix_validates(repo_root: Path, matrix: TraceabilityMatrix) -> tuple[bool,
             test_file = repo_root / file_part
             if not test_file.is_file():
                 problems.append(
-                    f"{scenario.scenario_id}: test file missing: {file_part}"
+                    f"{requirement.requirement_id}: test file missing: {file_part}"
                 )
                 continue
             func_name = qualifiers[-1]
             if func_name not in test_file.read_text(encoding="utf-8", errors="replace"):
                 problems.append(
-                    f"{scenario.scenario_id}: test {func_name!r} not found in {file_part}"
+                    f"{requirement.requirement_id}: test {func_name!r} not found in {file_part}"
                 )
     if problems:
         return False, "\n".join(problems)
@@ -221,57 +221,61 @@ def matrix_validates(repo_root: Path, matrix: TraceabilityMatrix) -> tuple[bool,
 
 def bump_revisions(
     matrix: TraceabilityMatrix,
-    scenario_ids: list[str],
+    requirement_ids: list[str],
     kind: str,
     description: str,
 ) -> None:
-    """Bump revision on matching scenarios and append an audit TraceRevision.
+    """Bump revision on matching requirements and append an audit TraceRevision.
 
     `kind` is one of "auto_applied_minor" | "escalation_approved" | "resync"
     (see TraceRevision). Mutates `matrix` in place.
     """
 
-    targets = set(scenario_ids)
-    for scenario in matrix.scenarios:
-        if scenario.scenario_id in targets:
-            scenario.revision += 1
+    targets = set(requirement_ids)
+    for requirement in matrix.requirements:
+        if requirement.requirement_id in targets:
+            requirement.revision += 1
     matrix.revisions.append(
         TraceRevision(
             timestamp=utc_now_iso(),
             kind=kind,
-            scenario_ids=list(scenario_ids),
+            requirement_ids=list(requirement_ids),
             description=description,
         )
     )
 
 
 def gap_report(matrix: TraceabilityMatrix) -> str:
-    """Markdown gap report: scenarios that are partial/missing (or testless).
+    """Markdown gap report: requirements that are partial/missing (or testless).
 
     Written to .tdd/reports/ when Loop 2 exhausts its coverage iterations
-    (exit COVERAGE_GAP). Covered-but-testless scenarios are included because
-    they also block completion (matrix_fully_covered rejects them).
+    (exit COVERAGE_GAP). Covered-but-testless requirements are included
+    because they also block completion (matrix_fully_covered rejects them).
     """
 
     gaps = [
         s
-        for s in matrix.scenarios
+        for s in matrix.requirements
         if s.status != COVERAGE_COVERED or not s.tests
     ]
     lines = [f"# Coverage gap report — {matrix.slug}", ""]
     if not gaps:
-        lines.append("All scenarios are covered with at least one test.")
+        lines.append("All requirements are covered with at least one test.")
         return "\n".join(lines) + "\n"
-    lines.append(f"{len(gaps)} of {len(matrix.scenarios)} scenario(s) not fully covered:")
+    lines.append(
+        f"{len(gaps)} of {len(matrix.requirements)} requirement(s) not fully covered:"
+    )
     lines.append("")
-    for scenario in gaps:
-        lines.append(f"## {scenario.scenario_id} — {scenario.status}")
-        lines.append(f"- feature file: `{scenario.feature_file}`")
-        if scenario.tests:
-            lines.append("- mapped tests: " + ", ".join(f"`{t}`" for t in scenario.tests))
+    for requirement in gaps:
+        lines.append(f"## {requirement.requirement_id} — {requirement.status}")
+        lines.append(f"- spec file: `{requirement.spec_file}`")
+        if requirement.tests:
+            lines.append(
+                "- mapped tests: " + ", ".join(f"`{t}`" for t in requirement.tests)
+            )
         else:
             lines.append("- mapped tests: (none)")
-        if scenario.notes:
-            lines.append(f"- notes: {scenario.notes}")
+        if requirement.notes:
+            lines.append(f"- notes: {requirement.notes}")
         lines.append("")
     return "\n".join(lines)

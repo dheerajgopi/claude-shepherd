@@ -45,19 +45,19 @@ class TestPhaseTransitions:
     @pytest.mark.parametrize(
         ("current", "new"),
         [
-            (Phase.DRAFTING_GHERKIN, Phase.AWAITING_APPROVAL),
-            (Phase.AWAITING_APPROVAL, Phase.DRAFTING_GHERKIN),  # corrections cycle
-            (Phase.AWAITING_APPROVAL, Phase.GHERKIN_APPROVED),
-            (Phase.GHERKIN_APPROVED, Phase.GENERATING_TESTS),
+            (Phase.DRAFTING_REQUIREMENTS, Phase.AWAITING_APPROVAL),
+            (Phase.AWAITING_APPROVAL, Phase.DRAFTING_REQUIREMENTS),  # corrections cycle
+            (Phase.AWAITING_APPROVAL, Phase.REQUIREMENTS_APPROVED),
+            (Phase.REQUIREMENTS_APPROVED, Phase.GENERATING_TESTS),
             (Phase.GENERATING_TESTS, Phase.VERIFYING_COVERAGE),
             (Phase.VERIFYING_COVERAGE, Phase.GENERATING_TESTS),  # gap iteration
             (Phase.VERIFYING_COVERAGE, Phase.RED_COMMITTED),
             (Phase.RED_COMMITTED, Phase.IMPLEMENTING),
             (Phase.IMPLEMENTING, Phase.ESCALATED),
             (Phase.IMPLEMENTING, Phase.GREEN),
-            (Phase.ESCALATED, Phase.AMENDING_GHERKIN),  # approval
+            (Phase.ESCALATED, Phase.AMENDING_REQUIREMENTS),  # approval
             (Phase.ESCALATED, Phase.IMPLEMENTING),      # rejection
-            (Phase.AMENDING_GHERKIN, Phase.RED_COMMITTED),
+            (Phase.AMENDING_REQUIREMENTS, Phase.RED_COMMITTED),
             (Phase.GREEN, Phase.DONE),
         ],
     )
@@ -68,13 +68,13 @@ class TestPhaseTransitions:
     @pytest.mark.parametrize(
         ("current", "new"),
         [
-            (Phase.DRAFTING_GHERKIN, Phase.IMPLEMENTING),
-            (Phase.DRAFTING_GHERKIN, Phase.GHERKIN_APPROVED),  # cannot skip approval
-            (Phase.GHERKIN_APPROVED, Phase.RED_COMMITTED),     # cannot skip testgen
+            (Phase.DRAFTING_REQUIREMENTS, Phase.IMPLEMENTING),
+            (Phase.DRAFTING_REQUIREMENTS, Phase.REQUIREMENTS_APPROVED),  # cannot skip approval
+            (Phase.REQUIREMENTS_APPROVED, Phase.RED_COMMITTED),     # cannot skip testgen
             (Phase.IMPLEMENTING, Phase.DONE),                  # must pass through GREEN
             (Phase.GREEN, Phase.IMPLEMENTING),
-            (Phase.DONE, Phase.DRAFTING_GHERKIN),              # DONE is terminal
-            (Phase.FAILED, Phase.DRAFTING_GHERKIN),            # FAILED is terminal
+            (Phase.DONE, Phase.DRAFTING_REQUIREMENTS),              # DONE is terminal
+            (Phase.FAILED, Phase.DRAFTING_REQUIREMENTS),            # FAILED is terminal
             (Phase.ESCALATED, Phase.GREEN),
         ],
     )
@@ -103,7 +103,7 @@ class TestResumablePhases:
         assert set(RESUMABLE_PHASES.values()) <= {1, 2, 3}
 
     def test_loop_ownership_spot_checks(self) -> None:
-        assert RESUMABLE_PHASES[Phase.DRAFTING_GHERKIN] == 1
+        assert RESUMABLE_PHASES[Phase.DRAFTING_REQUIREMENTS] == 1
         assert RESUMABLE_PHASES[Phase.GENERATING_TESTS] == 2
         assert RESUMABLE_PHASES[Phase.IMPLEMENTING] == 3
 
@@ -118,7 +118,7 @@ class TestCommitFormats:
 
     def test_red_amended(self) -> None:
         assert COMMIT_RED_AMENDED.format(slug="user-auth", n=2) == (
-            "tdd(user-auth): red(2) — amended scenarios"
+            "tdd(user-auth): red(2) — amended requirements"
         )
 
     def test_green(self) -> None:

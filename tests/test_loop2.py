@@ -2,8 +2,8 @@
 
 World-building uses the conftest fixtures (tmp_repo/sluice_repo/feature) plus
 direct state edits; the agent seam is FakeAgentRunner with per-test scripted
-runs. Loop 1 is never called: loop2 entry is set up by writing a .feature file
-and flipping state.phase to GHERKIN_APPROVED directly.
+runs. Loop 1 is never called: loop2 entry is set up by writing an EARS spec
+file and flipping state.phase to REQUIREMENTS_APPROVED directly.
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ from tdd_contracts import (
     LoopStatus,
     PathPolicyMode,
     Phase,
-    ScenarioTrace,
+    RequirementTrace,
     TraceabilityMatrix,
 )
 from tdd_fake_runner import FakeAgentRunner
@@ -31,53 +31,53 @@ from tdd_trace import load_matrix, save_matrix
 TESTGEN_MODEL = "claude-sonnet-4-6"   # conftest sluice_repo config defaults
 VERIFIER_MODEL = "claude-haiku-4-5"
 
-ONE_SCENARIO_FEATURE = """Feature: User auth
+ONE_REQUIREMENT_SPEC = """# User auth
 
-  Scenario: Successful login
-    Given a registered user
-    When they submit valid credentials
-    Then they are logged in
+Rationale: pin the login behavior.
+
+## REQ-001: Successful login
+
+WHEN a registered user submits valid credentials, THE SYSTEM SHALL log them in.
 """
 
-TWO_SCENARIO_FEATURE = ONE_SCENARIO_FEATURE + """
-  Scenario: Lockout after failures
-    Given a registered user
-    When they submit wrong credentials five times
-    Then the account is locked
+TWO_REQUIREMENT_SPEC = ONE_REQUIREMENT_SPEC + """
+## REQ-002: Lockout after failures
+
+IF a registered user submits wrong credentials five times, THEN THE SYSTEM SHALL lock the account.
 """
 
-LOGIN_ID = "user_auth:Successful login"
-LOCKOUT_ID = "user_auth:Lockout after failures"
+LOGIN_ID = "user_auth:REQ-001"
+LOCKOUT_ID = "user_auth:REQ-002"
 
 ROW_LOGIN_COVERED = {
-    "scenario_id": LOGIN_ID,
-    "feature_file": "user_auth.feature",
+    "requirement_id": LOGIN_ID,
+    "spec_file": "user_auth.md",
     "tests": ["tests/test_user_auth.py::test_successful_login"],
     "status": "covered",
 }
 ROW_LOCKOUT_MISSING = {
-    "scenario_id": LOCKOUT_ID,
-    "feature_file": "user_auth.feature",
+    "requirement_id": LOCKOUT_ID,
+    "spec_file": "user_auth.md",
     "tests": [],
     "status": "missing",
     "notes": "no test exercises the lockout path",
 }
 ROW_LOCKOUT_COVERED = {
-    "scenario_id": LOCKOUT_ID,
-    "feature_file": "user_auth.feature",
+    "requirement_id": LOCKOUT_ID,
+    "spec_file": "user_auth.md",
     "tests": ["tests/test_user_auth.py::test_lockout"],
     "status": "covered",
 }
 
 TEST_FILE_CONTENT = (
-    "# scenario: user_auth:Successful login\n"
+    "# requirement: user_auth:REQ-001\n"
     "def test_successful_login():\n"
     "    assert False\n"
 )
 
 
 def _matrix_json(*rows: dict) -> str:
-    return json.dumps({"scenarios": list(rows)})
+    return json.dumps({"requirements": list(rows)})
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -94,14 +94,14 @@ def _commit_count(repo: Path) -> int:
 def _setup_loop2(
     feature: SimpleNamespace,
     *,
-    feature_text: str = ONE_SCENARIO_FEATURE,
-    phase: Phase = Phase.GHERKIN_APPROVED,
+    spec_text: str = ONE_REQUIREMENT_SPEC,
+    phase: Phase = Phase.REQUIREMENTS_APPROVED,
     state_mut: Optional[Callable] = None,
     max_iterations: Optional[int] = None,
 ):
-    """Loop-2 entry world: .feature on disk, phase set by direct state edit."""
+    """Loop-2 entry world: spec file on disk, phase set by direct state edit."""
 
-    (feature.gherkin_dir / "user_auth.feature").write_text(feature_text)
+    (feature.requirements_dir / "user_auth.md").write_text(spec_text)
     # Production .gitignore policy (§5): the whole .sluice/ workspace is local.
     (feature.repo / ".gitignore").write_text(".sluice/\n")
     if max_iterations is not None:
@@ -163,15 +163,15 @@ class TestHappyPath:
         assert ver_spec.session_id is None
         assert ver_spec.allowed_tools == []
         assert ver_spec.path_policy_mode is None
-        assert "## Gherkin" in ver_spec.prompt
+        assert "## Requirements" in ver_spec.prompt
         assert "test_successful_login" in ver_spec.prompt  # tests read from disk
 
         # Matrix persisted at .tdd/traceability.json with covered rows.
         matrix = load_matrix(ctx.feature_dir)
         assert matrix is not None
-        assert [s.scenario_id for s in matrix.scenarios] == [LOGIN_ID]
-        assert matrix.scenarios[0].status == "covered"
-        assert matrix.scenarios[0].tests == [
+        assert [s.requirement_id for s in matrix.requirements] == [LOGIN_ID]
+        assert matrix.requirements[0].status == "covered"
+        assert matrix.requirements[0].tests == [
             "tests/test_user_auth.py::test_successful_login"
         ]
 
@@ -190,7 +190,7 @@ class TestHappyPath:
 
 class TestGapIteration:
     def test_gap_then_covered_resumes_session_with_gaps_only(self, feature) -> None:
-        ctx = _setup_loop2(feature, feature_text=TWO_SCENARIO_FEATURE)
+        ctx = _setup_loop2(feature, spec_text=TWO_REQUIREMENT_SPEC)
         runner = _runner(
             feature.repo,
             [
@@ -208,7 +208,7 @@ class TestGapIteration:
                         {
                             "path": "tests/test_user_auth.py",
                             "content": TEST_FILE_CONTENT
-                            + "\n# scenario: user_auth:Lockout after failures\n"
+                            + "\n# requirement: user_auth:REQ-002\n"
                             "def test_lockout():\n    assert False\n",
                         }
                     ],
@@ -233,17 +233,17 @@ class TestGapIteration:
         assert "## Coverage gaps" in second_gen.prompt
         assert LOCKOUT_ID in second_gen.prompt
         assert "Project test conventions" not in second_gen.prompt
-        assert "Approved Gherkin" not in second_gen.prompt
+        assert "Approved requirements" not in second_gen.prompt
 
         matrix = load_matrix(ctx.feature_dir)
-        assert {s.scenario_id: s.status for s in matrix.scenarios} == {
+        assert {s.requirement_id: s.status for s in matrix.requirements} == {
             LOGIN_ID: "covered",
             LOCKOUT_ID: "covered",
         }
 
     def test_gaps_exhausted_writes_report_and_checkpoints(self, feature) -> None:
         ctx = _setup_loop2(
-            feature, feature_text=TWO_SCENARIO_FEATURE, max_iterations=1
+            feature, spec_text=TWO_REQUIREMENT_SPEC, max_iterations=1
         )
         runner = _runner(
             feature.repo,
@@ -310,10 +310,10 @@ class TestMatrixMerge:
         ctx = _setup_loop2(feature)
         seeded = TraceabilityMatrix(
             slug="user-auth",
-            scenarios=[
-                ScenarioTrace(
-                    scenario_id=LOGIN_ID,
-                    feature_file="user_auth.feature",
+            requirements=[
+                RequirementTrace(
+                    requirement_id=LOGIN_ID,
+                    spec_file="user_auth.md",
                     revision=3,
                     tests=[],
                     status="missing",
@@ -339,10 +339,10 @@ class TestMatrixMerge:
 
         assert outcome.status is LoopStatus.ADVANCE
         matrix = load_matrix(ctx.feature_dir)
-        (scenario,) = matrix.scenarios
-        assert scenario.revision == 3  # kept across the verifier re-report
-        assert scenario.status == "covered"
-        assert scenario.tests == ["tests/test_user_auth.py::test_successful_login"]
+        (requirement,) = matrix.requirements
+        assert requirement.revision == 3  # kept across the verifier re-report
+        assert requirement.status == "covered"
+        assert requirement.tests == ["tests/test_user_auth.py::test_successful_login"]
 
 
 class TestResync:
@@ -351,14 +351,14 @@ class TestResync:
             state.session_ids["loop2"] = "sess-loop2"
 
         ctx = _setup_loop2(
-            feature, phase=Phase.AMENDING_GHERKIN, state_mut=seed_session
+            feature, phase=Phase.AMENDING_REQUIREMENTS, state_mut=seed_session
         )
         seeded = TraceabilityMatrix(
             slug="user-auth",
-            scenarios=[
-                ScenarioTrace(
-                    scenario_id=LOGIN_ID,
-                    feature_file="user_auth.feature",
+            requirements=[
+                RequirementTrace(
+                    requirement_id=LOGIN_ID,
+                    spec_file="user_auth.md",
                     revision=1,
                     tests=["tests/test_user_auth.py::test_successful_login"],
                     status="covered",
@@ -389,7 +389,7 @@ class TestResync:
         gen_spec = runner.received[0]
         assert gen_spec.model == TESTGEN_MODEL
         assert gen_spec.session_id == "sess-loop2"
-        assert "## Amended scenarios" in gen_spec.prompt
+        assert "## Amended requirements" in gen_spec.prompt
         assert "## Affected tests" in gen_spec.prompt
         assert LOGIN_ID in gen_spec.prompt
         assert "Update ONLY their mapped tests" in gen_spec.prompt
@@ -397,15 +397,15 @@ class TestResync:
 
         # bump_revisions applied: revision incremented + resync audit entry.
         matrix = load_matrix(ctx.feature_dir)
-        (scenario,) = matrix.scenarios
-        assert scenario.revision == 2
+        (requirement,) = matrix.requirements
+        assert requirement.revision == 2
         assert matrix.revisions[-1].kind == "resync"
-        assert matrix.revisions[-1].scenario_ids == [LOGIN_ID]
+        assert matrix.revisions[-1].requirement_ids == [LOGIN_ID]
 
         # NO commit and NO phase transition — Loop 3 owns both.
         assert _commit_count(feature.repo) == commits_before
         state = StateStore(ctx.feature_dir).load()
-        assert state.phase == Phase.AMENDING_GHERKIN.value
+        assert state.phase == Phase.AMENDING_REQUIREMENTS.value
 
     def test_resync_without_matrix_fails(self, feature) -> None:
         ctx = _setup_loop2(feature)
@@ -443,7 +443,7 @@ class TestGuards:
         assert outcome.exit_code is ExitCode.INTERNAL_ERROR
 
     def test_wrong_entry_phase_fails_defensively(self, feature) -> None:
-        ctx = _setup_loop2(feature, phase=Phase.DRAFTING_GHERKIN)
+        ctx = _setup_loop2(feature, phase=Phase.DRAFTING_REQUIREMENTS)
         runner = _runner(feature.repo, [])
 
         outcome = tdd_loop2.run_loop2(ctx, runner)

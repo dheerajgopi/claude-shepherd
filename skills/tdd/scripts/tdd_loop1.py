@@ -1,16 +1,17 @@
-"""Loop 1 — Gherkin specification (§8, §10, §12).
+"""Loop 1 — EARS requirements specification (§8, §10, §12).
 
 `run_loop1` drives the draft → human review → approve/revise cycle on the
-active feature: the gherkin model explores the repository read-only (Write is
-mechanically scoped to the feature's gherkin/ folder via the ALLOW_ONLY path
-policy), drafts `.feature` files, and the loop checkpoints with exit 10 until
-the human approves, at which point the dispatcher advances to Loop 2 (the
-spec lives only in the machine-local, gitignored .sluice/ workspace).
+active feature: the requirements model explores the repository read-only
+(Write is mechanically scoped to the feature's requirements/ folder via the
+ALLOW_ONLY path policy), drafts EARS spec (.md) files, and the loop
+checkpoints with exit 10 until the human approves, at which point the
+dispatcher advances to Loop 2 (the spec lives only in the machine-local,
+gitignored .sluice/ workspace).
 
-`amend_scenarios` is the §10 escalation re-entry: Loop 3 calls it after an
+`amend_requirements` is the §10 escalation re-entry: Loop 3 calls it after an
 approved test-change proposal; it resumes the Loop 1 session, amends only the
-affected scenarios, and returns their scenario ids. Phase transitions around
-amendment are owned by Loop 3 — this function never transitions.
+affected requirements, and returns their requirement ids. Phase transitions
+around amendment are owned by Loop 3 — this function never transitions.
 
 All shared vocabulary comes from tdd_contracts; state mutations go through
 ctx.store; prompt assembly through tdd_agent.build_prompt with sections
@@ -26,6 +27,7 @@ from typing import Optional
 from tdd_agent import build_prompt
 from tdd_contracts import (
     DECISION_APPROVE,
+    SPEC_FILE_GLOB,
     TASK_FILE,
     AgentRunner,
     ExitCode,
@@ -42,13 +44,13 @@ from tdd_state import FeatureContext, SluiceError, utc_now_iso
 LOOP1_ALLOWED_TOOLS = ["Read", "Glob", "Grep", "Write"]
 
 _SYSTEM_PROMPT_PATH = (
-    Path(__file__).resolve().parent.parent / "references" / "gherkin_prompt.md"
+    Path(__file__).resolve().parent.parent / "references" / "requirements_prompt.md"
 )
 _system_prompt_cache: Optional[str] = None
 
 
 def _system_prompt() -> str:
-    """The Loop 1 system prompt, read once from references/gherkin_prompt.md.
+    """The Loop 1 system prompt, read once from references/requirements_prompt.md.
 
     Byte-stable: never modified or suffixed with anything run-dependent, so
     the prompt-cache prefix survives every iteration of the loop (§12).
@@ -129,26 +131,26 @@ def _budget_checkpoint(ctx: FeatureContext) -> Optional[LoopOutcome]:
 # ---------------------------------------------------------------------------
 
 
-def _gherkin_rel(ctx: FeatureContext) -> str:
-    """The feature's gherkin dir relative to repo_root (the ALLOW_ONLY path)."""
+def _requirements_rel(ctx: FeatureContext) -> str:
+    """The feature's requirements dir relative to repo_root (the ALLOW_ONLY path)."""
 
-    return ctx.gherkin_dir.relative_to(ctx.repo_root).as_posix()
+    return ctx.requirements_dir.relative_to(ctx.repo_root).as_posix()
 
 
 def _make_spec(ctx: FeatureContext, prompt: str) -> RunSpec:
-    """One Loop 1 turn-batch: gherkin model, Write scoped to gherkin/ (§8)."""
+    """One Loop 1 turn-batch: requirements model, Write scoped to requirements/ (§8)."""
 
     remaining = max(
         ctx.config.budgets.max_cost_usd - ctx.state.budgets_spent.cost_usd, 0.0
     )
     return RunSpec(
         prompt=prompt,
-        model=ctx.config.models.gherkin,
+        model=ctx.config.models.requirements,
         system_prompt=_system_prompt(),
         session_id=ctx.state.session_ids.get("loop1"),
         allowed_tools=list(LOOP1_ALLOWED_TOOLS),
         path_policy_mode=PathPolicyMode.ALLOW_ONLY,
-        path_policy_paths=[_gherkin_rel(ctx)],
+        path_policy_paths=[_requirements_rel(ctx)],
         max_turns=ctx.config.budgets.max_turns_per_loop,
         max_budget_usd=remaining,
         cwd=str(ctx.repo_root),
@@ -177,25 +179,25 @@ def _run_error(result: RunResult) -> LoopOutcome:
 # ---------------------------------------------------------------------------
 
 
-def _feature_files(ctx: FeatureContext) -> list[str]:
-    """Repo-relative paths of the .feature files currently in gherkin/."""
+def _spec_files(ctx: FeatureContext) -> list[str]:
+    """Repo-relative paths of the EARS spec files currently in requirements/."""
 
-    if not ctx.gherkin_dir.is_dir():
+    if not ctx.requirements_dir.is_dir():
         return []
     return sorted(
         p.relative_to(ctx.repo_root).as_posix()
-        for p in ctx.gherkin_dir.glob("*.feature")
+        for p in ctx.requirements_dir.glob(SPEC_FILE_GLOB)
     )
 
 
 def _listing(ctx: FeatureContext) -> str:
-    files = _feature_files(ctx)
+    files = _spec_files(ctx)
     return ", ".join(files) if files else "(none)"
 
 
 def _review_detail(ctx: FeatureContext, verb: str) -> str:
     return (
-        f"Gherkin {verb}: {_listing(ctx)}. Review and re-invoke with "
+        f"Requirements {verb}: {_listing(ctx)}. Review and re-invoke with "
         "--decision approve or --feedback"
     )
 
@@ -213,14 +215,14 @@ def run_loop1(
 ) -> LoopOutcome:
     """Drive Loop 1 from the feature's current phase (§8).
 
-    DRAFTING_GHERKIN drafts (fresh feature, or re-entry after a crash);
+    DRAFTING_REQUIREMENTS drafts (fresh feature, or re-entry after a crash);
     AWAITING_APPROVAL consumes the human's decision/feedback; any other phase
     is a dispatcher bug and fails defensively.
     """
 
     phase = Phase(ctx.state.phase)
 
-    if phase is Phase.DRAFTING_GHERKIN:
+    if phase is Phase.DRAFTING_REQUIREMENTS:
         return _draft(ctx, runner)
 
     if phase is Phase.AWAITING_APPROVAL:
@@ -232,7 +234,7 @@ def run_loop1(
             status=LoopStatus.CHECKPOINT,
             exit_code=ExitCode.AWAITING_APPROVAL,
             detail=(
-                f"Gherkin awaiting review: {_listing(ctx)}. Re-invoke with "
+                f"Requirements awaiting review: {_listing(ctx)}. Re-invoke with "
                 "--decision approve or --feedback"
             ),
         )
@@ -258,8 +260,8 @@ def _draft(ctx: FeatureContext, runner: AgentRunner) -> LoopOutcome:
             (
                 "Feature",
                 f"Slug: {ctx.slug}\n"
-                f"Gherkin directory (absolute): {ctx.gherkin_dir}\n"
-                "Write every .feature file into that directory; writes "
+                f"Requirements directory (absolute): {ctx.requirements_dir}\n"
+                "Write every EARS spec (.md) file into that directory; writes "
                 "anywhere else are mechanically denied.",
             ),
         ]
@@ -282,17 +284,17 @@ def _draft(ctx: FeatureContext, runner: AgentRunner) -> LoopOutcome:
 def _approve(ctx: FeatureContext) -> LoopOutcome:
     """Human approved: advance to Loop 2 (.sluice/ is gitignored — no commit)."""
 
-    if not _feature_files(ctx):
+    if not _spec_files(ctx):
         return LoopOutcome(
             status=LoopStatus.FAILED,
             exit_code=ExitCode.INTERNAL_ERROR,
             detail=(
-                f"nothing to approve: no .feature files in {_gherkin_rel(ctx)}"
+                f"nothing to approve: no spec files in {_requirements_rel(ctx)}"
             ),
         )
     ctx.store.transition(
         ctx.state,
-        Phase.GHERKIN_APPROVED,
+        Phase.REQUIREMENTS_APPROVED,
         session_id=ctx.state.session_ids.get("loop1"),
     )
     return LoopOutcome(status=LoopStatus.ADVANCE, detail="spec approved")
@@ -309,7 +311,7 @@ def _revise(
 
     ctx.store.transition(
         ctx.state,
-        Phase.DRAFTING_GHERKIN,
+        Phase.DRAFTING_REQUIREMENTS,
         session_id=ctx.state.session_ids.get("loop1"),
     )
     prompt = build_prompt([("Reviewer feedback", feedback)])
@@ -329,26 +331,27 @@ def _revise(
 
 
 # ---------------------------------------------------------------------------
-# amend_scenarios — §10 escalation re-entry (called by Loop 3)
+# amend_requirements — §10 escalation re-entry (called by Loop 3)
 # ---------------------------------------------------------------------------
 
 _AMEND_INSTRUCTION = (
-    "Amend ONLY the scenario(s) affected by this approved proposal; preserve "
-    "all other scenario wording byte-for-byte. After editing, end your reply "
-    "with a single line: AMENDED: <scenario_id>[, <scenario_id>...] using "
-    "the <feature-file-stem>:<scenario name> format."
+    "Amend ONLY the requirement(s) affected by this approved proposal; "
+    "preserve all other requirement wording byte-for-byte and never renumber "
+    "or reuse REQ ids. After editing, end your reply with a single line: "
+    "AMENDED: <requirement_id>[, <requirement_id>...] using the "
+    "<spec-file-stem>:REQ-<nnn> format."
 )
 
 
-def amend_scenarios(
+def amend_requirements(
     ctx: FeatureContext, runner: AgentRunner, proposal: dict
 ) -> list[str]:
-    """Resume the Loop 1 session to amend scenarios for an approved proposal.
+    """Resume the Loop 1 session to amend requirements for an approved proposal.
 
-    `proposal` carries test_file, related_scenario, reason, proposed_diff.
-    Returns the amended scenario ids parsed from the agent's final
+    `proposal` carries test_file, related_requirement, reason, proposed_diff.
+    Returns the amended requirement ids parsed from the agent's final
     "AMENDED:" line (last occurrence wins); falls back to — and always
-    includes — proposal["related_scenario"] (deduped, order-preserving).
+    includes — proposal["related_requirement"] (deduped, order-preserving).
 
     Phase transitions around amendment are owned by Loop 3 — none happen
     here. Because this is a nested call inside Loop 3's escalation handling,
@@ -363,7 +366,7 @@ def amend_scenarios(
 
     formatted = (
         f"test_file: {proposal['test_file']}\n"
-        f"related_scenario: {proposal['related_scenario']}\n"
+        f"related_requirement: {proposal['related_requirement']}\n"
         f"reason: {proposal['reason']}\n"
         "proposed_diff:\n"
         "```diff\n"
@@ -396,7 +399,7 @@ def amend_scenarios(
             ]
 
     amended: list[str] = []
-    for scenario_id in [*parsed, proposal["related_scenario"]]:
-        if scenario_id not in amended:
-            amended.append(scenario_id)
+    for requirement_id in [*parsed, proposal["related_requirement"]]:
+        if requirement_id not in amended:
+            amended.append(requirement_id)
     return amended
