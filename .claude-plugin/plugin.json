@@ -1,7 +1,7 @@
 {
   "name": "shepherd",
   "description": "Engineering workflow skills and commands for Claude Code, with mechanical guardrails enforced by hooks. Currently ships the strict TDD skill: a checkpoint state machine driving EARS requirements specification, test generation, and implementation loops with hard spec/test/implementation boundaries.",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "author": {
     "name": "Dheeraj Gopinath",
     "email": "dheerajgopinath@gmail.com"
