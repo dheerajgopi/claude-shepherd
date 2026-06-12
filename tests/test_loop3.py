@@ -35,7 +35,7 @@ from tdd_contracts import (
 from tdd_fake_runner import FakeAgentRunner
 from tdd_state import StateStore, resolve_feature
 
-IMPLEMENT_MODEL = "claude-sonnet-4-6"  # conftest sluice_repo config defaults
+IMPLEMENT_MODEL = "claude-sonnet-4-6"  # conftest shepherd_repo config defaults
 VERIFIER_MODEL = "claude-haiku-4-5"
 
 PASS_COMMAND = (
@@ -139,7 +139,7 @@ def _setup_loop3(
     """Loop-3 entry world at RED_COMMITTED with a clean, committed tree."""
 
     (feature.requirements_dir / "user_auth.md").write_text(SPEC_TEXT)
-    (feature.repo / ".gitignore").write_text(".sluice/\nfake_script.json*\n")
+    (feature.repo / ".gitignore").write_text(".shepherd/\nfake_script.json*\n")
     (feature.repo / TEST_FILE).parent.mkdir(parents=True, exist_ok=True)
     (feature.repo / TEST_FILE).write_text(TEST_CONTENT)
     (feature.feature_dir / ".tdd").mkdir(parents=True, exist_ok=True)
@@ -147,7 +147,7 @@ def _setup_loop3(
         _trace_json(trace_tests if trace_tests is not None else [f"{TEST_FILE}::test_x"])
     )
 
-    cfg = feature.repo / ".sluice" / "config.yaml"
+    cfg = feature.repo / ".shepherd" / "config.yaml"
     import yaml
 
     data = yaml.safe_load(cfg.read_text())
@@ -229,7 +229,7 @@ class TestHappyPath:
         assert spec.path_policy_mode is PathPolicyMode.DENY_UNDER
         assert spec.path_policy_paths == [
             "tests",
-            ".sluice/features/user-auth/requirements",
+            ".shepherd/features/user-auth/requirements",
         ]
         assert spec.expose_propose_test_change is True
         assert "## Context" in spec.prompt

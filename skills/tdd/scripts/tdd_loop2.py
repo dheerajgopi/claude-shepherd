@@ -423,7 +423,7 @@ def _red_commit(ctx: FeatureContext, matrix: TraceabilityMatrix) -> LoopOutcome:
     """Full coverage: red commit (§9, BEFORE Loop 3 — the recovery anchor).
 
     Only test paths are committed; the feature folder (requirements,
-    traceability) lives under the gitignored .sluice/ workspace.
+    traceability) lives under the gitignored .shepherd/ workspace.
     """
 
     tdd_git.commit_paths(

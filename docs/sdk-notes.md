@@ -73,7 +73,7 @@ plus `model_usage` (per-model breakdown), `is_error`, `stop_reason`, `result` (f
 - There is **no native path scoping** for Write/Edit — path policy must be a PreToolUse hook
   (our design assumption confirmed).
 - `permission_mode="bypassPermissions"` needed for headless writes; hooks still fire and deny.
-  This is the key combination for the sluice: bypass CLI permission prompts, enforce via hooks.
+  This is the key combination for the shepherd: bypass CLI permission prompts, enforce via hooks.
 
 ## 7. Settings isolation
 

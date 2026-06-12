@@ -55,16 +55,16 @@ class TestPlumbing:
 
 
 class TestIsDirty:
-    """Dirty-tree policy (§16): untracked `.sluice` files are excepted."""
+    """Dirty-tree policy (§16): untracked `.shepherd` files are excepted."""
 
     def test_clean_tree(self, tmp_repo: Path) -> None:
         assert is_dirty(tmp_repo) is False
 
-    def test_untracked_under_sluice_is_clean(self, tmp_repo: Path) -> None:
-        sluice = tmp_repo / ".sluice" / "features" / "x"
-        sluice.mkdir(parents=True)
-        (sluice / "task.md").write_text("untracked sluice file\n")
-        (tmp_repo / ".sluice" / "config.yaml").write_text("test: {}\n")
+    def test_untracked_under_shepherd_is_clean(self, tmp_repo: Path) -> None:
+        shepherd = tmp_repo / ".shepherd" / "features" / "x"
+        shepherd.mkdir(parents=True)
+        (shepherd / "task.md").write_text("untracked shepherd file\n")
+        (tmp_repo / ".shepherd" / "config.yaml").write_text("test: {}\n")
 
         assert is_dirty(tmp_repo) is False
 
@@ -77,12 +77,12 @@ class TestIsDirty:
         readme.write_text(readme.read_text() + "\nlocal edit\n")
         assert is_dirty(tmp_repo) is True
 
-    def test_modified_tracked_file_under_sluice_still_counts(
+    def test_modified_tracked_file_under_shepherd_still_counts(
         self, tmp_repo: Path
     ) -> None:
-        # The exception is for UNTRACKED .sluice files only; a tracked,
-        # modified file under .sluice must count as dirty.
-        cfg = tmp_repo / ".sluice" / "config.yaml"
+        # The exception is for UNTRACKED .shepherd files only; a tracked,
+        # modified file under .shepherd must count as dirty.
+        cfg = tmp_repo / ".shepherd" / "config.yaml"
         cfg.parent.mkdir(parents=True)
         cfg.write_text("a: 1\n")
         subprocess.run(

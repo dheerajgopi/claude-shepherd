@@ -706,7 +706,7 @@ def _amend_pipeline(ctx: FeatureContext, runner: AgentRunner) -> LoopOutcome:
             "approval received but no escalation proposal found in reports/",
         )
 
-    # (a) Loop 1 amends only the affected requirements. SluiceError
+    # (a) Loop 1 amends only the affected requirements. ShepherdError
     #     (e.g. BUDGET_EXCEEDED) propagates to tdd.py's top-level handler.
     amended_ids = tdd_loop1.amend_requirements(ctx, runner, proposal)
 
@@ -716,7 +716,7 @@ def _amend_pipeline(ctx: FeatureContext, runner: AgentRunner) -> LoopOutcome:
         return outcome  # phase stays AMENDING_REQUIREMENTS; re-run recovers here
 
     # (c) The renegotiation is visible in history: red(n) (§16). Only test
-    #     paths are committed; the amended spec stays in gitignored .sluice/.
+    #     paths are committed; the amended spec stays in gitignored .shepherd/.
     ctx.state.red_commit_count += 1
     n = ctx.state.red_commit_count
     ctx.store.save(ctx.state)

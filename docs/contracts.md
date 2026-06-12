@@ -1,6 +1,6 @@
 # TDD skill contracts — the shared vocabulary
 
-Contracts for the sluice plugin's TDD skill (other skills will pin their own).
+Contracts for the shepherd plugin's TDD skill (other skills will pin their own).
 Source of truth: `skills/tdd/scripts/tdd_contracts.py` (stdlib-only, import it — never re-derive).
 This doc is the prose companion for artifacts that can't import Python (SKILL.md, the playbook
 in `skills/tdd/references/playbook.md`, setup.sh, prompts). Requirement references (§n):
@@ -17,7 +17,7 @@ in `skills/tdd/references/playbook.md`, setup.sh, prompts). Requirement referenc
 | 13 | BUDGET_EXCEEDED | Surface status report |
 | 20 | NO_FEATURE_RESOLVED | Present feature list, re-invoke with `--feature` |
 | 21 | BRANCH_MISMATCH | Warn human; re-invoke with `--force` only if intended |
-| 22 | SLUICE_NOT_INITIALIZED | Offer `tdd.py init`, then review generated config |
+| 22 | SHEPHERD_NOT_INITIALIZED | Offer `tdd.py init`, then review generated config |
 | 1 | INTERNAL_ERROR | Unexpected failure; surface stderr verbatim |
 
 ## CLI grammar (§6) — pinned
@@ -53,13 +53,13 @@ refuses anything else.
 
 ## On-disk artifacts (§5)
 
-The entire `.sluice/` workspace is **gitignored** (init appends `.sluice/` to
+The entire `.shepherd/` workspace is **gitignored** (init appends `.shepherd/` to
 `.gitignore`): every artifact below is machine-local and never committed.
 
 | Path (per feature) | Schema (contracts module) |
 |---|---|
-| `.sluice/config.yaml` | `SluiceConfig` |
-| `.sluice/manifest.json` | `SluiceManifest` |
+| `.shepherd/config.yaml` | `ShepherdConfig` |
+| `.shepherd/manifest.json` | `ShepherdManifest` |
 | `features/<slug>/task.md` | verbatim text |
 | `features/<slug>/requirements/*.md` | EARS spec files |
 | `features/<slug>/.tdd/state.json` | `FeatureState` |
@@ -90,7 +90,7 @@ tdd(<slug>): green — implementation
 
 The outer agent must NEVER hand-create commits matching `tdd(...)`.
 There is no spec commit: Loop 1 approval only advances the phase, because
-the spec artifacts live in the gitignored `.sluice/` workspace. Red and
+the spec artifacts live in the gitignored `.shepherd/` workspace. Red and
 red(n) commits carry only `test.paths` content.
 
 ## Path policy (the mechanical boundary, §9–10)

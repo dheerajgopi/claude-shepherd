@@ -10,7 +10,7 @@ import pytest
 tdd_state = pytest.importorskip("tdd_state")  # parallel track (T1-CORE)
 
 from tdd_contracts import ExitCode  # noqa: E402
-from tdd_state import SluiceError, resolve_feature  # noqa: E402
+from tdd_state import ShepherdError, resolve_feature  # noqa: E402
 
 from conftest import scaffold_feature  # noqa: E402
 
@@ -38,7 +38,7 @@ class TestExplicitArgument:
         assert ctx.slug == "user-auth"
 
     def test_unknown_slug_lists_existing_features(self, feature) -> None:
-        with pytest.raises(SluiceError) as excinfo:
+        with pytest.raises(ShepherdError) as excinfo:
             resolve_feature(feature.repo, "no-such-feature", False)
         assert excinfo.value.exit_code == ExitCode.NO_FEATURE_RESOLVED
         assert "user-auth" in str(excinfo.value.message)
@@ -64,7 +64,7 @@ class TestBranchConvention:
     def test_main_branch_without_arg_fails(self, feature) -> None:
         _git(feature.repo, "checkout", "main")
 
-        with pytest.raises(SluiceError) as excinfo:
+        with pytest.raises(ShepherdError) as excinfo:
             resolve_feature(feature.repo, None, False)
         assert excinfo.value.exit_code == ExitCode.NO_FEATURE_RESOLVED
 
@@ -73,7 +73,7 @@ class TestBranchMismatch:
     def test_recorded_branch_differs_from_current(self, feature) -> None:
         _git(feature.repo, "checkout", "main")
 
-        with pytest.raises(SluiceError) as excinfo:
+        with pytest.raises(ShepherdError) as excinfo:
             resolve_feature(feature.repo, "user-auth", False)
         assert excinfo.value.exit_code == ExitCode.BRANCH_MISMATCH
 

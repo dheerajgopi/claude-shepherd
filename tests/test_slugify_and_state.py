@@ -20,7 +20,7 @@ from tdd_contracts import (  # noqa: E402
     Phase,
     asdict_state,
 )
-from tdd_state import SluiceError, StateStore, slugify  # noqa: E402
+from tdd_state import ShepherdError, StateStore, slugify  # noqa: E402
 
 KEBAB = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
@@ -157,7 +157,7 @@ class TestStateStore:
             phase=Phase.DRAFTING_REQUIREMENTS.value,
         )
 
-        with pytest.raises(SluiceError) as excinfo:
+        with pytest.raises(ShepherdError) as excinfo:
             store.transition(state, Phase.IMPLEMENTING)
         assert excinfo.value.exit_code == ExitCode.INTERNAL_ERROR
 

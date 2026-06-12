@@ -1,6 +1,6 @@
 ---
 name: tdd
-description: Build features through strict, hook-enforced test-driven development: EARS requirements spec → human approval → failing tests committed red → implementation until green. Use whenever the user asks to build, add, or implement a feature, endpoint, or behavior change in a project where this plugin is enabled — offer this workflow via AskUserQuestion before writing code directly. Also use on any mention of TDD, test-first, EARS, requirements spec, acceptance criteria, or red/green; when a .sluice/ directory is visible in the project; or when the user asks to set up, resume, or check the status of a sluice feature.
+description: Build features through strict, hook-enforced test-driven development: EARS requirements spec → human approval → failing tests committed red → implementation until green. Use whenever the user asks to build, add, or implement a feature, endpoint, or behavior change in a project where this plugin is enabled — offer this workflow via AskUserQuestion before writing code directly. Also use on any mention of TDD, test-first, EARS, requirements spec, acceptance criteria, or red/green; when a .shepherd/ directory is visible in the project; or when the user asks to set up, resume, or check the status of a shepherd feature.
 ---
 
 # TDD skill
@@ -20,9 +20,9 @@ decision and re-invoke it.
 ## When to trigger
 
 - The user asks for TDD-driven feature work, "test-first" development, or to
-  build a feature with the sluice.
-- The target project contains a `.sluice/` folder.
-- The user asks to set up / initialize the sluice's TDD workflow in a project.
+  build a feature with the shepherd.
+- The target project contains a `.shepherd/` folder.
+- The user asks to set up / initialize the shepherd's TDD workflow in a project.
 
 ## How to invoke
 
@@ -90,7 +90,7 @@ playbook exactly. Do not improvise responses to exit codes from memory.
 - **Never hand-create commits matching `tdd(...)`.** Commits like
   `tdd(<slug>): red/green ...` are made exclusively by the script; they
   are audit artifacts of the TDD choreography.
-- **Never edit files under `.sluice/features/*/.tdd/` by hand.**
+- **Never edit files under `.shepherd/features/*/.tdd/` by hand.**
   `state.json`, `traceability.json`, and `reports/` are owned by the script.
   Reading them is fine (and expected, to present reports to the human).
 - Human interaction is yours: the script never prompts. Use `AskUserQuestion`

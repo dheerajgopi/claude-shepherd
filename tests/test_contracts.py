@@ -30,7 +30,7 @@ class TestExitCodes:
             ("BUDGET_EXCEEDED", 13),
             ("NO_FEATURE_RESOLVED", 20),
             ("BRANCH_MISMATCH", 21),
-            ("SLUICE_NOT_INITIALIZED", 22),
+            ("SHEPHERD_NOT_INITIALIZED", 22),
             ("INTERNAL_ERROR", 1),
         ],
     )
@@ -109,7 +109,7 @@ class TestResumablePhases:
 
 
 class TestCommitFormats:
-    """Commit messages per §16, exact. No spec commit: .sluice/ is gitignored."""
+    """Commit messages per §16, exact. No spec commit: .shepherd/ is gitignored."""
 
     def test_red(self) -> None:
         assert COMMIT_RED.format(slug="user-auth") == (
@@ -131,4 +131,4 @@ class TestGitignorePolicy:
     """§5 version-control policy: the whole workspace is machine-local."""
 
     def test_whole_workspace_ignored(self) -> None:
-        assert GITIGNORE_ENTRIES == [".sluice/"]
+        assert GITIGNORE_ENTRIES == [".shepherd/"]

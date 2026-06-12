@@ -30,7 +30,7 @@ re-invocation.
 | 13 | BUDGET_EXCEEDED | Surface status report |
 | 20 | NO_FEATURE_RESOLVED | Present feature list, re-invoke with `--feature` |
 | 21 | BRANCH_MISMATCH | Warn human; re-invoke with `--force` only if intended |
-| 22 | SLUICE_NOT_INITIALIZED | Offer `tdd.py init`, then review generated config |
+| 22 | SHEPHERD_NOT_INITIALIZED | Offer `tdd.py init`, then review generated config |
 | 1 | INTERNAL_ERROR | Unexpected failure; surface stderr verbatim |
 
 ## Per-code playbook
@@ -41,7 +41,7 @@ the script's stdout summary. Stop.
 
 ### 10 — AWAITING_APPROVAL (requirements drafted/revised)
 1. Read the drafted EARS spec (`.md`) files from
-   `.sluice/features/<slug>/requirements/`.
+   `.shepherd/features/<slug>/requirements/`.
 2. Present them to the user via `AskUserQuestion` with options:
    **Approve** / **Give corrections**.
 3. On approve: re-invoke `run --feature <slug> --decision approve`.
@@ -50,11 +50,11 @@ the script's stdout summary. Stop.
    approval.
 
 ### 11 — COVERAGE_GAP
-Read the gap report from `.sluice/features/<slug>/.tdd/reports/` and surface
+Read the gap report from `.shepherd/features/<slug>/.tdd/reports/` and surface
 its content to the user. Stop — this needs human judgment, not a retry.
 
 ### 12 — ESCALATED (significant test change proposed)
-1. Read the proposal report from `.sluice/features/<slug>/.tdd/reports/`.
+1. Read the proposal report from `.shepherd/features/<slug>/.tdd/reports/`.
 2. Present it via `AskUserQuestion` with options: **Approve** / **Reject**.
 3. On approve: re-invoke `run --feature <slug> --decision approve`
    (the script amends the affected requirements via Loop 1 and re-syncs tests).
@@ -63,7 +63,7 @@ its content to the user. Stop — this needs human judgment, not a retry.
 
 ### 13 — BUDGET_EXCEEDED
 Surface the status report (stdout and any report file under
-`.sluice/features/<slug>/.tdd/reports/`) to the user. Stop.
+`.shepherd/features/<slug>/.tdd/reports/`) to the user. Stop.
 
 ### 20 — NO_FEATURE_RESOLVED
 1. Run `python3 "${CLAUDE_PLUGIN_ROOT}/skills/tdd/scripts/tdd.py" status`.
@@ -76,10 +76,10 @@ feature's state. Only re-invoke with `--force` if the user explicitly confirms
 they intend to proceed on this branch. Otherwise stop (or help them switch to
 the recorded `tdd/<slug>` branch).
 
-### 22 — SLUICE_NOT_INITIALIZED
+### 22 — SHEPHERD_NOT_INITIALIZED
 1. Offer (via `AskUserQuestion`) to run
    `python3 "${CLAUDE_PLUGIN_ROOT}/skills/tdd/scripts/tdd.py" init`.
-2. After init, show the user the generated `.sluice/config.yaml` for review —
+2. After init, show the user the generated `.shepherd/config.yaml` for review —
    **especially `test.command` and `test.paths`**, which feed the Loop 2/3
    enforcement hooks; a wrong boundary undermines the safety model.
 3. Once the config is confirmed, resume the original `run` invocation.

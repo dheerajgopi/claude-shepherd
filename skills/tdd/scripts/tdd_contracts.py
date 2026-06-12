@@ -1,4 +1,4 @@
-"""Shared contracts for the TDD sluice engine.
+"""Shared contracts for the TDD shepherd engine.
 
 This module is the single source of truth for everything two modules could
 disagree on: exit codes, phases and their legal transitions, on-disk schemas
@@ -30,7 +30,7 @@ class ExitCode(enum.IntEnum):
     BUDGET_EXCEEDED = 13          # turn/cost/time limit hit
     NO_FEATURE_RESOLVED = 20      # no --feature arg, no tdd/<slug> branch
     BRANCH_MISMATCH = 21          # current branch != branch recorded in state
-    SLUICE_NOT_INITIALIZED = 22  # no .sluice folder found
+    SHEPHERD_NOT_INITIALIZED = 22  # no .shepherd folder found
 
     # Conventional failure for unexpected errors (not part of the §13 table;
     # the outer command treats any other nonzero code as a hard error).
@@ -105,11 +105,11 @@ COMMIT_GREEN = "tdd({slug}): green — implementation"
 # Workspace layout (§5)
 # ---------------------------------------------------------------------------
 
-SLUICE_DIR = ".sluice"
-CONFIG_FILE = ".sluice/config.yaml"
-FEATURES_DIR = ".sluice/features"
-MANIFEST_FILE = ".sluice/manifest.json"
-# Per feature (relative to .sluice/features/<slug>/). The entire .sluice/
+SHEPHERD_DIR = ".shepherd"
+CONFIG_FILE = ".shepherd/config.yaml"
+FEATURES_DIR = ".shepherd/features"
+MANIFEST_FILE = ".shepherd/manifest.json"
+# Per feature (relative to .shepherd/features/<slug>/). The entire .shepherd/
 # workspace is gitignored (§5): every artifact below is machine-local.
 TASK_FILE = "task.md"
 REQUIREMENTS_DIR = "requirements"
@@ -129,7 +129,7 @@ BRANCH_PREFIX = "tdd/"  # feature branch = tdd/<slug>
 #: .gitignore entries appended by init (§5 version-control policy):
 #: the whole workspace is machine-local, nothing under it is ever committed.
 GITIGNORE_ENTRIES = [
-    ".sluice/",
+    ".shepherd/",
 ]
 
 
@@ -189,7 +189,7 @@ class BudgetsConfig:
 
 
 @dataclass
-class SluiceConfig:
+class ShepherdConfig:
     models: ModelsConfig = field(default_factory=ModelsConfig)
     test: TestConfig = field(default_factory=TestConfig)
     budgets: BudgetsConfig = field(default_factory=BudgetsConfig)
@@ -311,8 +311,8 @@ VERIFIER_TRIAGE_JSON_SCHEMA: dict[str, Any] = {
 
 
 @dataclass
-class SluiceManifest:
-    sluice_sha: str                          # git SHA of the sluice repo
+class ShepherdManifest:
+    shepherd_sha: str                          # git SHA of the shepherd repo
     installed_at: str                         # ISO-8601 UTC
     artifacts: dict[str, str] = field(default_factory=dict)  # path -> sha256
     schema_version: int = 1
@@ -414,7 +414,7 @@ class LoopOutcome:
 #   tdd_loop2.resync_tests(ctx, runner, requirement_ids: list[str]) -> LoopOutcome
 #   tdd_loop3.run_loop3(ctx, runner, decision: str | None, feedback: str | None) -> LoopOutcome
 #
-# `ctx` is tdd_state.FeatureContext: repo_root, slug, paths, SluiceConfig,
+# `ctx` is tdd_state.FeatureContext: repo_root, slug, paths, ShepherdConfig,
 # FeatureState store handle, and git helpers — defined in T1-CORE and kept
 # minimal; loops receive everything through it.
 

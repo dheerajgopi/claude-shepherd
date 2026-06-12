@@ -1,4 +1,4 @@
-"""Shared fixtures for the TDD sluice's own test suite.
+"""Shared fixtures for the TDD shepherd's own test suite.
 
 Fixtures build their worlds with plain subprocess git + file writes — they
 must NEVER call the engine's `init`/`new` (fixtures cannot depend on the code
@@ -18,8 +18,8 @@ from types import SimpleNamespace
 
 import pytest
 
-SLUICE_ROOT = Path(__file__).resolve().parent.parent
-SCRIPTS_DIR = SLUICE_ROOT / "skills" / "tdd" / "scripts"
+SHEPHERD_ROOT = Path(__file__).resolve().parent.parent
+SCRIPTS_DIR = SHEPHERD_ROOT / "skills" / "tdd" / "scripts"
 TDD_PY = SCRIPTS_DIR / "tdd.py"
 
 # Module-level insertion: pytest.importorskip() at the top of test modules
@@ -50,8 +50,8 @@ def tmp_repo(tmp_path: Path) -> Path:
 
     repo = tmp_path
     _git(repo, "init", "-b", "main")
-    _git(repo, "config", "user.email", "sluice-tests@example.com")
-    _git(repo, "config", "user.name", "Sluice Tests")
+    _git(repo, "config", "user.email", "shepherd-tests@example.com")
+    _git(repo, "config", "user.name", "Shepherd Tests")
 
     (repo / "README.md").write_text("# Demo project\n\nFixture repo.\n")
     (repo / "pyproject.toml").write_text(
@@ -77,18 +77,18 @@ def tmp_repo(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def sluice_repo(tmp_repo: Path) -> Path:
-    """tmp_repo with .sluice/config.yaml written from SluiceConfig defaults."""
+def shepherd_repo(tmp_repo: Path) -> Path:
+    """tmp_repo with .shepherd/config.yaml written from ShepherdConfig defaults."""
 
-    from tdd_contracts import SluiceConfig
+    from tdd_contracts import ShepherdConfig
 
-    cfg = SluiceConfig()
+    cfg = ShepherdConfig()
     cfg.test.command = "pytest -x -q"
     cfg.test.paths = ["tests"]
 
-    sluice = tmp_repo / ".sluice"
-    (sluice / "features").mkdir(parents=True)
-    (sluice / "config.yaml").write_text(
+    shepherd = tmp_repo / ".shepherd"
+    (shepherd / "features").mkdir(parents=True)
+    (shepherd / "config.yaml").write_text(
         "models:\n"
         f"  requirements: {cfg.models.requirements}\n"
         f"  testgen: {cfg.models.testgen}\n"
@@ -122,7 +122,7 @@ def scaffold_feature(repo: Path, slug: str, *, checkout: bool = True) -> SimpleN
     )
 
     branch = f"tdd/{slug}"
-    feature_dir = repo / ".sluice" / "features" / slug
+    feature_dir = repo / ".shepherd" / "features" / slug
     requirements_dir = feature_dir / "requirements"
     tdd_dir = feature_dir / ".tdd"
     requirements_dir.mkdir(parents=True)
@@ -161,10 +161,10 @@ def scaffold_feature(repo: Path, slug: str, *, checkout: bool = True) -> SimpleN
 
 
 @pytest.fixture
-def feature(sluice_repo: Path) -> SimpleNamespace:
+def feature(shepherd_repo: Path) -> SimpleNamespace:
     """A scaffolded 'user-auth' feature on branch tdd/user-auth (checked out)."""
 
-    return scaffold_feature(sluice_repo, "user-auth", checkout=True)
+    return scaffold_feature(shepherd_repo, "user-auth", checkout=True)
 
 
 def run_cli(args, cwd, env_extra=None, stdin=None) -> subprocess.CompletedProcess:

@@ -51,7 +51,7 @@ TEST_CONTENT = (
     "    assert pathlib.Path('PASS').exists()\n"
 )
 
-SPEC_REL = ".sluice/features/user-auth/requirements/user_auth.md"
+SPEC_REL = ".shepherd/features/user-auth/requirements/user_auth.md"
 
 MATRIX_COVERED = json.dumps(
     {
@@ -164,7 +164,7 @@ def world(tmp_repo, tmp_path_factory):
     # is unnecessary: PASS is created mid-loop3 and committed by green).
     import yaml
 
-    cfg = tmp_repo / ".sluice" / "config.yaml"
+    cfg = tmp_repo / ".shepherd" / "config.yaml"
     data = yaml.safe_load(cfg.read_text())
     data["test"]["command"] = PASS_COMMAND
     data["test"]["paths"] = ["tests"]
@@ -173,7 +173,7 @@ def world(tmp_repo, tmp_path_factory):
         ["git", "add", "-A"], cwd=tmp_repo, check=True, capture_output=True
     )
     subprocess.run(
-        ["git", "commit", "-m", "configure sluice"],
+        ["git", "commit", "-m", "configure shepherd"],
         cwd=tmp_repo, check=True, capture_output=True,
     )
 
@@ -193,7 +193,7 @@ def _subjects(repo: Path) -> list[str]:
 
 def _phase(repo: Path) -> str:
     state = json.loads(
-        (repo / ".sluice/features/user-auth/.tdd/state.json").read_text()
+        (repo / ".shepherd/features/user-auth/.tdd/state.json").read_text()
     )
     return state["phase"]
 
@@ -212,7 +212,7 @@ class TestHappyPath:
         assert _phase(repo) == Phase.AWAITING_APPROVAL.value
 
         # 2. Approve → loop2 (gen+verify+red), loop3 (impl+green); no spec
-        #    commit — .sluice/ is gitignored.
+        #    commit — .shepherd/ is gitignored.
         r = step(
             ["run", "--decision", "approve"],
             [GEN_TESTS, VERIFY_COVERED, IMPLEMENT_GREEN],
@@ -226,13 +226,13 @@ class TestHappyPath:
         assert subjects[1] == COMMIT_RED.format(slug="user-auth")
         assert [s for s in subjects if s.startswith("tdd(")] == subjects[:2]
 
-        # Nothing under the machine-local .sluice/ ever enters a commit.
+        # Nothing under the machine-local .shepherd/ ever enters a commit.
         shown = subprocess.run(
             ["git", "log", "--name-only", "--format="], cwd=repo,
             check=True, capture_output=True, text=True,
         ).stdout
         assert "tests/test_user_auth.py" in shown
-        assert ".sluice" not in shown
+        assert ".shepherd" not in shown
 
         # Re-run after DONE: friendly exit 0.
         r = step(["run"], [])
@@ -262,18 +262,18 @@ class TestCoverageGap:
 
         import yaml
 
-        cfg = repo / ".sluice" / "config.yaml"
+        cfg = repo / ".shepherd" / "config.yaml"
         data = yaml.safe_load(cfg.read_text())
         data["budgets"]["max_coverage_iterations"] = 1
         cfg.write_text(yaml.safe_dump(data, sort_keys=False))
-        # config.yaml is gitignored with the rest of .sluice/ — no commit needed.
+        # config.yaml is gitignored with the rest of .shepherd/ — no commit needed.
 
         r = step(["run"], [DRAFT_REQUIREMENTS])
         assert r.returncode == ExitCode.AWAITING_APPROVAL
 
         r = step(["run", "--decision", "approve"], [GEN_TESTS, VERIFY_MISSING])
         assert r.returncode == ExitCode.COVERAGE_GAP, r.stderr
-        gap = repo / ".sluice/features/user-auth/.tdd/reports/coverage_gap.md"
+        gap = repo / ".shepherd/features/user-auth/.tdd/reports/coverage_gap.md"
         assert gap.is_file()
         assert REQUIREMENT_ID in gap.read_text()
         assert _phase(repo) == Phase.VERIFYING_COVERAGE.value
@@ -289,7 +289,7 @@ class TestEscalation:
         )
         assert r.returncode == ExitCode.ESCALATED, r.stderr
         assert _phase(repo) == Phase.ESCALATED.value
-        report = repo / ".sluice/features/user-auth/.tdd/reports/escalation_1.md"
+        report = repo / ".shepherd/features/user-auth/.tdd/reports/escalation_1.md"
         assert report.is_file()
 
     def test_approve_amends_and_creates_red2(self, world) -> None:
@@ -311,7 +311,7 @@ class TestEscalation:
 
         # The renegotiation is auditable: resync revision bump in the matrix.
         matrix = json.loads(
-            (repo / ".sluice/features/user-auth/.tdd/traceability.json").read_text()
+            (repo / ".shepherd/features/user-auth/.tdd/traceability.json").read_text()
         )
         kinds = [rev["kind"] for rev in matrix["revisions"]]
         assert "resync" in kinds
@@ -334,11 +334,11 @@ class TestBudget:
 
         import yaml
 
-        cfg = repo / ".sluice" / "config.yaml"
+        cfg = repo / ".shepherd" / "config.yaml"
         data = yaml.safe_load(cfg.read_text())
         data["budgets"]["max_cost_usd"] = 0.001
         cfg.write_text(yaml.safe_dump(data, sort_keys=False))
-        # config.yaml is gitignored with the rest of .sluice/ — no commit needed.
+        # config.yaml is gitignored with the rest of .shepherd/ — no commit needed.
 
         # First draft run spends 0.01 (fake default) > 0.001 → the NEXT
         # invocation's guard trips before any run.
@@ -365,7 +365,7 @@ class TestTraceabilityGate:
 
         # Tamper: matrix now maps a function that does not exist; make the
         # suite trivially green. A deleted/renamed test must not fake DONE.
-        trace = repo / ".sluice/features/user-auth/.tdd/traceability.json"
+        trace = repo / ".shepherd/features/user-auth/.tdd/traceability.json"
         trace.write_text(trace.read_text().replace("test_login", "test_ghost"))
         (repo / "PASS").write_text("1")
         subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
@@ -377,7 +377,7 @@ class TestTraceabilityGate:
         assert r.returncode == ExitCode.INTERNAL_ERROR
         assert "traceability" in (r.stdout + r.stderr).lower()
         violation = (
-            repo / ".sluice/features/user-auth/.tdd/reports/traceability_violation.md"
+            repo / ".shepherd/features/user-auth/.tdd/reports/traceability_violation.md"
         )
         assert violation.is_file()
         assert COMMIT_GREEN.format(slug="user-auth") not in _subjects(repo)

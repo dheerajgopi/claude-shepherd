@@ -1,4 +1,4 @@
-# .sluice/config.yaml — sluice-wide configuration (§11)
+# .shepherd/config.yaml — shepherd-wide configuration (§11)
 models:
   requirements: claude-opus-4-8   # spec quality matters most
   testgen: claude-sonnet-4-6

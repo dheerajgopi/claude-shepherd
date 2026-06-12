@@ -1,7 +1,7 @@
 """Tests for tdd_loop1 — Loop 1 (EARS requirements specification, §8/§10/§12).
 
 Drives run_loop1/amend_requirements in-process against the conftest fixtures
-(tmp_repo/sluice_repo/feature) and a scripted FakeAgentRunner. Script files
+(tmp_repo/shepherd_repo/feature) and a scripted FakeAgentRunner. Script files
 live OUTSIDE the fixture repo (tmp_path_factory) so the fake's bookkeeping
 never dirties the working tree.
 """
@@ -24,9 +24,9 @@ from tdd_contracts import (
 )
 from tdd_fake_runner import FakeAgentRunner
 from tdd_loop1 import amend_requirements, run_loop1
-from tdd_state import SluiceError, StateStore, resolve_feature
+from tdd_state import ShepherdError, StateStore, resolve_feature
 
-REQUIREMENTS_REL = ".sluice/features/user-auth/requirements"
+REQUIREMENTS_REL = ".shepherd/features/user-auth/requirements"
 REQUIREMENTS_PROMPT = (
     Path(__file__).resolve().parent.parent
     / "skills" / "tdd" / "references" / "requirements_prompt.md"
@@ -188,7 +188,7 @@ class TestApprove:
         assert _reload(ctx).phase == Phase.AWAITING_APPROVAL.value
 
     def test_full_path_draft_then_approve(self, feature, script_dir):
-        # production .gitignore policy: the whole .sluice/ workspace is local
+        # production .gitignore policy: the whole .shepherd/ workspace is local
         (feature.repo / ".gitignore").write_text(
             "\n".join(GITIGNORE_ENTRIES) + "\n"
         )
@@ -205,7 +205,7 @@ class TestApprove:
         assert outcome.detail == "spec approved"
         assert _reload(ctx).phase == Phase.REQUIREMENTS_APPROVED.value
 
-        # No spec commit: .sluice/ is gitignored, the spec stays machine-local.
+        # No spec commit: .shepherd/ is gitignored, the spec stays machine-local.
         commits_after = _git(feature.repo, "rev-list", "--count", "HEAD").strip()
         assert commits_after == commits_before
         assert (feature.repo / f"{REQUIREMENTS_REL}/user-auth.md").is_file()
@@ -282,7 +282,7 @@ class TestBudgetGuard:
         # phase untouched so a human can raise budgets and re-run
         assert _reload(ctx).phase == Phase.DRAFTING_REQUIREMENTS.value
 
-    def test_amend_raises_sluice_error_when_over_budget(
+    def test_amend_raises_shepherd_error_when_over_budget(
         self, feature, script_dir
     ):
         ctx = _ctx(feature)
@@ -291,7 +291,7 @@ class TestBudgetGuard:
         runner = _runner(script_dir, feature.repo, [])
         proposal = _proposal()
 
-        with pytest.raises(SluiceError) as excinfo:
+        with pytest.raises(ShepherdError) as excinfo:
             amend_requirements(ctx, runner, proposal)
 
         assert excinfo.value.exit_code is ExitCode.BUDGET_EXCEEDED

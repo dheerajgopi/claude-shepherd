@@ -6,7 +6,7 @@ active feature: the requirements model explores the repository read-only
 ALLOW_ONLY path policy), drafts EARS spec (.md) files, and the loop
 checkpoints with exit 10 until the human approves, at which point the
 dispatcher advances to Loop 2 (the spec lives only in the machine-local,
-gitignored .sluice/ workspace).
+gitignored .shepherd/ workspace).
 
 `amend_requirements` is the §10 escalation re-entry: Loop 3 calls it after an
 approved test-change proposal; it resumes the Loop 1 session, amends only the
@@ -38,7 +38,7 @@ from tdd_contracts import (
     RunResult,
     RunSpec,
 )
-from tdd_state import FeatureContext, SluiceError, utc_now_iso
+from tdd_state import FeatureContext, ShepherdError, utc_now_iso
 
 #: Loop 1 tool surface (§8): read-only exploration + Write scoped by policy.
 LOOP1_ALLOWED_TOOLS = ["Read", "Glob", "Grep", "Write"]
@@ -73,7 +73,7 @@ def _budget_report(ctx: FeatureContext) -> Optional[str]:
     Checks cumulative cost, Loop 1 turns, and wall clock (anchoring
     budgets_spent.started_at on the first-ever run). Returns None when all
     budgets have headroom. The caller decides how to surface an exceeded
-    budget (checkpoint outcome vs. raised SluiceError); the phase is never
+    budget (checkpoint outcome vs. raised ShepherdError); the phase is never
     transitioned, so a human can raise the budgets and re-run.
     """
 
@@ -282,7 +282,7 @@ def _draft(ctx: FeatureContext, runner: AgentRunner) -> LoopOutcome:
 
 
 def _approve(ctx: FeatureContext) -> LoopOutcome:
-    """Human approved: advance to Loop 2 (.sluice/ is gitignored — no commit)."""
+    """Human approved: advance to Loop 2 (.shepherd/ is gitignored — no commit)."""
 
     if not _spec_files(ctx):
         return LoopOutcome(
@@ -355,14 +355,14 @@ def amend_requirements(
 
     Phase transitions around amendment are owned by Loop 3 — none happen
     here. Because this is a nested call inside Loop 3's escalation handling,
-    budget exhaustion raises SluiceError(BUDGET_EXCEEDED) with the status
+    budget exhaustion raises ShepherdError(BUDGET_EXCEEDED) with the status
     report (Loop 3 lets it propagate to the CLI), and a failed run raises
-    SluiceError(INTERNAL_ERROR).
+    ShepherdError(INTERNAL_ERROR).
     """
 
     report = _budget_report(ctx)
     if report is not None:
-        raise SluiceError(ExitCode.BUDGET_EXCEEDED, report)
+        raise ShepherdError(ExitCode.BUDGET_EXCEEDED, report)
 
     formatted = (
         f"test_file: {proposal['test_file']}\n"
@@ -382,7 +382,7 @@ def amend_requirements(
     result = runner.run(_make_spec(ctx, prompt))
     _persist_run(ctx, result)
     if result.is_error:
-        raise SluiceError(
+        raise ShepherdError(
             ExitCode.INTERNAL_ERROR,
             "loop1 amendment run failed: "
             + (result.error or "no error message"),

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""TDD sluice CLI — the phased orchestrator entry point (§6, §13).
+"""TDD shepherd CLI — the phased orchestrator entry point (§6, §13).
 
 Subcommands per the pinned grammar in docs/contracts.md:
 
@@ -34,12 +34,12 @@ from tdd_contracts import (
     FEATURES_DIR,
     REQUIREMENTS_DIR,
     GITIGNORE_ENTRIES,
-    SLUICE_DIR,
+    SHEPHERD_DIR,
     REPORTS_DIR,
     TASK_FILE,
     ExitCode,
     FeatureState,
-    SluiceConfig,
+    ShepherdConfig,
     HistoryEntry,
     LoopStatus,
     Phase,
@@ -48,7 +48,7 @@ from tdd_contracts import (
 from tdd_scan import ConventionScan, scan_conventions
 from tdd_state import (
     FeatureContext,
-    SluiceError,
+    ShepherdError,
     StateStore,
     load_config,
     resolve_feature,
@@ -65,20 +65,20 @@ def _require_repo_root(cwd: Path, missing_code: ExitCode) -> Path:
 
     root = tdd_git.repo_root(cwd)
     if root is None:
-        raise SluiceError(
+        raise ShepherdError(
             missing_code, f"{cwd} is not inside a git repository"
         )
     return root
 
 
 def _refuse_dirty_tree(repo_root: Path) -> None:
-    """Refuse to operate on a dirty tree (§16; untracked .sluice excepted)."""
+    """Refuse to operate on a dirty tree (§16; untracked .shepherd excepted)."""
 
     if tdd_git.is_dirty(repo_root, excepted_paths=(".gitignore",)):
-        raise SluiceError(
+        raise ShepherdError(
             ExitCode.INTERNAL_ERROR,
             "working tree is dirty; commit or stash your changes first "
-            "(untracked files under .sluice/ and .gitignore are excepted)",
+            "(untracked files under .shepherd/ and .gitignore are excepted)",
         )
 
 
@@ -87,7 +87,7 @@ def _write_config(config_path: Path, scan: ConventionScan) -> None:
 
     import yaml
 
-    defaults = SluiceConfig()
+    defaults = ShepherdConfig()
     data = {
         "models": dataclasses.asdict(defaults.models),
         "test": {
@@ -115,12 +115,12 @@ def _append_gitignore_entries(repo_root: Path) -> None:
 
 
 def cmd_init(force: bool) -> int:
-    """`tdd.py init [--force]` — bootstrap .sluice, explicit and idempotent (§6)."""
+    """`tdd.py init [--force]` — bootstrap .shepherd, explicit and idempotent (§6)."""
 
     cwd = Path.cwd().resolve()
     root = tdd_git.repo_root(cwd)
     if root is None or root != cwd:
-        raise SluiceError(
+        raise ShepherdError(
             ExitCode.INTERNAL_ERROR,
             f"init must be run at a git repository root (cwd: {cwd}, "
             f"detected root: {root})",
@@ -130,7 +130,7 @@ def cmd_init(force: bool) -> int:
         pkg for pkg in _REQUIRED_PACKAGES if importlib.util.find_spec(pkg) is None
     ]
     if missing:
-        raise SluiceError(
+        raise ShepherdError(
             ExitCode.INTERNAL_ERROR,
             f"missing required package(s): {', '.join(missing)}. Install them in "
             "this interpreter (e.g. `pip install claude-agent-sdk pyyaml`); init "
@@ -165,7 +165,7 @@ def _read_task_statement() -> str:
 
     text = sys.stdin.read()
     if not text.strip():
-        raise SluiceError(
+        raise ShepherdError(
             ExitCode.INTERNAL_ERROR,
             "--task-stdin was given but stdin is empty; pipe or heredoc the "
             "task statement",
@@ -182,8 +182,8 @@ def cmd_new(title: str, task_stdin: bool = False) -> int:
     """
 
     cwd = Path.cwd()
-    root = _require_repo_root(cwd, ExitCode.SLUICE_NOT_INITIALIZED)
-    load_config(root)  # raises SLUICE_NOT_INITIALIZED if init has not run
+    root = _require_repo_root(cwd, ExitCode.SHEPHERD_NOT_INITIALIZED)
+    load_config(root)  # raises SHEPHERD_NOT_INITIALIZED if init has not run
     _refuse_dirty_tree(root)
 
     task_text = _read_task_statement() if task_stdin else title
@@ -191,17 +191,17 @@ def cmd_new(title: str, task_stdin: bool = False) -> int:
     try:
         slug = slugify(title)
     except ValueError as exc:
-        raise SluiceError(ExitCode.INTERNAL_ERROR, str(exc)) from exc
+        raise ShepherdError(ExitCode.INTERNAL_ERROR, str(exc)) from exc
 
     feature_dir = root / FEATURES_DIR / slug
     branch = BRANCH_PREFIX + slug
     if feature_dir.exists():
-        raise SluiceError(
+        raise ShepherdError(
             ExitCode.INTERNAL_ERROR,
             f"feature {slug!r} already exists; choose a different title",
         )
     if tdd_git.branch_exists(root, branch):
-        raise SluiceError(
+        raise ShepherdError(
             ExitCode.INTERNAL_ERROR,
             f"branch {branch!r} already exists; choose a different title",
         )
@@ -259,11 +259,11 @@ def cmd_run(
     """`tdd.py run` — dispatch the three-loop state machine on the active feature."""
 
     cwd = Path.cwd()
-    root = _require_repo_root(cwd, ExitCode.SLUICE_NOT_INITIALIZED)
-    if not (root / SLUICE_DIR).is_dir():
-        raise SluiceError(
-            ExitCode.SLUICE_NOT_INITIALIZED,
-            f"no {SLUICE_DIR} folder found at {root}; run `tdd.py init` first",
+    root = _require_repo_root(cwd, ExitCode.SHEPHERD_NOT_INITIALIZED)
+    if not (root / SHEPHERD_DIR).is_dir():
+        raise ShepherdError(
+            ExitCode.SHEPHERD_NOT_INITIALIZED,
+            f"no {SHEPHERD_DIR} folder found at {root}; run `tdd.py init` first",
         )
     ctx = resolve_feature(root, feature, force)
     _refuse_dirty_tree(root)
@@ -273,7 +273,7 @@ def cmd_run(
         print(f"feature {ctx.slug!r} is already DONE")
         return int(ExitCode.DONE)
     if phase is Phase.FAILED:
-        raise SluiceError(
+        raise ShepherdError(
             ExitCode.INTERNAL_ERROR,
             f"feature {ctx.slug!r} is in a terminal FAILED state; see its history",
         )
@@ -330,12 +330,12 @@ def _status_rows(root: Path) -> list[dict[str, Optional[str]]]:
                     "last_updated": state.history[-1].timestamp if state.history else None,
                 }
             )
-        except SluiceError:
+        except ShepherdError:
             rows.append(
                 {
                     "slug": slug,
                     "phase": (
-                        "UNKNOWN (state.json missing — the .sluice/ workspace is "
+                        "UNKNOWN (state.json missing — the .shepherd/ workspace is "
                         "machine-local; resume on the original machine or start "
                         "fresh)"
                     ),
@@ -350,11 +350,11 @@ def cmd_status(as_json: bool) -> int:
     """`tdd.py status [--json]` — phases of all features; no branch requirements."""
 
     cwd = Path.cwd()
-    root = _require_repo_root(cwd, ExitCode.SLUICE_NOT_INITIALIZED)
-    if not (root / SLUICE_DIR).is_dir():
-        raise SluiceError(
-            ExitCode.SLUICE_NOT_INITIALIZED,
-            f"no {SLUICE_DIR} folder found at {root}; run `tdd.py init` first",
+    root = _require_repo_root(cwd, ExitCode.SHEPHERD_NOT_INITIALIZED)
+    if not (root / SHEPHERD_DIR).is_dir():
+        raise ShepherdError(
+            ExitCode.SHEPHERD_NOT_INITIALIZED,
+            f"no {SHEPHERD_DIR} folder found at {root}; run `tdd.py init` first",
         )
     rows = _status_rows(root)
     if as_json:
@@ -376,11 +376,11 @@ def _build_parser() -> argparse.ArgumentParser:
     """The argparse tree, exactly per the pinned CLI grammar (docs/contracts.md)."""
 
     parser = argparse.ArgumentParser(
-        prog="tdd.py", description="TDD sluice — phased three-loop orchestrator"
+        prog="tdd.py", description="TDD shepherd — phased three-loop orchestrator"
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    p_init = sub.add_parser("init", help="bootstrap .sluice (explicit, never silent)")
+    p_init = sub.add_parser("init", help="bootstrap .shepherd (explicit, never silent)")
     p_init.add_argument(
         "--force", action="store_true", help="overwrite an existing config.yaml"
     )
@@ -430,7 +430,7 @@ def main(argv: Optional[list[str]] = None) -> None:
             code = cmd_run(args.feature, args.force, args.decision, args.feedback)
         else:  # status
             code = cmd_status(args.as_json)
-    except SluiceError as exc:
+    except ShepherdError as exc:
         print(exc.message, file=sys.stderr)
         sys.exit(int(exc.exit_code))
     except SystemExit:

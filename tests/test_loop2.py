@@ -1,6 +1,6 @@
 """Tests for tdd_loop2 — test generation + coverage verification (§9, §12).
 
-World-building uses the conftest fixtures (tmp_repo/sluice_repo/feature) plus
+World-building uses the conftest fixtures (tmp_repo/shepherd_repo/feature) plus
 direct state edits; the agent seam is FakeAgentRunner with per-test scripted
 runs. Loop 1 is never called: loop2 entry is set up by writing an EARS spec
 file and flipping state.phase to REQUIREMENTS_APPROVED directly.
@@ -28,7 +28,7 @@ from tdd_fake_runner import FakeAgentRunner
 from tdd_state import StateStore, resolve_feature
 from tdd_trace import load_matrix, save_matrix
 
-TESTGEN_MODEL = "claude-sonnet-4-6"   # conftest sluice_repo config defaults
+TESTGEN_MODEL = "claude-sonnet-4-6"   # conftest shepherd_repo config defaults
 VERIFIER_MODEL = "claude-haiku-4-5"
 
 ONE_REQUIREMENT_SPEC = """# User auth
@@ -102,10 +102,10 @@ def _setup_loop2(
     """Loop-2 entry world: spec file on disk, phase set by direct state edit."""
 
     (feature.requirements_dir / "user_auth.md").write_text(spec_text)
-    # Production .gitignore policy (§5): the whole .sluice/ workspace is local.
-    (feature.repo / ".gitignore").write_text(".sluice/\n")
+    # Production .gitignore policy (§5): the whole .shepherd/ workspace is local.
+    (feature.repo / ".gitignore").write_text(".shepherd/\n")
     if max_iterations is not None:
-        cfg = feature.repo / ".sluice" / "config.yaml"
+        cfg = feature.repo / ".shepherd" / "config.yaml"
         cfg.write_text(
             cfg.read_text().replace(
                 "max_coverage_iterations: 5",
@@ -175,12 +175,12 @@ class TestHappyPath:
             "tests/test_user_auth.py::test_successful_login"
         ]
 
-        # Red commit: exact message, test paths only — nothing under .sluice/.
+        # Red commit: exact message, test paths only — nothing under .shepherd/.
         subject = _git(feature.repo, "log", "-1", "--format=%s").strip()
         assert subject == COMMIT_RED.format(slug="user-auth")
         shown = _git(feature.repo, "show", "--name-only", "HEAD")
         assert "tests/test_user_auth.py" in shown
-        assert ".sluice" not in shown  # whole workspace gitignored
+        assert ".shepherd" not in shown  # whole workspace gitignored
 
         state = StateStore(ctx.feature_dir).load()
         assert state.phase == Phase.RED_COMMITTED.value
