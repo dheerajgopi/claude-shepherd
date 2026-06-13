@@ -36,12 +36,17 @@ info() {
     printf '%s\n' "$*"
 }
 
-# The exact dependency-install command for this machine (uv preferred).
+# A dependency-install command that needs NO sudo: it targets the ambient
+# python3's per-user site-packages (~/.local/...), which is exactly where the
+# bare `python3` that runs the engine looks — no venv to create or activate.
+# uv pip has no per-user install mode, so we use pip's --user here even when uv
+# is present; on a PEP-668 "externally managed" python, append
+# --break-system-packages (or use a venv).
 install_hint() {
-    if command -v uv >/dev/null 2>&1; then
-        printf 'uv pip install claude-agent-sdk pyyaml'
+    if python3 -m pip --version >/dev/null 2>&1; then
+        printf 'python3 -m pip install --user claude-agent-sdk pyyaml'
     else
-        printf 'python3 -m pip install claude-agent-sdk pyyaml'
+        printf 'python3 -m ensurepip --user && python3 -m pip install --user claude-agent-sdk pyyaml'
     fi
 }
 
