@@ -9,12 +9,12 @@ A Claude Code **plugin** packaging engineering workflows as skills and commands.
 ## Commands
 
 ```bash
-# one-time dev setup
-uv venv .venv && uv pip install --python .venv/bin/python claude-agent-sdk pytest pyyaml
+# one-time dev setup — installs the dev/test toolchain from pyproject.toml into .venv
+uv sync
 
-.venv/bin/pytest                          # full suite (no API calls — fake SDK seam)
-.venv/bin/pytest tests/test_loop3.py      # one file
-.venv/bin/pytest tests/test_loop3.py -k escalation   # one test by keyword
+uv run pytest                             # full suite (no API calls — fake SDK seam)
+uv run pytest tests/test_loop3.py         # one file
+uv run pytest tests/test_loop3.py -k escalation   # one test by keyword
 
 claude --plugin-dir /path/to/shepherd      # load the plugin surface in a scratch project
 bin/setup.sh                              # install into a target project (run from ITS root)

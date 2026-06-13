@@ -85,8 +85,8 @@ What the TDD skill lands in your repo:
 ## Development
 
 ```bash
-uv venv .venv && uv pip install --python .venv/bin/python claude-agent-sdk pytest pyyaml
-.venv/bin/pytest                      # 200+ tests, no API calls (fake SDK seam)
+uv sync                                # install the dev/test toolchain from pyproject.toml
+uv run pytest                          # 200+ tests, no API calls (fake SDK seam)
 claude --plugin-dir /path/to/shepherd  # load the plugin surface in a scratch project
 ```
 
