@@ -29,6 +29,7 @@ class TestExitCodes:
             ("ESCALATED", 12),
             ("BUDGET_EXCEEDED", 13),
             ("NEEDS_INPUT", 14),
+            ("AWAITING_DESIGN_APPROVAL", 15),
             ("NO_FEATURE_RESOLVED", 20),
             ("BRANCH_MISMATCH", 21),
             ("SHEPHERD_NOT_INITIALIZED", 22),
@@ -39,13 +40,17 @@ class TestExitCodes:
         assert ExitCode[name] == value
 
     def test_no_extra_codes(self) -> None:
-        assert len(ExitCode) == 10
+        assert len(ExitCode) == 11
 
 
 class TestPhaseTransitions:
     @pytest.mark.parametrize(
         ("current", "new"),
         [
+            (Phase.SKETCHING_DESIGN, Phase.AWAITING_DESIGN_APPROVAL),
+            (Phase.AWAITING_DESIGN_APPROVAL, Phase.SKETCHING_DESIGN),  # corrections cycle
+            (Phase.AWAITING_DESIGN_APPROVAL, Phase.DESIGN_APPROVED),
+            (Phase.DESIGN_APPROVED, Phase.DRAFTING_REQUIREMENTS),
             (Phase.DRAFTING_REQUIREMENTS, Phase.AWAITING_APPROVAL),
             (Phase.AWAITING_APPROVAL, Phase.DRAFTING_REQUIREMENTS),  # corrections cycle
             (Phase.AWAITING_APPROVAL, Phase.REQUIREMENTS_APPROVED),
@@ -71,6 +76,10 @@ class TestPhaseTransitions:
     @pytest.mark.parametrize(
         ("current", "new"),
         [
+            (Phase.SKETCHING_DESIGN, Phase.DESIGN_APPROVED),  # cannot skip approval
+            (Phase.SKETCHING_DESIGN, Phase.DRAFTING_REQUIREMENTS),  # cannot skip approval
+            (Phase.DESIGN_APPROVED, Phase.AWAITING_APPROVAL),  # must draft requirements first
+            (Phase.AWAITING_DESIGN_APPROVAL, Phase.DRAFTING_REQUIREMENTS),
             (Phase.DRAFTING_REQUIREMENTS, Phase.IMPLEMENTING),
             (Phase.DRAFTING_REQUIREMENTS, Phase.REQUIREMENTS_APPROVED),  # cannot skip approval
             (Phase.REQUIREMENTS_APPROVED, Phase.RED_COMMITTED),     # cannot skip testgen
@@ -104,9 +113,11 @@ class TestResumablePhases:
         assert set(RESUMABLE_PHASES) == non_terminal
 
     def test_loop_numbers_are_valid(self) -> None:
-        assert set(RESUMABLE_PHASES.values()) <= {1, 2, 3}
+        assert set(RESUMABLE_PHASES.values()) <= {0, 1, 2, 3}
 
     def test_loop_ownership_spot_checks(self) -> None:
+        assert RESUMABLE_PHASES[Phase.SKETCHING_DESIGN] == 0
+        assert RESUMABLE_PHASES[Phase.DESIGN_APPROVED] == 1  # Loop 1's entry from Loop 0
         assert RESUMABLE_PHASES[Phase.DRAFTING_REQUIREMENTS] == 1
         assert RESUMABLE_PHASES[Phase.GENERATING_TESTS] == 2
         assert RESUMABLE_PHASES[Phase.IMPLEMENTING] == 3

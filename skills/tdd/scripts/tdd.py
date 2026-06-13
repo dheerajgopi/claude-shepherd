@@ -32,6 +32,7 @@ from tdd_contracts import (
     CONFIG_FILE,
     DECISION_APPROVE,
     DECISION_REJECT,
+    DESIGN_DIR,
     FEATURES_DIR,
     REQUIREMENTS_DIR,
     GITIGNORE_ENTRIES,
@@ -209,6 +210,7 @@ def cmd_new(title: str, task_stdin: bool = False) -> int:
 
     base_commit = tdd_git.head_sha(root)
     tdd_git.create_branch(root, branch)
+    (feature_dir / DESIGN_DIR).mkdir(parents=True)
     (feature_dir / REQUIREMENTS_DIR).mkdir(parents=True)
     (feature_dir / REPORTS_DIR).mkdir(parents=True)
     (feature_dir / TASK_FILE).write_text(
@@ -219,9 +221,9 @@ def cmd_new(title: str, task_stdin: bool = False) -> int:
         slug=slug,
         branch=branch,
         base_commit=base_commit,
-        phase=Phase.DRAFTING_REQUIREMENTS.value,
+        phase=Phase.SKETCHING_DESIGN.value,
         history=[
-            HistoryEntry(phase=Phase.DRAFTING_REQUIREMENTS.value, timestamp=utc_now_iso())
+            HistoryEntry(phase=Phase.SKETCHING_DESIGN.value, timestamp=utc_now_iso())
         ],
     )
     StateStore(feature_dir).save(state)
@@ -286,7 +288,9 @@ def cmd_run(
         module = _import_loop(loop_number)
         if runner is None:
             runner = _get_runner(ctx, verbose)
-        if loop_number == 1:
+        if loop_number == 0:
+            outcome = module.run_loop0(ctx, runner, decision, feedback)
+        elif loop_number == 1:
             outcome = module.run_loop1(ctx, runner, decision, feedback)
         elif loop_number == 2:
             outcome = module.run_loop2(ctx, runner)

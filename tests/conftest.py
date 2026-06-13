@@ -90,6 +90,7 @@ def shepherd_repo(tmp_repo: Path) -> Path:
     (shepherd / "features").mkdir(parents=True)
     (shepherd / "config.yaml").write_text(
         "models:\n"
+        f"  design: {cfg.models.design}\n"
         f"  requirements: {cfg.models.requirements}\n"
         f"  testgen: {cfg.models.testgen}\n"
         f"  verifier: {cfg.models.verifier}\n"
@@ -123,8 +124,10 @@ def scaffold_feature(repo: Path, slug: str, *, checkout: bool = True) -> SimpleN
 
     branch = f"tdd/{slug}"
     feature_dir = repo / ".shepherd" / "features" / slug
+    design_dir = feature_dir / "design"
     requirements_dir = feature_dir / "requirements"
     tdd_dir = feature_dir / ".tdd"
+    design_dir.mkdir(parents=True)
     requirements_dir.mkdir(parents=True)
     (tdd_dir / "reports").mkdir(parents=True)
     (feature_dir / "task.md").write_text(f"Build the {slug} feature.\n")
@@ -153,6 +156,7 @@ def scaffold_feature(repo: Path, slug: str, *, checkout: bool = True) -> SimpleN
         slug=slug,
         branch=branch,
         feature_dir=feature_dir,
+        design_dir=design_dir,
         requirements_dir=requirements_dir,
         tdd_dir=tdd_dir,
         state_path=state_path,

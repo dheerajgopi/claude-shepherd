@@ -32,10 +32,13 @@ site-packages.
 ### TDD — `/shepherd:tdd`
 
 Drives **strict test-driven development** for one feature at a time through
-three sequential loops:
+four sequential loops:
 
-1. **Specification** — an agent explores your repo read-only and drafts
-   EARS requirements (`WHEN …, THE SYSTEM SHALL …`); a human approves them.
+0. **Design sketch** — an agent explores your repo read-only and drafts a
+   rough design (components, responsibilities, optional flowcharts); a human
+   approves it before any requirement is written.
+1. **Specification** — an agent turns the approved design into EARS
+   requirements (`WHEN …, THE SYSTEM SHALL …`); a human approves them.
 2. **Test generation** — approved requirements become executable tests in
    your existing framework, verified requirement-by-requirement via a
    traceability matrix, then committed *red* before any implementation
@@ -52,8 +55,9 @@ In Claude Code, in an installed project:
 /shepherd:tdd Add rate limiting to the login endpoint
 ```
 
-The command drives the engine and pauses at human checkpoints (requirements
-approval, escalations, coverage gaps). The engine is also usable directly:
+The command drives the engine and pauses at human checkpoints (design
+approval, requirements approval, escalations, coverage gaps). The engine is
+also usable directly:
 
 ```
 tdd.py init                  # bootstrap .shepherd (explicit, never silent)

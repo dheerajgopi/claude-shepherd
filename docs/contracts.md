@@ -16,6 +16,7 @@ in `skills/tdd/references/playbook.md`, setup.sh, prompts). Requirement referenc
 | 12 | ESCALATED | AskUserQuestion: approve (→ Loop 1 amend) or reject |
 | 13 | BUDGET_EXCEEDED | Surface status report |
 | 14 | NEEDS_INPUT | AskUserQuestion: answer the implementer's question, re-invoke with `--feedback` |
+| 15 | AWAITING_DESIGN_APPROVAL | AskUserQuestion: approve the design sketch or give corrections |
 | 20 | NO_FEATURE_RESOLVED | Present feature list, re-invoke with `--feature` |
 | 21 | BRANCH_MISMATCH | Warn human; re-invoke with `--force` only if intended |
 | 22 | SHEPHERD_NOT_INITIALIZED | Offer `tdd.py init`, then review generated config |
@@ -35,9 +36,10 @@ tdd.py status [--json]
   from stdin (pipe or heredoc — no temp files, so concurrent agents cannot
   collide); the title still names the slug and branch. Without it, the title
   is the task statement. `task.md` is write-once at `new` time: it is read
-  into Loop 1's first session turn and never re-read, so editing it after
-  `new` has no effect on the run.
+  into Loop 0's first session turn (and Loop 1's) and never re-read, so editing
+  it after `new` has no effect on the run.
 - The human-input channel is `--decision` / `--feedback` on `run`:
+  - exit 15 → re-invoke with `--decision approve` **or** `--feedback "<corrections>"` (design)
   - exit 10 → re-invoke with `--decision approve` **or** `--feedback "<corrections>"`
   - exit 12 → re-invoke with `--decision approve` or `--decision reject [--feedback "<why>"]`
   - exit 14 → re-invoke with `--feedback "<answer>"` — the answer to the
@@ -53,11 +55,14 @@ tdd.py status [--json]
 
 ## Phases (§14)
 
-`DRAFTING_REQUIREMENTS → AWAITING_APPROVAL ⇄ (corrections) → REQUIREMENTS_APPROVED →
+`SKETCHING_DESIGN → AWAITING_DESIGN_APPROVAL ⇄ (corrections) → DESIGN_APPROVED →
+DRAFTING_REQUIREMENTS → AWAITING_APPROVAL ⇄ (corrections) → REQUIREMENTS_APPROVED →
 GENERATING_TESTS ⇄ VERIFYING_COVERAGE → RED_COMMITTED → IMPLEMENTING → (ESCALATED →
 AMENDING_REQUIREMENTS → RED_COMMITTED) → GREEN → DONE`, `FAILED` reachable from anywhere,
 terminal. Legal transitions: `PHASE_TRANSITIONS` in the contracts module; the state store
-refuses anything else.
+refuses anything else. Loop ownership (`RESUMABLE_PHASES`): Loop 0 owns the SKETCHING_DESIGN /
+AWAITING_DESIGN_APPROVAL design phases; DESIGN_APPROVED is Loop 1's entry from Loop 0 (Loop 1
+transitions it into DRAFTING_REQUIREMENTS, mirroring how Loop 2 enters from REQUIREMENTS_APPROVED).
 
 ## On-disk artifacts (§5)
 
@@ -69,6 +74,7 @@ The entire `.shepherd/` workspace is **gitignored** (init appends `.shepherd/` t
 | `.shepherd/config.yaml` | `ShepherdConfig` |
 | `.shepherd/manifest.json` | `ShepherdManifest` |
 | `features/<slug>/task.md` | verbatim text |
+| `features/<slug>/design/*.md` | design sketch files (Loop 0) |
 | `features/<slug>/requirements/*.md` | EARS spec files |
 | `features/<slug>/.tdd/state.json` | `FeatureState` |
 | `features/<slug>/.tdd/traceability.json` | `TraceabilityMatrix` |
@@ -103,8 +109,9 @@ red(n) commits carry only `test.paths` content.
 
 ## Path policy (the mechanical boundary, §9–10)
 
-- Loops 1–2: `ALLOW_ONLY` — Write/Edit/MultiEdit/NotebookEdit permitted only under the listed
-  paths (Loop 1: the feature's `requirements/`; Loop 2: `test.paths` from config).
+- Loops 0–2: `ALLOW_ONLY` — Write/Edit/MultiEdit/NotebookEdit permitted only under the listed
+  paths (Loop 0: the feature's `design/`; Loop 1: the feature's `requirements/`; Loop 2:
+  `test.paths` from config).
 - Loop 3: `DENY_UNDER` — same tools denied under `test.paths` + the `requirements/` folder.
 - Enforced by a PreToolUse hook (verified deny shape in `docs/sdk-notes.md` §2); the pure decision
   function `is_path_allowed(tool_name, tool_input, policy)` lives in `tdd_hooks.py` and is the

@@ -27,6 +27,7 @@ from typing import Optional
 from tdd_agent import build_prompt
 from tdd_contracts import (
     DECISION_APPROVE,
+    DESIGN_FILE_GLOB,
     SPEC_FILE_GLOB,
     TASK_FILE,
     AgentRunner,
@@ -215,12 +216,17 @@ def run_loop1(
 ) -> LoopOutcome:
     """Drive Loop 1 from the feature's current phase (§8).
 
-    DRAFTING_REQUIREMENTS drafts (fresh feature, or re-entry after a crash);
-    AWAITING_APPROVAL consumes the human's decision/feedback; any other phase
-    is a dispatcher bug and fails defensively.
+    DESIGN_APPROVED is Loop 1's entry from Loop 0: transition into
+    DRAFTING_REQUIREMENTS and draft. DRAFTING_REQUIREMENTS drafts (re-entry
+    after a crash); AWAITING_APPROVAL consumes the human's decision/feedback;
+    any other phase is a dispatcher bug and fails defensively.
     """
 
     phase = Phase(ctx.state.phase)
+
+    if phase is Phase.DESIGN_APPROVED:
+        ctx.store.transition(ctx.state, Phase.DRAFTING_REQUIREMENTS)
+        return _draft(ctx, runner)
 
     if phase is Phase.DRAFTING_REQUIREMENTS:
         return _draft(ctx, runner)
@@ -246,26 +252,44 @@ def run_loop1(
     )
 
 
+def _design_text(ctx: FeatureContext) -> str:
+    """The approved design sketch(es), concatenated for the draft prompt.
+
+    Loop 0's human-approved design is Loop 1's primary input: the EARS
+    requirements are the testable behaviors of the components it names. Empty
+    string when no design dir exists (crash re-entry on an older feature).
+    """
+
+    if not ctx.design_dir.is_dir():
+        return ""
+    parts: list[str] = []
+    for path in sorted(ctx.design_dir.glob(DESIGN_FILE_GLOB)):
+        parts.append(f"### {path.name}\n\n{path.read_text(encoding='utf-8')}")
+    return "\n\n".join(parts)
+
+
 def _draft(ctx: FeatureContext, runner: AgentRunner) -> LoopOutcome:
-    """First draft: task statement + feature pointers, no volatile content."""
+    """First draft: task statement + approved design + feature pointers."""
 
     over = _budget_checkpoint(ctx)
     if over is not None:
         return over
 
     task_text = (ctx.feature_dir / TASK_FILE).read_text(encoding="utf-8")
-    prompt = build_prompt(
-        [
-            ("Task", task_text),
-            (
-                "Feature",
-                f"Slug: {ctx.slug}\n"
-                f"Requirements directory (absolute): {ctx.requirements_dir}\n"
-                "Write every EARS spec (.md) file into that directory; writes "
-                "anywhere else are mechanically denied.",
-            ),
-        ]
+    sections = [("Task", task_text)]
+    design_text = _design_text(ctx)
+    if design_text:
+        sections.append(("Approved design", design_text))
+    sections.append(
+        (
+            "Feature",
+            f"Slug: {ctx.slug}\n"
+            f"Requirements directory (absolute): {ctx.requirements_dir}\n"
+            "Write every EARS spec (.md) file into that directory; writes "
+            "anywhere else are mechanically denied.",
+        )
     )
+    prompt = build_prompt(sections)
     result = runner.run(_make_spec(ctx, prompt))
     _persist_run(ctx, result)
     if result.is_error:

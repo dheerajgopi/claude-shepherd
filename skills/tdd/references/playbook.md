@@ -29,6 +29,7 @@ re-invocation.
 | 12 | ESCALATED | AskUserQuestion: approve (→ Loop 1 amend) or reject |
 | 13 | BUDGET_EXCEEDED | Surface status report |
 | 14 | NEEDS_INPUT | AskUserQuestion: answer the implementer's question, re-invoke with `--feedback` |
+| 15 | AWAITING_DESIGN_APPROVAL | AskUserQuestion: approve the design sketch or give corrections |
 | 20 | NO_FEATURE_RESOLVED | Present feature list, re-invoke with `--feature` |
 | 21 | BRANCH_MISMATCH | Warn human; re-invoke with `--force` only if intended |
 | 22 | SHEPHERD_NOT_INITIALIZED | Offer `tdd.py init`, then review generated config |
@@ -39,6 +40,19 @@ re-invocation.
 ### 0 — DONE
 All tests green, traceability intact. Report success to the user, including
 the script's stdout summary. Stop.
+
+### 15 — AWAITING_DESIGN_APPROVAL (design sketch drafted/revised)
+This is the **first** checkpoint of a fresh feature — Loop 0 drafts a rough
+design before any requirement is written.
+1. Read the drafted design (`.md`) files from
+   `.shepherd/features/<slug>/design/`.
+2. Present them to the user via `AskUserQuestion` with options:
+   **Approve** / **Give corrections**.
+3. On approve: re-invoke `run --feature <slug> --decision approve`. The same
+   invocation advances into Loop 1, which drafts the EARS requirements and then
+   checkpoints again at exit 10.
+4. On corrections: collect the user's feedback text, then re-invoke
+   `run --feature <slug> --feedback "<text>"`. This cycle repeats until approval.
 
 ### 10 — AWAITING_APPROVAL (requirements drafted/revised)
 1. Read the drafted EARS spec (`.md`) files from

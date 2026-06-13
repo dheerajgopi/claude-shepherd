@@ -171,12 +171,14 @@ class TestRunResolution:
         )
 
         # Resolution must succeed; whatever happens next is a loop concern.
+        # A fresh feature starts in Loop 0 (design), so the first checkpoint is
+        # exit 15 (AWAITING_DESIGN_APPROVAL).
         assert result.returncode not in (20, 21, 22), (
             result.returncode,
             result.stderr,
         )
         combined = (result.stderr + result.stdout).lower()
-        assert result.returncode in (1, 10) or "loop" in combined, (
+        assert result.returncode in (1, 10, 15) or "loop" in combined, (
             result.returncode,
             result.stderr,
         )

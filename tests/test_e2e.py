@@ -52,6 +52,18 @@ TEST_CONTENT = (
 )
 
 SPEC_REL = ".shepherd/features/user-auth/requirements/user_auth.md"
+DESIGN_REL = ".shepherd/features/user-auth/design/design.md"
+
+DESIGN_TEXT = """# User auth design
+
+## Overview
+
+A LoginService validates credentials and starts a session.
+
+## Components
+
+- LoginService.login(credentials) -> Session
+"""
 
 MATRIX_COVERED = json.dumps(
     {
@@ -82,6 +94,11 @@ MATRIX_MISSING = json.dumps(
 
 # Scripted runs, by role -----------------------------------------------------
 
+SKETCH_DESIGN = {
+    "text": "Design sketched. Component: LoginService.",
+    "session_id": "l0-sess",
+    "files": [{"path": DESIGN_REL, "content": DESIGN_TEXT}],
+}
 DRAFT_REQUIREMENTS = {
     "text": "Drafted. REQ-001: Login succeeds — happy-path login.",
     "session_id": "l1-sess",
@@ -222,13 +239,19 @@ class TestHappyPath:
     def test_draft_approve_to_green(self, world) -> None:
         repo, step = world
 
-        # 1. Draft → checkpoint 10.
-        r = step(["run"], [DRAFT_REQUIREMENTS])
+        # 1. Sketch design → checkpoint 15.
+        r = step(["run"], [SKETCH_DESIGN])
+        assert r.returncode == ExitCode.AWAITING_DESIGN_APPROVAL, r.stderr
+        assert "design.md" in r.stdout
+        assert _phase(repo) == Phase.AWAITING_DESIGN_APPROVAL.value
+
+        # 2. Approve design → loop1 drafts requirements → checkpoint 10.
+        r = step(["run", "--decision", "approve"], [DRAFT_REQUIREMENTS])
         assert r.returncode == ExitCode.AWAITING_APPROVAL, r.stderr
         assert "user_auth.md" in r.stdout
         assert _phase(repo) == Phase.AWAITING_APPROVAL.value
 
-        # 2. Approve → loop2 (gen+verify+red), loop3 (impl+green); no spec
+        # 3. Approve → loop2 (gen+verify+red), loop3 (impl+green); no spec
         #    commit — .shepherd/ is gitignored.
         r = step(
             ["run", "--decision", "approve"],
@@ -258,7 +281,9 @@ class TestHappyPath:
     def test_correction_cycle_resumes_session(self, world) -> None:
         repo, step = world
 
-        r = step(["run"], [DRAFT_REQUIREMENTS])
+        r = step(["run"], [SKETCH_DESIGN])
+        assert r.returncode == ExitCode.AWAITING_DESIGN_APPROVAL
+        r = step(["run", "--decision", "approve"], [DRAFT_REQUIREMENTS])
         assert r.returncode == ExitCode.AWAITING_APPROVAL
 
         r = step(["run", "--feedback", "split the requirement"], [DRAFT_REQUIREMENTS])
@@ -285,7 +310,9 @@ class TestCoverageGap:
         cfg.write_text(yaml.safe_dump(data, sort_keys=False))
         # config.yaml is gitignored with the rest of .shepherd/ — no commit needed.
 
-        r = step(["run"], [DRAFT_REQUIREMENTS])
+        r = step(["run"], [SKETCH_DESIGN])
+        assert r.returncode == ExitCode.AWAITING_DESIGN_APPROVAL
+        r = step(["run", "--decision", "approve"], [DRAFT_REQUIREMENTS])
         assert r.returncode == ExitCode.AWAITING_APPROVAL
 
         r = step(["run", "--decision", "approve"], [GEN_TESTS, VERIFY_MISSING])
@@ -298,7 +325,9 @@ class TestCoverageGap:
 
 class TestEscalation:
     def _to_escalated(self, repo, step) -> None:
-        r = step(["run"], [DRAFT_REQUIREMENTS])
+        r = step(["run"], [SKETCH_DESIGN])
+        assert r.returncode == ExitCode.AWAITING_DESIGN_APPROVAL
+        r = step(["run", "--decision", "approve"], [DRAFT_REQUIREMENTS])
         assert r.returncode == ExitCode.AWAITING_APPROVAL
         r = step(
             ["run", "--decision", "approve"],
@@ -349,7 +378,9 @@ class TestBlocker:
     def test_blocked_then_answer_to_green(self, world) -> None:
         repo, step = world
 
-        r = step(["run"], [DRAFT_REQUIREMENTS])
+        r = step(["run"], [SKETCH_DESIGN])
+        assert r.returncode == ExitCode.AWAITING_DESIGN_APPROVAL
+        r = step(["run", "--decision", "approve"], [DRAFT_REQUIREMENTS])
         assert r.returncode == ExitCode.AWAITING_APPROVAL
 
         # Approve → loop2 (gen+verify+red) → loop3 implementer asks for input.
@@ -382,10 +413,10 @@ class TestBudget:
         cfg.write_text(yaml.safe_dump(data, sort_keys=False))
         # config.yaml is gitignored with the rest of .shepherd/ — no commit needed.
 
-        # First draft run spends 0.01 (fake default) > 0.001 → the NEXT
+        # First design run spends 0.01 (fake default) > 0.001 → the NEXT
         # invocation's guard trips before any run.
-        r = step(["run"], [DRAFT_REQUIREMENTS])
-        assert r.returncode == ExitCode.AWAITING_APPROVAL
+        r = step(["run"], [SKETCH_DESIGN])
+        assert r.returncode == ExitCode.AWAITING_DESIGN_APPROVAL
         r = step(["run", "--feedback", "more"], [])
         assert r.returncode == ExitCode.BUDGET_EXCEEDED, r.stderr
         assert "budget" in r.stdout.lower()
@@ -395,7 +426,9 @@ class TestTraceabilityGate:
     def test_tampered_matrix_blocks_green(self, world) -> None:
         repo, step = world
 
-        r = step(["run"], [DRAFT_REQUIREMENTS])
+        r = step(["run"], [SKETCH_DESIGN])
+        assert r.returncode == ExitCode.AWAITING_DESIGN_APPROVAL
+        r = step(["run", "--decision", "approve"], [DRAFT_REQUIREMENTS])
         assert r.returncode == ExitCode.AWAITING_APPROVAL
         # Stop right after red: loop3's first implement run errors out.
         r = step(
@@ -432,9 +465,17 @@ class TestCrashRecovery:
 
         repo, step = world
 
-        r = step(["run"], [DRAFT_REQUIREMENTS])
-        assert r.returncode == ExitCode.AWAITING_APPROVAL
+        r = step(["run"], [SKETCH_DESIGN])
+        assert r.returncode == ExitCode.AWAITING_DESIGN_APPROVAL
         before = len(_subjects(repo))
+
+        # Redundant re-run at AWAITING_DESIGN_APPROVAL: no commits, same phase.
+        r = step(["run"], [])
+        assert r.returncode == ExitCode.AWAITING_DESIGN_APPROVAL
+        assert len(_subjects(repo)) == before
+
+        r = step(["run", "--decision", "approve"], [DRAFT_REQUIREMENTS])
+        assert r.returncode == ExitCode.AWAITING_APPROVAL
 
         # Redundant re-run at AWAITING_APPROVAL: no commits, same phase.
         r = step(["run"], [])

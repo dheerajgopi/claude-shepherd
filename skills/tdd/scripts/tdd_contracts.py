@@ -29,6 +29,7 @@ class ExitCode(enum.IntEnum):
     ESCALATED = 12                # significant test change proposed
     BUDGET_EXCEEDED = 13          # turn/cost/time limit hit
     NEEDS_INPUT = 14              # implementer is blocked, asked the human a question
+    AWAITING_DESIGN_APPROVAL = 15  # design sketch drafted/revised, needs human review
     NO_FEATURE_RESOLVED = 20      # no --feature arg, no tdd/<slug> branch
     BRANCH_MISMATCH = 21          # current branch != branch recorded in state
     SHEPHERD_NOT_INITIALIZED = 22  # no .shepherd folder found
@@ -44,6 +45,9 @@ class ExitCode(enum.IntEnum):
 
 
 class Phase(str, enum.Enum):
+    SKETCHING_DESIGN = "SKETCHING_DESIGN"
+    AWAITING_DESIGN_APPROVAL = "AWAITING_DESIGN_APPROVAL"
+    DESIGN_APPROVED = "DESIGN_APPROVED"
     DRAFTING_REQUIREMENTS = "DRAFTING_REQUIREMENTS"
     AWAITING_APPROVAL = "AWAITING_APPROVAL"
     REQUIREMENTS_APPROVED = "REQUIREMENTS_APPROVED"
@@ -64,6 +68,9 @@ class Phase(str, enum.Enum):
 #: Legal phase transitions. The state store must refuse any transition not
 #: listed here (FAILED is reachable from anywhere and is terminal).
 PHASE_TRANSITIONS: dict[Phase, tuple[Phase, ...]] = {
+    Phase.SKETCHING_DESIGN: (Phase.AWAITING_DESIGN_APPROVAL,),
+    Phase.AWAITING_DESIGN_APPROVAL: (Phase.SKETCHING_DESIGN, Phase.DESIGN_APPROVED),
+    Phase.DESIGN_APPROVED: (Phase.DRAFTING_REQUIREMENTS,),
     Phase.DRAFTING_REQUIREMENTS: (Phase.AWAITING_APPROVAL,),
     Phase.AWAITING_APPROVAL: (Phase.DRAFTING_REQUIREMENTS, Phase.REQUIREMENTS_APPROVED),
     Phase.REQUIREMENTS_APPROVED: (Phase.GENERATING_TESTS,),
@@ -82,6 +89,9 @@ PHASE_TRANSITIONS: dict[Phase, tuple[Phase, ...]] = {
 #: Phases at which `run` may be (re-)entered after a crash or checkpoint exit.
 #: The dispatcher maps each to the loop that owns it.
 RESUMABLE_PHASES: dict[Phase, int] = {
+    Phase.SKETCHING_DESIGN: 0,
+    Phase.AWAITING_DESIGN_APPROVAL: 0,
+    Phase.DESIGN_APPROVED: 1,
     Phase.DRAFTING_REQUIREMENTS: 1,
     Phase.AWAITING_APPROVAL: 1,
     Phase.REQUIREMENTS_APPROVED: 2,
@@ -116,6 +126,11 @@ MANIFEST_FILE = ".shepherd/manifest.json"
 # Per feature (relative to .shepherd/features/<slug>/). The entire .shepherd/
 # workspace is gitignored (§5): every artifact below is machine-local.
 TASK_FILE = "task.md"
+#: Design sketch files are markdown (classes, functions, responsibilities,
+#: optional mermaid flowcharts) drafted in Loop 0 for human approval before any
+#: EARS requirement is written. Free-form prose — no pinned heading grammar.
+DESIGN_DIR = "design"
+DESIGN_FILE_GLOB = "*.md"
 REQUIREMENTS_DIR = "requirements"
 #: EARS spec files are markdown; one `## REQ-<nnn>: <title>` heading per
 #: requirement, each holding exactly one EARS statement (WHEN/WHILE/WHERE/
@@ -176,6 +191,7 @@ RUNNER_ENV_VAR = "TDD_RUNNER"  # value: "fake:<path-to-script-json>" | unset = r
 
 @dataclass
 class ModelsConfig:
+    design: str = "claude-opus-4-8"
     requirements: str = "claude-opus-4-8"
     testgen: str = "claude-sonnet-4-6"
     verifier: str = "claude-haiku-4-5"
@@ -220,6 +236,7 @@ class HistoryEntry:
 @dataclass
 class BudgetsSpent:
     cost_usd: float = 0.0
+    turns_loop0: int = 0
     turns_loop1: int = 0
     turns_loop2: int = 0
     turns_loop3: int = 0
@@ -233,7 +250,12 @@ class FeatureState:
     base_commit: str                 # SHA at feature creation
     phase: str                       # current Phase value
     session_ids: dict[str, Optional[str]] = field(
-        default_factory=lambda: {"loop1": None, "loop2": None, "loop3": None}
+        default_factory=lambda: {
+            "loop0": None,
+            "loop1": None,
+            "loop2": None,
+            "loop3": None,
+        }
     )
     history: list[HistoryEntry] = field(default_factory=list)
     budgets_spent: BudgetsSpent = field(default_factory=BudgetsSpent)
@@ -418,6 +440,7 @@ class LoopOutcome:
 
 # Signatures pinned for the loop modules (implemented in Wave 2):
 #
+#   tdd_loop0.run_loop0(ctx, runner, decision: str | None, feedback: str | None) -> LoopOutcome
 #   tdd_loop1.run_loop1(ctx, runner, decision: str | None, feedback: str | None) -> LoopOutcome
 #   tdd_loop1.amend_requirements(ctx, runner, proposal: dict) -> list[str]  # amended requirement_ids
 #   tdd_loop2.run_loop2(ctx, runner) -> LoopOutcome

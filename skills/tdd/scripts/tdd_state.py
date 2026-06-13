@@ -24,6 +24,7 @@ from tdd_contracts import (
     BudgetsConfig,
     BudgetsSpent,
     CONFIG_FILE,
+    DESIGN_DIR,
     FEATURES_DIR,
     REQUIREMENTS_DIR,
     REPORTS_DIR,
@@ -229,6 +230,7 @@ class FeatureContext:
     repo_root: Path
     slug: str
     feature_dir: Path
+    design_dir: Path
     requirements_dir: Path
     tdd_dir: Path
     reports_dir: Path
@@ -316,6 +318,7 @@ def resolve_feature(
         repo_root=repo_root,
         slug=slug,
         feature_dir=feature_dir,
+        design_dir=feature_dir / DESIGN_DIR,
         requirements_dir=feature_dir / REQUIREMENTS_DIR,
         tdd_dir=feature_dir / TDD_DIR,
         reports_dir=feature_dir / REPORTS_DIR,

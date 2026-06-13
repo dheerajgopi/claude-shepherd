@@ -1,14 +1,17 @@
 ---
 name: tdd
-description: Build features through strict, hook-enforced test-driven development: EARS requirements spec → human approval → failing tests committed red → implementation until green. Use whenever the user wants to build, add, or implement a feature, endpoint, or behavior change — including right after an implementation plan is approved — by offering this workflow via AskUserQuestion before writing code directly. This applies even in a fresh project with no .shepherd/ setup yet: the skill initializes setup itself on first run, so the absence of a .shepherd/ directory is NOT a reason to skip the offer. Also use on any mention of TDD, test-first, EARS, requirements spec, acceptance criteria, or red/green; when a .shepherd/ directory is present; or when the user asks to set up, resume, or check the status of a shepherd feature.
+description: Build features through strict, hook-enforced test-driven development: design sketch → human approval → EARS requirements spec → human approval → failing tests committed red → implementation until green. Use whenever the user wants to build, add, or implement a feature, endpoint, or behavior change — including right after an implementation plan is approved — by offering this workflow via AskUserQuestion before writing code directly. This applies even in a fresh project with no .shepherd/ setup yet: the skill initializes setup itself on first run, so the absence of a .shepherd/ directory is NOT a reason to skip the offer. Also use on any mention of TDD, test-first, EARS, design sketch, requirements spec, acceptance criteria, or red/green; when a .shepherd/ directory is present; or when the user asks to set up, resume, or check the status of a shepherd feature.
 ---
 
 # TDD skill
 
 Drives one feature's full TDD lifecycle through a headless Python orchestrator
-(`tdd.py`, built on the Claude Agent SDK) that runs three sequential loops:
+(`tdd.py`, built on the Claude Agent SDK) that runs four sequential loops:
 
-1. **EARS specification** — drafts requirements spec files for human approval.
+0. **Design sketch** — drafts a rough design (components, responsibilities,
+   optional flowcharts) for human approval before any requirement is written.
+1. **EARS specification** — drafts requirements spec files (the testable
+   behaviors of the approved design) for human approval.
 2. **Test generation** — writes failing tests from approved requirements, verifies
    coverage via a traceability matrix, commits the red state.
 3. **Implementation** — edits main code only until tests are green, then commits.
@@ -51,6 +54,7 @@ tdd.py status [--json]
 ```
 
 - The human-input channel is `--decision` / `--feedback` on `run`:
+  - exit 15 → re-invoke with `--decision approve` **or** `--feedback "<corrections>"` (design sketch)
   - exit 10 → re-invoke with `--decision approve` **or** `--feedback "<corrections>"`
   - exit 12 → re-invoke with `--decision approve` or `--decision reject [--feedback "<why>"]`
   - exit 14 → re-invoke with `--feedback "<answer>"` (the implementer's question)
@@ -68,8 +72,8 @@ tdd.py status [--json]
   ```
 
   Note the slug it prints, then `tdd.py run --feature <slug>`. The task
-  statement is the spec agent's ONLY source of requirements — it never
-  sees this conversation. Carry over every concrete detail the user stated:
+  statement is the design and spec agents' ONLY source of truth — they never
+  see this conversation. Carry over every concrete detail the user stated:
   defaults (page sizes, limits, timeouts), edge cases, error behaviors,
   acceptance criteria. Do not condense to a title; a detail dropped here is
   invisible to every later loop. Never write the statement to a file (temp
@@ -85,7 +89,7 @@ subsequent invocation.
 
 **Before any `run` invocation**, read
 `${CLAUDE_PLUGIN_ROOT}/skills/tdd/references/playbook.md` — it carries the
-full exit-code table (codes 0, 10, 11, 12, 13, 14, 20, 21, 22, 1) and the
+full exit-code table (codes 0, 10, 11, 12, 13, 14, 15, 20, 21, 22, 1) and the
 per-code playbook. Branch on `$?` after every invocation and follow the
 playbook exactly. Do not improvise responses to exit codes from memory.
 
@@ -97,7 +101,7 @@ fatal error.
 
 ## Boundaries — never violate these
 
-- **Never fight the PreToolUse hooks.** The script enforces spec/test/
+- **Never fight the PreToolUse hooks.** The script enforces design/spec/test/
   implementation boundaries mechanically (writes denied outside allowed paths).
   A denial is a design decision, not an obstacle: do not retry via different
   tools, shell redirection, or any other workaround.
