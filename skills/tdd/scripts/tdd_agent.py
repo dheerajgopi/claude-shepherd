@@ -127,8 +127,13 @@ class SdkAgentRunner:
                 ]
             }
 
-        # Escalation channel (§10): the ONLY way to change tests in Loop 3.
+        # Custom Loop-3 channels, each gated by its own RunSpec flag. Both
+        # live on one `tdd` MCP server; the server is created only if at least
+        # one tool is requested.
         mcp_servers = None
+        custom_tools = []
+
+        # Escalation channel (§10): the ONLY way to change tests in Loop 3.
         if spec.expose_propose_test_change:
 
             @tool(
@@ -158,12 +163,47 @@ class SdkAgentRunner:
                     ]
                 }
 
-            mcp_servers = {
-                "tdd": create_sdk_mcp_server(
-                    "tdd", tools=[propose_test_change]
-                )
-            }
+            custom_tools.append(propose_test_change)
             allowed_tools.append("mcp__tdd__propose_test_change")
+
+        # Blocker channel: pause for a human decision the agent cannot make.
+        if spec.expose_request_human_input:
+
+            @tool(
+                "request_human_input",
+                "Pause and ask the human a question when you are blocked on "
+                "information or a decision only a human can make. Use this "
+                "instead of guessing; do NOT use it for problems you can "
+                "investigate and fix yourself.",
+                {
+                    "question": str,
+                    "context": str,
+                    "suggested_options": str,
+                },
+            )
+            async def request_human_input(args: dict) -> dict:
+                events.append(
+                    ToolEvent(
+                        tool_name="request_human_input", tool_input=dict(args)
+                    )
+                )
+                return {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "Question recorded; the human will answer "
+                            "and the run will resume. End your turn.",
+                        }
+                    ]
+                }
+
+            custom_tools.append(request_human_input)
+            allowed_tools.append("mcp__tdd__request_human_input")
+
+        if custom_tools:
+            mcp_servers = {
+                "tdd": create_sdk_mcp_server("tdd", tools=custom_tools)
+            }
 
         # NOTE: setting_sources deliberately unset (None = full isolation
         # from the target project's CLAUDE.md/settings, verified); `agents`

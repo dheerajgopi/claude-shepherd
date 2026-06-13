@@ -123,6 +123,23 @@ def _verdict(v: str) -> dict:
     return {"text": json.dumps({"verdict": v, "rationale": f"{v} per triage"})}
 
 
+def _blocker_run() -> dict:
+    return {
+        "text": "I need a decision before I can implement",
+        "session_id": "l3-sess",
+        "tool_calls": [
+            {
+                "tool_name": "request_human_input",
+                "tool_input": {
+                    "question": "JWT or session cookies?",
+                    "context": "the requirement is silent on the auth mechanism",
+                    "suggested_options": "JWT | session cookies",
+                },
+            }
+        ],
+    }
+
+
 AMEND_REQUIREMENTS = {
     "text": f"done\nAMENDED: {REQUIREMENT_ID}",
     "session_id": "l1-sess",
@@ -326,6 +343,31 @@ class TestEscalation:
         )
         assert r.returncode == ExitCode.DONE, r.stderr
         assert _subjects(repo)[0] == COMMIT_GREEN.format(slug="user-auth")
+
+
+class TestBlocker:
+    def test_blocked_then_answer_to_green(self, world) -> None:
+        repo, step = world
+
+        r = step(["run"], [DRAFT_REQUIREMENTS])
+        assert r.returncode == ExitCode.AWAITING_APPROVAL
+
+        # Approve → loop2 (gen+verify+red) → loop3 implementer asks for input.
+        r = step(
+            ["run", "--decision", "approve"],
+            [GEN_TESTS, VERIFY_COVERED, _blocker_run()],
+        )
+        assert r.returncode == ExitCode.NEEDS_INPUT, r.stderr
+        assert _phase(repo) == Phase.BLOCKED.value
+        report = repo / ".shepherd/features/user-auth/.tdd/reports/blocker_1.md"
+        assert report.is_file()
+        assert "JWT or session cookies?" in report.read_text()
+
+        # Answer via --feedback → resumes the loop3 session, implements green.
+        r = step(["run", "--feedback", "Use JWT"], [IMPLEMENT_GREEN])
+        assert r.returncode == ExitCode.DONE, r.stderr
+        assert _subjects(repo)[0] == COMMIT_GREEN.format(slug="user-auth")
+        assert _phase(repo) == Phase.DONE.value
 
 
 class TestBudget:

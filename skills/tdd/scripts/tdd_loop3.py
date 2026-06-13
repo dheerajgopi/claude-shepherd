@@ -62,6 +62,7 @@ _TEST_FILE_CAP = 20_000       # chars of test content in the triage prompt
 _TEST_COMMAND_TIMEOUT = 900   # seconds
 
 _PROPOSAL_TOOL_NAMES = ("propose_test_change", "mcp__tdd__propose_test_change")
+_BLOCKER_TOOL_NAMES = ("request_human_input", "mcp__tdd__request_human_input")
 _VALID_VERDICTS = ("minor", "significant", "unsure")
 
 _REJECT_DEFAULT = "Proposal rejected; the test stands as written."
@@ -161,6 +162,7 @@ def _implementer_spec(ctx: FeatureContext, prompt: str) -> RunSpec:
         path_policy_mode=PathPolicyMode.DENY_UNDER,
         path_policy_paths=[*ctx.config.test.paths, _requirements_rel(ctx)],
         expose_propose_test_change=True,
+        expose_request_human_input=True,
         max_turns=ctx.config.budgets.max_turns_per_loop,
         max_budget_usd=remaining or None,
         cwd=str(ctx.repo_root),
@@ -480,6 +482,64 @@ def _latest_escalation(ctx: FeatureContext) -> Optional[dict[str, Any]]:
 
 
 # ---------------------------------------------------------------------------
+# Blocker reports (the request_human_input channel)
+# ---------------------------------------------------------------------------
+
+
+def _blocker_paths(ctx: FeatureContext) -> list[Path]:
+    ctx.reports_dir.mkdir(parents=True, exist_ok=True)
+    return sorted(ctx.reports_dir.glob("blocker_*.json"))
+
+
+def _write_blocker(
+    ctx: FeatureContext,
+    blocker: dict[str, Any],
+    also_asked: list[dict[str, Any]],
+) -> Path:
+    """Write blocker_<n>.{md,json} to reports/; return the .md path."""
+
+    n = len(_blocker_paths(ctx)) + 1
+    md_path = ctx.reports_dir / f"blocker_{n}.md"
+    json_path = ctx.reports_dir / f"blocker_{n}.json"
+
+    body = [
+        f"# Blocker {n} — implementer needs human input",
+        "",
+        f"- timestamp: {utc_now_iso()}",
+        "",
+        "## Question",
+        "",
+        str(blocker.get("question", "?")),
+        "",
+        "## Context",
+        "",
+        str(blocker.get("context", "?")),
+    ]
+    options = str(blocker.get("suggested_options", "")).strip()
+    if options:
+        body += ["", "## Suggested options", "", options]
+    if also_asked:
+        body += ["", "## Also asked in the same run", ""]
+        for extra in also_asked:
+            body.append(f"- {extra.get('question', '?')}")
+    md_path.write_text("\n".join(body) + "\n", encoding="utf-8")
+    json_path.write_text(
+        json.dumps(
+            {
+                "question": blocker.get("question", ""),
+                "context": blocker.get("context", ""),
+                "suggested_options": blocker.get("suggested_options", ""),
+                "also_asked": also_asked,
+                "timestamp": utc_now_iso(),
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    return md_path
+
+
+# ---------------------------------------------------------------------------
 # Commits (tolerant on crash re-entry: skip when nothing changed)
 # ---------------------------------------------------------------------------
 
@@ -509,6 +569,37 @@ def _proposals_from(result: RunResult) -> list[dict[str, Any]]:
         for e in result.tool_events
         if e.tool_name in _PROPOSAL_TOOL_NAMES
     ]
+
+
+def _blockers_from(result: RunResult) -> list[dict[str, Any]]:
+    return [
+        dict(e.tool_input)
+        for e in result.tool_events
+        if e.tool_name in _BLOCKER_TOOL_NAMES
+    ]
+
+
+def _checkpoint_blocker(
+    ctx: FeatureContext, blockers: list[dict[str, Any]]
+) -> LoopOutcome:
+    """Write the blocker report, transition to BLOCKED, checkpoint NEEDS_INPUT.
+
+    An explicit "I'm stuck" is a hard stop: it takes precedence over any test-
+    change proposals raised in the same turn.
+    """
+
+    report = _write_blocker(ctx, blockers[0], also_asked=blockers[1:])
+    ctx.store.transition(
+        ctx.state,
+        Phase.BLOCKED,
+        session_id=ctx.state.session_ids.get("loop3"),
+        reason=str(blockers[0].get("question", "")),
+    )
+    return LoopOutcome(
+        LoopStatus.CHECKPOINT,
+        ExitCode.NEEDS_INPUT,
+        f"{report}: {blockers[0].get('question', 'human input requested')}",
+    )
 
 
 def _process_proposals(
@@ -676,6 +767,10 @@ def _main_cycle(
         if failure is not None:
             return failure
 
+        blockers = _blockers_from(result)
+        if blockers:
+            return _checkpoint_blocker(ctx, blockers)
+
         outcome, new_notes = _process_proposals(ctx, runner, _proposals_from(result))
         notes.extend(new_notes)
         if outcome is not None:
@@ -771,6 +866,36 @@ def _resolve_escalation(
 
 
 # ---------------------------------------------------------------------------
+# Blocker resolution (the request_human_input channel)
+# ---------------------------------------------------------------------------
+
+
+def _resolve_blocker(
+    ctx: FeatureContext, runner: AgentRunner, feedback: Optional[str]
+) -> LoopOutcome:
+    """Resume implementation with the human's answer injected (§ blocker).
+
+    The answer rides in as a one-off prompt section on the resumed loop3
+    session, exactly like the escalation-rejection feedback; the main cycle
+    then runs the test command and continues toward green.
+    """
+
+    if feedback:
+        ctx.store.transition(ctx.state, Phase.IMPLEMENTING)
+        return _main_cycle(ctx, runner, pending_sections=[("Human answer", feedback)])
+
+    paths = _blocker_paths(ctx)
+    latest_md = (
+        str(paths[-1]).replace(".json", ".md") if paths else "(no report found)"
+    )
+    return LoopOutcome(
+        LoopStatus.CHECKPOINT,
+        ExitCode.NEEDS_INPUT,
+        f'{latest_md}: awaiting answer (--feedback "<answer>")',
+    )
+
+
+# ---------------------------------------------------------------------------
 # Loop 3 entry point
 # ---------------------------------------------------------------------------
 
@@ -799,6 +924,8 @@ def run_loop3(
         return _main_cycle(ctx, runner)
     if phase is Phase.ESCALATED:
         return _resolve_escalation(ctx, runner, decision, feedback)
+    if phase is Phase.BLOCKED:
+        return _resolve_blocker(ctx, runner, feedback)
     if phase is Phase.AMENDING_REQUIREMENTS:
         # Crash recovery mid-amendment: re-run the pipeline from the saved
         # proposal. amend_requirements may re-run against already-amended

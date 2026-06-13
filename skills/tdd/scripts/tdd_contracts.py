@@ -28,6 +28,7 @@ class ExitCode(enum.IntEnum):
     COVERAGE_GAP = 11             # requirements uncoverable after max iterations
     ESCALATED = 12                # significant test change proposed
     BUDGET_EXCEEDED = 13          # turn/cost/time limit hit
+    NEEDS_INPUT = 14              # implementer is blocked, asked the human a question
     NO_FEATURE_RESOLVED = 20      # no --feature arg, no tdd/<slug> branch
     BRANCH_MISMATCH = 21          # current branch != branch recorded in state
     SHEPHERD_NOT_INITIALIZED = 22  # no .shepherd folder found
@@ -51,6 +52,7 @@ class Phase(str, enum.Enum):
     RED_COMMITTED = "RED_COMMITTED"
     IMPLEMENTING = "IMPLEMENTING"
     ESCALATED = "ESCALATED"
+    BLOCKED = "BLOCKED"
     AMENDING_REQUIREMENTS = "AMENDING_REQUIREMENTS"
     GREEN = "GREEN"
     DONE = "DONE"
@@ -68,8 +70,9 @@ PHASE_TRANSITIONS: dict[Phase, tuple[Phase, ...]] = {
     Phase.GENERATING_TESTS: (Phase.VERIFYING_COVERAGE,),
     Phase.VERIFYING_COVERAGE: (Phase.GENERATING_TESTS, Phase.RED_COMMITTED),
     Phase.RED_COMMITTED: (Phase.IMPLEMENTING,),
-    Phase.IMPLEMENTING: (Phase.ESCALATED, Phase.GREEN),
+    Phase.IMPLEMENTING: (Phase.ESCALATED, Phase.BLOCKED, Phase.GREEN),
     Phase.ESCALATED: (Phase.AMENDING_REQUIREMENTS, Phase.IMPLEMENTING),
+    Phase.BLOCKED: (Phase.IMPLEMENTING,),
     Phase.AMENDING_REQUIREMENTS: (Phase.RED_COMMITTED,),
     Phase.GREEN: (Phase.DONE,),
     Phase.DONE: (),
@@ -87,6 +90,7 @@ RESUMABLE_PHASES: dict[Phase, int] = {
     Phase.RED_COMMITTED: 3,
     Phase.IMPLEMENTING: 3,
     Phase.ESCALATED: 3,
+    Phase.BLOCKED: 3,
     Phase.AMENDING_REQUIREMENTS: 3,
     Phase.GREEN: 3,
 }
@@ -145,9 +149,10 @@ GITIGNORE_ENTRIES = [
 #   tdd.py status [--json]
 #
 # `--decision/--feedback` is the human-input channel: the outer command
-# re-invokes `run` with the human's answer after a checkpoint exit (10/12).
+# re-invokes `run` with the human's answer after a checkpoint exit (10/12/14).
 # `--feedback` alone (no --decision) means "corrections" for the exit-10
-# revision cycle. `--force` on run overrides BRANCH_MISMATCH (§7).
+# revision cycle and "the answer" for the exit-14 blocker cycle (Loop 3's
+# request_human_input). `--force` on run overrides BRANCH_MISMATCH (§7).
 # `--verbose` (default on) streams the agent's prose and tool activity to
 # stderr so a human can watch the headless run; `--no-verbose` silences it.
 # It is display-only — stdout and the exit code remain the machine protocol.
@@ -374,6 +379,7 @@ class RunSpec:
     path_policy_mode: Optional[PathPolicyMode] = None
     path_policy_paths: list[str] = field(default_factory=list)
     expose_propose_test_change: bool = False  # Loop 3 only
+    expose_request_human_input: bool = False  # Loop 3 only (blocker channel)
     max_turns: Optional[int] = None
     max_budget_usd: Optional[float] = None
     cwd: Optional[str] = None                 # repo root

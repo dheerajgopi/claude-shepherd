@@ -15,6 +15,7 @@ in `skills/tdd/references/playbook.md`, setup.sh, prompts). Requirement referenc
 | 11 | COVERAGE_GAP | Surface gap report (`.tdd/reports/`) to human |
 | 12 | ESCALATED | AskUserQuestion: approve (→ Loop 1 amend) or reject |
 | 13 | BUDGET_EXCEEDED | Surface status report |
+| 14 | NEEDS_INPUT | AskUserQuestion: answer the implementer's question, re-invoke with `--feedback` |
 | 20 | NO_FEATURE_RESOLVED | Present feature list, re-invoke with `--feature` |
 | 21 | BRANCH_MISMATCH | Warn human; re-invoke with `--force` only if intended |
 | 22 | SHEPHERD_NOT_INITIALIZED | Offer `tdd.py init`, then review generated config |
@@ -39,6 +40,8 @@ tdd.py status [--json]
 - The human-input channel is `--decision` / `--feedback` on `run`:
   - exit 10 → re-invoke with `--decision approve` **or** `--feedback "<corrections>"`
   - exit 12 → re-invoke with `--decision approve` or `--decision reject [--feedback "<why>"]`
+  - exit 14 → re-invoke with `--feedback "<answer>"` — the answer to the
+    implementer's `request_human_input` question (Loop 3 blocker channel)
 - `--force` overrides BRANCH_MISMATCH (21) only; never anything else.
 - `--verbose` (default **on**) streams the agent's prose and tool activity to
   stderr so a human can watch the headless run, the way Claude Code does;

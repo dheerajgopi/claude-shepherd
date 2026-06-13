@@ -195,6 +195,7 @@ The Agent SDK applies `cache_control` automatically; the script's responsibility
 | 11 | `COVERAGE_GAP` — requirements uncoverable after max iterations | Surface gap report to human |
 | 12 | `ESCALATED` — significant test change proposed | `AskUserQuestion`: approve (→ Loop 1 amend) or reject |
 | 13 | `BUDGET_EXCEEDED` — turn/cost/time limit hit | Surface status report |
+| 14 | `NEEDS_INPUT` — implementer blocked, asked the human a question | `AskUserQuestion`: answer it, re-invoke with `--feedback` |
 | 20 | `NO_FEATURE_RESOLVED` — no `--feature` arg, no `tdd/<slug>` branch | Present feature list, re-invoke with `--feature` |
 | 21 | `BRANCH_MISMATCH` — current branch ≠ branch recorded in state | Warn human; re-invoke with `--force` only if intended |
 | 22 | `SHEPHERD_NOT_INITIALIZED` — no `.shepherd` folder found | `AskUserQuestion`: offer to run `tdd.py init`, then review generated config |

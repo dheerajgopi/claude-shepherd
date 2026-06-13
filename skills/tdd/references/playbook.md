@@ -28,6 +28,7 @@ re-invocation.
 | 11 | COVERAGE_GAP | Surface gap report (`.tdd/reports/`) to human |
 | 12 | ESCALATED | AskUserQuestion: approve (→ Loop 1 amend) or reject |
 | 13 | BUDGET_EXCEEDED | Surface status report |
+| 14 | NEEDS_INPUT | AskUserQuestion: answer the implementer's question, re-invoke with `--feedback` |
 | 20 | NO_FEATURE_RESOLVED | Present feature list, re-invoke with `--feature` |
 | 21 | BRANCH_MISMATCH | Warn human; re-invoke with `--force` only if intended |
 | 22 | SHEPHERD_NOT_INITIALIZED | Offer `tdd.py init`, then review generated config |
@@ -64,6 +65,15 @@ its content to the user. Stop — this needs human judgment, not a retry.
 ### 13 — BUDGET_EXCEEDED
 Surface the status report (stdout and any report file under
 `.shepherd/features/<slug>/.tdd/reports/`) to the user. Stop.
+
+### 14 — NEEDS_INPUT (implementer is blocked, asked a question)
+1. Read the latest blocker report `blocker_<n>.md` from
+   `.shepherd/features/<slug>/.tdd/reports/`.
+2. Present its **Question** (and **Suggested options** as choices, if present)
+   to the user via `AskUserQuestion`. The user may always answer freely.
+3. Collect the answer, then re-invoke
+   `run --feature <slug> --feedback "<answer>"`. The script resumes the same
+   implementer session with the answer in hand and continues toward green.
 
 ### 20 — NO_FEATURE_RESOLVED
 1. Run `python3 "${CLAUDE_PLUGIN_ROOT}/skills/tdd/scripts/tdd.py" status`.

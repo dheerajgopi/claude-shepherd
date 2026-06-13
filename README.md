@@ -60,8 +60,9 @@ tdd.py status                # phases of all features
 ```
 
 `run` communicates through exit codes (0 done, 10 awaiting approval,
-11 coverage gap, 12 escalated, 13 budget exceeded, 20–22 resolution errors);
-human decisions return via `run --decision approve|reject [--feedback …]`.
+11 coverage gap, 12 escalated, 13 budget exceeded, 14 needs input,
+20–22 resolution errors); human decisions return via
+`run --decision approve|reject [--feedback …]`.
 
 What the TDD skill lands in your repo:
 

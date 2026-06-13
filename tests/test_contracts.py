@@ -28,6 +28,7 @@ class TestExitCodes:
             ("COVERAGE_GAP", 11),
             ("ESCALATED", 12),
             ("BUDGET_EXCEEDED", 13),
+            ("NEEDS_INPUT", 14),
             ("NO_FEATURE_RESOLVED", 20),
             ("BRANCH_MISMATCH", 21),
             ("SHEPHERD_NOT_INITIALIZED", 22),
@@ -38,7 +39,7 @@ class TestExitCodes:
         assert ExitCode[name] == value
 
     def test_no_extra_codes(self) -> None:
-        assert len(ExitCode) == 9
+        assert len(ExitCode) == 10
 
 
 class TestPhaseTransitions:
@@ -54,9 +55,11 @@ class TestPhaseTransitions:
             (Phase.VERIFYING_COVERAGE, Phase.RED_COMMITTED),
             (Phase.RED_COMMITTED, Phase.IMPLEMENTING),
             (Phase.IMPLEMENTING, Phase.ESCALATED),
+            (Phase.IMPLEMENTING, Phase.BLOCKED),        # request_human_input
             (Phase.IMPLEMENTING, Phase.GREEN),
             (Phase.ESCALATED, Phase.AMENDING_REQUIREMENTS),  # approval
             (Phase.ESCALATED, Phase.IMPLEMENTING),      # rejection
+            (Phase.BLOCKED, Phase.IMPLEMENTING),        # human answered
             (Phase.AMENDING_REQUIREMENTS, Phase.RED_COMMITTED),
             (Phase.GREEN, Phase.DONE),
         ],
@@ -76,6 +79,7 @@ class TestPhaseTransitions:
             (Phase.DONE, Phase.DRAFTING_REQUIREMENTS),              # DONE is terminal
             (Phase.FAILED, Phase.DRAFTING_REQUIREMENTS),            # FAILED is terminal
             (Phase.ESCALATED, Phase.GREEN),
+            (Phase.BLOCKED, Phase.GREEN),               # must pass back through IMPLEMENTING
         ],
     )
     def test_illegal(self, current: Phase, new: Phase) -> None:

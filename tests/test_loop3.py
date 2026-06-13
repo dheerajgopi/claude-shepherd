@@ -98,6 +98,21 @@ def _verdict(v: str) -> str:
     return json.dumps({"verdict": v, "rationale": f"triage says {v}"})
 
 
+def _blocker(
+    question: str = "JWT or session cookies?",
+    context: str = "the requirement does not pin down the auth mechanism",
+    options: str = "JWT | session cookies",
+) -> dict:
+    return {
+        "tool_name": "request_human_input",
+        "tool_input": {
+            "question": question,
+            "context": context,
+            "suggested_options": options,
+        },
+    }
+
+
 def _git(repo: Path, *args: str) -> str:
     proc = subprocess.run(
         ["git", *args], cwd=repo, check=True, capture_output=True, text=True
@@ -389,6 +404,104 @@ class TestProposals:
         assert (feature.repo / TEST_FILE).read_text() == original  # untouched
         report = json.loads((ctx.reports_dir / "escalation_1.json").read_text())
         assert "did not apply cleanly" in report["rationale"]
+
+
+class TestBlockerChannel:
+    def _blocked(self, feature):
+        ctx = _setup_loop3(feature)
+        runner = _runner(
+            feature,
+            [
+                {
+                    "text": "I cannot proceed without a decision",
+                    "session_id": "impl-sess-1",
+                    "tool_calls": [_blocker()],
+                }
+            ],
+        )
+        outcome = tdd_loop3.run_loop3(ctx, runner, None, None)
+        assert outcome.exit_code is ExitCode.NEEDS_INPUT
+        return ctx
+
+    def test_request_human_input_checkpoints(self, feature) -> None:
+        ctx = _setup_loop3(feature)
+        runner = _runner(
+            feature,
+            [
+                {
+                    "text": "blocked",
+                    "session_id": "impl-sess-1",
+                    "tool_calls": [_blocker()],
+                }
+            ],
+        )
+
+        outcome = tdd_loop3.run_loop3(ctx, runner, None, None)
+
+        assert outcome.status is LoopStatus.CHECKPOINT
+        assert outcome.exit_code is ExitCode.NEEDS_INPUT
+        assert runner.received[0].expose_request_human_input is True
+        assert (ctx.reports_dir / "blocker_1.md").is_file()
+        data = json.loads((ctx.reports_dir / "blocker_1.json").read_text())
+        assert data["question"] == "JWT or session cookies?"
+        assert data["suggested_options"] == "JWT | session cookies"
+
+        state = StateStore(ctx.feature_dir).load()
+        assert state.phase == Phase.BLOCKED.value
+        assert state.session_ids["loop3"] == "impl-sess-1"
+
+    def test_answer_resumes_session_and_reaches_green(self, feature) -> None:
+        ctx = self._blocked(feature)
+        runner = _runner(
+            feature,
+            [
+                {
+                    "text": "thanks — using JWT",
+                    "session_id": "impl-sess-1",
+                    "files": [{"path": "PASS", "content": "1"}],
+                }
+            ],
+        )
+
+        outcome = tdd_loop3.run_loop3(ctx, runner, None, "Use JWT")
+
+        assert outcome.status is LoopStatus.ADVANCE  # PASS written → green
+        answer_spec = runner.received[0]
+        assert "## Human answer" in answer_spec.prompt
+        assert "Use JWT" in answer_spec.prompt
+        assert answer_spec.session_id == "impl-sess-1"  # resumed (§12)
+        assert StateStore(ctx.feature_dir).load().phase == Phase.DONE.value
+
+    def test_no_feedback_reexits_without_runs(self, feature) -> None:
+        ctx = self._blocked(feature)
+        runner = _runner(feature, [])
+
+        outcome = tdd_loop3.run_loop3(ctx, runner, None, None)
+
+        assert outcome.status is LoopStatus.CHECKPOINT
+        assert outcome.exit_code is ExitCode.NEEDS_INPUT
+        assert "awaiting answer" in outcome.detail
+        assert runner.received == []
+
+    def test_blocker_takes_precedence_over_proposal(self, feature) -> None:
+        ctx = _setup_loop3(feature)
+        runner = _runner(
+            feature,
+            [
+                {
+                    "text": "stuck and the test looks wrong too",
+                    "session_id": "impl-sess-1",
+                    "tool_calls": [_blocker(), _proposal()],
+                }
+            ],
+        )
+
+        outcome = tdd_loop3.run_loop3(ctx, runner, None, None)
+
+        assert outcome.exit_code is ExitCode.NEEDS_INPUT  # not ESCALATED
+        assert (ctx.reports_dir / "blocker_1.md").is_file()
+        assert not (ctx.reports_dir / "escalation_1.json").exists()
+        assert len(runner.received) == 1  # no triage turn ran
 
 
 class TestEscalationResolution:

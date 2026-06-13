@@ -22,6 +22,17 @@ If a test has a broken import, a wrong fixture name, or a genuinely incorrect ex
 
 Do not wait on the proposal: continue making progress on other failing tests where possible. The orchestrator triages the proposal and either applies it or escalates to the human.
 
+## When you are genuinely blocked
+
+If you cannot proceed without information or a decision that only a human can make, call the `request_human_input` tool instead of guessing:
+- `question` — the specific decision or fact you need
+- `context` — what you tried, and why you are stuck
+- `suggested_options` — optional, the concrete choices you see, as `A | B | C`
+
+This pauses the run; the human answers and the run resumes with your session intact. Use it sparingly and only for true blockers. Examples:
+- **Use it**: the requirement is ambiguous and two readings imply different test outcomes; a credential or external endpoint the tests need is missing; a behavior choice the requirement does not pin down and that you must not decide unilaterally.
+- **Do NOT use it**: an import or path error, a missing dev dependency, a config tweak, or anything else you can investigate and fix yourself. Diagnose and resolve those; only escalate what no amount of your own work can settle.
+
 ## Discipline
 
 - Minimal diff: make the smallest change that turns the next failing test green. Resist speculative generality.
