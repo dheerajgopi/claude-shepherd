@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from tdd_contracts import (
+    COMMIT_BOOTSTRAP,
     COMMIT_GREEN,
     COMMIT_RED,
     COMMIT_RED_AMENDED,
@@ -30,6 +31,7 @@ class TestExitCodes:
             ("BUDGET_EXCEEDED", 13),
             ("NEEDS_INPUT", 14),
             ("AWAITING_DESIGN_APPROVAL", 15),
+            ("AWAITING_FRAMEWORK_APPROVAL", 16),
             ("NO_FEATURE_RESOLVED", 20),
             ("BRANCH_MISMATCH", 21),
             ("SHEPHERD_NOT_INITIALIZED", 22),
@@ -40,7 +42,7 @@ class TestExitCodes:
         assert ExitCode[name] == value
 
     def test_no_extra_codes(self) -> None:
-        assert len(ExitCode) == 11
+        assert len(ExitCode) == 12
 
 
 class TestPhaseTransitions:
@@ -55,6 +57,11 @@ class TestPhaseTransitions:
             (Phase.AWAITING_APPROVAL, Phase.DRAFTING_REQUIREMENTS),  # corrections cycle
             (Phase.AWAITING_APPROVAL, Phase.REQUIREMENTS_APPROVED),
             (Phase.REQUIREMENTS_APPROVED, Phase.GENERATING_TESTS),
+            (Phase.REQUIREMENTS_APPROVED, Phase.PROPOSING_FRAMEWORK),  # bootstrap fork
+            (Phase.PROPOSING_FRAMEWORK, Phase.AWAITING_FRAMEWORK_APPROVAL),
+            (Phase.AWAITING_FRAMEWORK_APPROVAL, Phase.PROPOSING_FRAMEWORK),  # corrections
+            (Phase.AWAITING_FRAMEWORK_APPROVAL, Phase.INSTALLING_FRAMEWORK),  # approval
+            (Phase.INSTALLING_FRAMEWORK, Phase.GENERATING_TESTS),
             (Phase.GENERATING_TESTS, Phase.VERIFYING_COVERAGE),
             (Phase.VERIFYING_COVERAGE, Phase.GENERATING_TESTS),  # gap iteration
             (Phase.VERIFYING_COVERAGE, Phase.RED_COMMITTED),
@@ -83,6 +90,8 @@ class TestPhaseTransitions:
             (Phase.DRAFTING_REQUIREMENTS, Phase.IMPLEMENTING),
             (Phase.DRAFTING_REQUIREMENTS, Phase.REQUIREMENTS_APPROVED),  # cannot skip approval
             (Phase.REQUIREMENTS_APPROVED, Phase.RED_COMMITTED),     # cannot skip testgen
+            (Phase.PROPOSING_FRAMEWORK, Phase.GENERATING_TESTS),    # cannot skip approval
+            (Phase.AWAITING_FRAMEWORK_APPROVAL, Phase.GENERATING_TESTS),  # must install first
             (Phase.IMPLEMENTING, Phase.DONE),                  # must pass through GREEN
             (Phase.GREEN, Phase.IMPLEMENTING),
             (Phase.DONE, Phase.DRAFTING_REQUIREMENTS),              # DONE is terminal
@@ -139,6 +148,11 @@ class TestCommitFormats:
     def test_green(self) -> None:
         assert COMMIT_GREEN.format(slug="user-auth") == (
             "tdd(user-auth): green — implementation"
+        )
+
+    def test_bootstrap(self) -> None:
+        assert COMMIT_BOOTSTRAP.format(slug="user-auth", framework="pytest") == (
+            "tdd(user-auth): chore — add pytest"
         )
 
 

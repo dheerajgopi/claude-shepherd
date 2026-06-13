@@ -30,6 +30,7 @@ re-invocation.
 | 13 | BUDGET_EXCEEDED | Surface status report |
 | 14 | NEEDS_INPUT | AskUserQuestion: answer the implementer's question, re-invoke with `--feedback` |
 | 15 | AWAITING_DESIGN_APPROVAL | AskUserQuestion: approve the design sketch or give corrections |
+| 16 | AWAITING_FRAMEWORK_APPROVAL | AskUserQuestion: approve adding the proposed test framework or give corrections |
 | 20 | NO_FEATURE_RESOLVED | Present feature list, re-invoke with `--feature` |
 | 21 | BRANCH_MISMATCH | Warn human; re-invoke with `--force` only if intended |
 | 22 | SHEPHERD_NOT_INITIALIZED | Offer `tdd.py init`, then review generated config |
@@ -53,6 +54,23 @@ design before any requirement is written.
    checkpoints again at exit 10.
 4. On corrections: collect the user's feedback text, then re-invoke
    `run --feature <slug> --feedback "<text>"`. This cycle repeats until approval.
+
+### 16 — AWAITING_FRAMEWORK_APPROVAL (test-framework bootstrap proposed)
+Only reached when the project has **no test framework** — tests cannot be
+generated or run until one is added. This checkpoint sits between requirements
+approval and test generation.
+1. Read the proposal `framework_proposal.md` from
+   `.shepherd/features/<slug>/.tdd/reports/` — it names the framework, the
+   manifest file(s) to edit, the install command, and the resulting test
+   command and test directory.
+2. Present it via `AskUserQuestion` with options: **Approve** / **Give corrections**.
+3. On approve: re-invoke `run --feature <slug> --decision approve`. The script
+   runs an install agent (scoped to the manifest), commits
+   `tdd(<slug>): chore — add <framework>`, records the test command/paths in
+   config, and continues into test generation.
+4. On corrections: collect the user's feedback (e.g. a different framework),
+   then re-invoke `run --feature <slug> --feedback "<text>"`. This re-proposes
+   and checkpoints again until approval.
 
 ### 10 — AWAITING_APPROVAL (requirements drafted/revised)
 1. Read the drafted EARS spec (`.md`) files from

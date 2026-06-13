@@ -136,6 +136,33 @@ def load_config(repo_root: Path) -> ShepherdConfig:
     return config
 
 
+def save_config(repo_root: Path, config: ShepherdConfig) -> None:
+    """Persist `config` back to .shepherd/config.yaml (machine-local, gitignored).
+
+    Used by the test-framework bootstrap to record the detected test command
+    and paths once a framework has been installed, so Loop 2's hooks have valid
+    paths and Loop 3 can run the suite.
+    """
+
+    try:
+        import yaml
+    except ImportError as exc:  # mirror load_config's clean surfacing
+        raise ShepherdError(
+            ExitCode.INTERNAL_ERROR,
+            "pyyaml is not installed in this interpreter; run `tdd.py init` "
+            "preconditions or `pip install pyyaml`",
+        ) from exc
+
+    data = {
+        "models": dataclasses.asdict(config.models),
+        "test": dataclasses.asdict(config.test),
+        "budgets": dataclasses.asdict(config.budgets),
+    }
+    (repo_root / CONFIG_FILE).write_text(
+        yaml.safe_dump(data, sort_keys=False), encoding="utf-8"
+    )
+
+
 class StateStore:
     """Load/save/transition the gitignored state.json of one feature (§14)."""
 

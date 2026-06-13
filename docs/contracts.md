@@ -17,6 +17,7 @@ in `skills/tdd/references/playbook.md`, setup.sh, prompts). Requirement referenc
 | 13 | BUDGET_EXCEEDED | Surface status report |
 | 14 | NEEDS_INPUT | AskUserQuestion: answer the implementer's question, re-invoke with `--feedback` |
 | 15 | AWAITING_DESIGN_APPROVAL | AskUserQuestion: approve the design sketch or give corrections |
+| 16 | AWAITING_FRAMEWORK_APPROVAL | AskUserQuestion: approve adding the proposed test framework or give corrections |
 | 20 | NO_FEATURE_RESOLVED | Present feature list, re-invoke with `--feature` |
 | 21 | BRANCH_MISMATCH | Warn human; re-invoke with `--force` only if intended |
 | 22 | SHEPHERD_NOT_INITIALIZED | Offer `tdd.py init`, then review generated config |
@@ -40,6 +41,7 @@ tdd.py status [--json]
   it after `new` has no effect on the run.
 - The human-input channel is `--decision` / `--feedback` on `run`:
   - exit 15 → re-invoke with `--decision approve` **or** `--feedback "<corrections>"` (design)
+  - exit 16 → re-invoke with `--decision approve` **or** `--feedback "<corrections>"` (test framework)
   - exit 10 → re-invoke with `--decision approve` **or** `--feedback "<corrections>"`
   - exit 12 → re-invoke with `--decision approve` or `--decision reject [--feedback "<why>"]`
   - exit 14 → re-invoke with `--feedback "<answer>"` — the answer to the
@@ -59,10 +61,15 @@ tdd.py status [--json]
 DRAFTING_REQUIREMENTS → AWAITING_APPROVAL ⇄ (corrections) → REQUIREMENTS_APPROVED →
 GENERATING_TESTS ⇄ VERIFYING_COVERAGE → RED_COMMITTED → IMPLEMENTING → (ESCALATED →
 AMENDING_REQUIREMENTS → RED_COMMITTED) → GREEN → DONE`, `FAILED` reachable from anywhere,
-terminal. Legal transitions: `PHASE_TRANSITIONS` in the contracts module; the state store
-refuses anything else. Loop ownership (`RESUMABLE_PHASES`): Loop 0 owns the SKETCHING_DESIGN /
-AWAITING_DESIGN_APPROVAL design phases; DESIGN_APPROVED is Loop 1's entry from Loop 0 (Loop 1
-transitions it into DRAFTING_REQUIREMENTS, mirroring how Loop 2 enters from REQUIREMENTS_APPROVED).
+terminal. REQUIREMENTS_APPROVED forks: straight to GENERATING_TESTS when a test framework is
+present, or — when the project has none — through the bootstrap pre-step `PROPOSING_FRAMEWORK →
+AWAITING_FRAMEWORK_APPROVAL ⇄ (corrections) → INSTALLING_FRAMEWORK → GENERATING_TESTS`. Legal
+transitions: `PHASE_TRANSITIONS` in the contracts module; the state store refuses anything else.
+Loop ownership (`RESUMABLE_PHASES`): Loop 0 owns the SKETCHING_DESIGN / AWAITING_DESIGN_APPROVAL
+design phases; DESIGN_APPROVED is Loop 1's entry from Loop 0 (Loop 1 transitions it into
+DRAFTING_REQUIREMENTS, mirroring how Loop 2 enters from REQUIREMENTS_APPROVED). The bootstrap
+phases sit at the front of Loop 2's territory and are owned by `tdd_bootstrap`, which the
+dispatcher intercepts before the loop-number dispatch.
 
 ## On-disk artifacts (§5)
 
@@ -97,6 +104,7 @@ Declarative only: no function names, endpoints, classes, tables, or UI widgets.
 ## Commit messages (§16) — format strings, exact
 
 ```
+tdd(<slug>): chore — add <framework>
 tdd(<slug>): red — failing tests
 tdd(<slug>): red(<n>) — amended requirements
 tdd(<slug>): green — implementation
@@ -105,13 +113,17 @@ tdd(<slug>): green — implementation
 The outer agent must NEVER hand-create commits matching `tdd(...)`.
 There is no spec commit: Loop 1 approval only advances the phase, because
 the spec artifacts live in the gitignored `.shepherd/` workspace. Red and
-red(n) commits carry only `test.paths` content.
+red(n) commits carry only `test.paths` content. The bootstrap `chore` commit
+(test-framework pre-step) is the one exception that touches source-controlled
+files outside `test.paths`: it carries only dependency-manifest and lockfile
+changes, never tests.
 
 ## Path policy (the mechanical boundary, §9–10)
 
 - Loops 0–2: `ALLOW_ONLY` — Write/Edit/MultiEdit/NotebookEdit permitted only under the listed
   paths (Loop 0: the feature's `design/`; Loop 1: the feature's `requirements/`; Loop 2:
-  `test.paths` from config).
+  `test.paths` from config). The bootstrap install agent runs `ALLOW_ONLY` scoped to the
+  proposal's dependency-manifest file(s), plus `Bash` for the approved install command.
 - Loop 3: `DENY_UNDER` — same tools denied under `test.paths` + the `requirements/` folder.
 - Enforced by a PreToolUse hook (verified deny shape in `docs/sdk-notes.md` §2); the pure decision
   function `is_path_allowed(tool_name, tool_input, policy)` lives in `tdd_hooks.py` and is the

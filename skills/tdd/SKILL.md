@@ -12,8 +12,13 @@ Drives one feature's full TDD lifecycle through a headless Python orchestrator
    optional flowcharts) for human approval before any requirement is written.
 1. **EARS specification** — drafts requirements spec files (the testable
    behaviors of the approved design) for human approval.
+   - **Test-framework bootstrap (only when the project has none):** before
+     test generation, proposes adding a test framework (pytest/jest/vitest/
+     JUnit) for human approval (exit 16), then declares + installs it and
+     commits `tdd(<slug>): chore — add <framework>`.
 2. **Test generation** — writes failing unit tests against the design's named
-   classes/functions (covering every requirement), verifies coverage via a
+   classes/functions, **following the existing test conventions** (framework,
+   exemplar style) and covering every requirement, verifies coverage via a
    traceability matrix, commits the red state.
 3. **Implementation** — edits main code only until tests are green, then commits.
 
@@ -56,6 +61,7 @@ tdd.py status [--json]
 
 - The human-input channel is `--decision` / `--feedback` on `run`:
   - exit 15 → re-invoke with `--decision approve` **or** `--feedback "<corrections>"` (design sketch)
+  - exit 16 → re-invoke with `--decision approve` **or** `--feedback "<corrections>"` (test framework)
   - exit 10 → re-invoke with `--decision approve` **or** `--feedback "<corrections>"`
   - exit 12 → re-invoke with `--decision approve` or `--decision reject [--feedback "<why>"]`
   - exit 14 → re-invoke with `--feedback "<answer>"` (the implementer's question)
@@ -90,7 +96,7 @@ subsequent invocation.
 
 **Before any `run` invocation**, read
 `${CLAUDE_PLUGIN_ROOT}/skills/tdd/references/playbook.md` — it carries the
-full exit-code table (codes 0, 10, 11, 12, 13, 14, 15, 20, 21, 22, 1) and the
+full exit-code table (codes 0, 10, 11, 12, 13, 14, 15, 16, 20, 21, 22, 1) and the
 per-code playbook. Branch on `$?` after every invocation and follow the
 playbook exactly. Do not improvise responses to exit codes from memory.
 
@@ -107,7 +113,7 @@ fatal error.
   A denial is a design decision, not an obstacle: do not retry via different
   tools, shell redirection, or any other workaround.
 - **Never hand-create commits matching `tdd(...)`.** Commits like
-  `tdd(<slug>): red/green ...` are made exclusively by the script; they
+  `tdd(<slug>): chore/red/green ...` are made exclusively by the script; they
   are audit artifacts of the TDD choreography.
 - **Never edit files under `.shepherd/features/*/.tdd/` by hand.**
   `state.json`, `traceability.json`, and `reports/` are owned by the script.

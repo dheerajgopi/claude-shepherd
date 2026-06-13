@@ -30,6 +30,7 @@ class ExitCode(enum.IntEnum):
     BUDGET_EXCEEDED = 13          # turn/cost/time limit hit
     NEEDS_INPUT = 14              # implementer is blocked, asked the human a question
     AWAITING_DESIGN_APPROVAL = 15  # design sketch drafted/revised, needs human review
+    AWAITING_FRAMEWORK_APPROVAL = 16  # test-framework bootstrap proposed, needs human review
     NO_FEATURE_RESOLVED = 20      # no --feature arg, no tdd/<slug> branch
     BRANCH_MISMATCH = 21          # current branch != branch recorded in state
     SHEPHERD_NOT_INITIALIZED = 22  # no .shepherd folder found
@@ -51,6 +52,12 @@ class Phase(str, enum.Enum):
     DRAFTING_REQUIREMENTS = "DRAFTING_REQUIREMENTS"
     AWAITING_APPROVAL = "AWAITING_APPROVAL"
     REQUIREMENTS_APPROVED = "REQUIREMENTS_APPROVED"
+    # Test-framework bootstrap (between Loop 1 and Loop 2): only entered when
+    # the project has no test framework/library; adds one, with a human
+    # checkpoint, before any test is written.
+    PROPOSING_FRAMEWORK = "PROPOSING_FRAMEWORK"
+    AWAITING_FRAMEWORK_APPROVAL = "AWAITING_FRAMEWORK_APPROVAL"
+    INSTALLING_FRAMEWORK = "INSTALLING_FRAMEWORK"
     GENERATING_TESTS = "GENERATING_TESTS"
     VERIFYING_COVERAGE = "VERIFYING_COVERAGE"
     RED_COMMITTED = "RED_COMMITTED"
@@ -73,7 +80,15 @@ PHASE_TRANSITIONS: dict[Phase, tuple[Phase, ...]] = {
     Phase.DESIGN_APPROVED: (Phase.DRAFTING_REQUIREMENTS,),
     Phase.DRAFTING_REQUIREMENTS: (Phase.AWAITING_APPROVAL,),
     Phase.AWAITING_APPROVAL: (Phase.DRAFTING_REQUIREMENTS, Phase.REQUIREMENTS_APPROVED),
-    Phase.REQUIREMENTS_APPROVED: (Phase.GENERATING_TESTS,),
+    # REQUIREMENTS_APPROVED forks: straight to test generation when a framework
+    # is present, or through the bootstrap pre-step when one must be added.
+    Phase.REQUIREMENTS_APPROVED: (Phase.GENERATING_TESTS, Phase.PROPOSING_FRAMEWORK),
+    Phase.PROPOSING_FRAMEWORK: (Phase.AWAITING_FRAMEWORK_APPROVAL,),
+    Phase.AWAITING_FRAMEWORK_APPROVAL: (
+        Phase.PROPOSING_FRAMEWORK,    # corrections cycle (revise the proposal)
+        Phase.INSTALLING_FRAMEWORK,   # approval
+    ),
+    Phase.INSTALLING_FRAMEWORK: (Phase.GENERATING_TESTS,),
     Phase.GENERATING_TESTS: (Phase.VERIFYING_COVERAGE,),
     Phase.VERIFYING_COVERAGE: (Phase.GENERATING_TESTS, Phase.RED_COMMITTED),
     Phase.RED_COMMITTED: (Phase.IMPLEMENTING,),
@@ -95,6 +110,11 @@ RESUMABLE_PHASES: dict[Phase, int] = {
     Phase.DRAFTING_REQUIREMENTS: 1,
     Phase.AWAITING_APPROVAL: 1,
     Phase.REQUIREMENTS_APPROVED: 2,
+    # Bootstrap phases sit at the front of Loop 2's territory; the dispatcher
+    # intercepts them before the loop-number dispatch (tdd_bootstrap owns them).
+    Phase.PROPOSING_FRAMEWORK: 2,
+    Phase.AWAITING_FRAMEWORK_APPROVAL: 2,
+    Phase.INSTALLING_FRAMEWORK: 2,
     Phase.GENERATING_TESTS: 2,
     Phase.VERIFYING_COVERAGE: 2,
     Phase.RED_COMMITTED: 3,
@@ -113,6 +133,9 @@ RESUMABLE_PHASES: dict[Phase, int] = {
 COMMIT_RED = "tdd({slug}): red — failing tests"
 COMMIT_RED_AMENDED = "tdd({slug}): red({n}) — amended requirements"
 COMMIT_GREEN = "tdd({slug}): green — implementation"
+#: Bootstrap commit (test-framework pre-step): carries dependency-manifest and
+#: lockfile changes only — never test.paths content (tests come later).
+COMMIT_BOOTSTRAP = "tdd({slug}): chore — add {framework}"
 
 
 # ---------------------------------------------------------------------------
@@ -240,6 +263,7 @@ class BudgetsSpent:
     turns_loop1: int = 0
     turns_loop2: int = 0
     turns_loop3: int = 0
+    turns_bootstrap: int = 0  # test-framework bootstrap pre-step
     started_at: Optional[str] = None  # ISO-8601; wall-clock anchor
 
 

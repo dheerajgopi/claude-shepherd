@@ -135,7 +135,11 @@ The outer command presents the requirements to the human via `AskUserQuestion`. 
 
 Using the `testgen` model, this loop turns approved EARS requirements into executable tests in the codebase's **existing** framework and conventions; it must never introduce a framework or convention not already present.
 
-**Convention detection** runs first as a cheap deterministic pre-scan in Python (test config files, test directory layout, an exemplar test file), injected into the prompt so agent turns aren't spent rediscovering the obvious.
+**Convention detection** runs first as a cheap deterministic pre-scan in Python (test config files, test directory layout, an exemplar test file), injected into the prompt so agent turns aren't spent rediscovering the obvious. When conventions are present, generated tests follow them — framework, exemplar style, directory layout — and never introduce a new framework.
+
+### Test-framework bootstrap (pre-step, only when none is present)
+
+When the project has **no test framework or library**, tests cannot be generated or run, so a bootstrap pre-step runs between requirements approval and test generation (`tdd_bootstrap.py`). A deterministic `propose_framework` inspects the project's own markers and picks the idiomatic framework — pytest (Python), jest/vitest (JS/TS), JUnit (Java); Go and Rust ship stdlib harnesses and never bootstrap; an unrecognized language has no recipe and the step is skipped. The proposal (framework, dependency-manifest file(s), install command, resulting test command and directory) is written to `.tdd/reports/framework_proposal.md` and the script **checkpoints with code 16 (`AWAITING_FRAMEWORK_APPROVAL`)** for human approval; corrections re-propose (e.g. a different framework). On approval an agent — writes mechanically scoped (ALLOW_ONLY) to the manifest file(s), plus Bash for the approved install command — declares and installs the dependency; the engine commits `tdd(<slug>): chore — add <framework>`, records the framework's `test.command`/`test.paths` in config (preserving any the human already set), and advances to test generation. The agent never writes tests or source and never commits.
 
 **Boundary enforcement is mechanical.** A PreToolUse hook (or `canUseTool` callback) denies any Write/Edit whose path falls outside the configured test paths, returning a clear denial reason. The prompt also states the rule, but the hook is the enforcement.
 
@@ -196,13 +200,15 @@ The Agent SDK applies `cache_control` automatically; the script's responsibility
 | 12 | `ESCALATED` — significant test change proposed | `AskUserQuestion`: approve (→ Loop 1 amend) or reject |
 | 13 | `BUDGET_EXCEEDED` — turn/cost/time limit hit | Surface status report |
 | 14 | `NEEDS_INPUT` — implementer blocked, asked the human a question | `AskUserQuestion`: answer it, re-invoke with `--feedback` |
+| 15 | `AWAITING_DESIGN_APPROVAL` — design sketch drafted/revised | `AskUserQuestion`: approve the design or give corrections |
+| 16 | `AWAITING_FRAMEWORK_APPROVAL` — test-framework bootstrap proposed | `AskUserQuestion`: approve adding the framework or give corrections |
 | 20 | `NO_FEATURE_RESOLVED` — no `--feature` arg, no `tdd/<slug>` branch | Present feature list, re-invoke with `--feature` |
 | 21 | `BRANCH_MISMATCH` — current branch ≠ branch recorded in state | Warn human; re-invoke with `--force` only if intended |
 | 22 | `SHEPHERD_NOT_INITIALIZED` — no `.shepherd` folder found | `AskUserQuestion`: offer to run `tdd.py init`, then review generated config |
 
 ## 14. Phase model
 
-`DRAFTING_REQUIREMENTS → AWAITING_APPROVAL → REQUIREMENTS_APPROVED → GENERATING_TESTS → VERIFYING_COVERAGE → RED_COMMITTED → IMPLEMENTING → (ESCALATED ⇄ AMENDING_REQUIREMENTS) → GREEN → DONE`, plus `FAILED_<reason>` terminals. Every transition appends `{phase, timestamp, session_id}` to a `history` array in `state.json`, serving as both crash-recovery input and audit log. The script must be safely re-runnable from any recorded phase.
+`SKETCHING_DESIGN → AWAITING_DESIGN_APPROVAL → DESIGN_APPROVED → DRAFTING_REQUIREMENTS → AWAITING_APPROVAL → REQUIREMENTS_APPROVED → GENERATING_TESTS → VERIFYING_COVERAGE → RED_COMMITTED → IMPLEMENTING → (ESCALATED ⇄ AMENDING_REQUIREMENTS) → GREEN → DONE`, plus `FAILED_<reason>` terminals. When the project has no test framework, REQUIREMENTS_APPROVED instead routes through the bootstrap pre-step `PROPOSING_FRAMEWORK → AWAITING_FRAMEWORK_APPROVAL → INSTALLING_FRAMEWORK → GENERATING_TESTS` (§9). Every transition appends `{phase, timestamp, session_id}` to a `history` array in `state.json`, serving as both crash-recovery input and audit log. The script must be safely re-runnable from any recorded phase.
 
 ## 15. Flow
 
@@ -259,4 +265,4 @@ flowchart TD
 
 ## 16. Commit choreography
 
-The script refuses to start on a dirty working tree (untracked `.shepherd` files excepted). Automated commits, in order: `tdd(<slug>): red — failing tests` after Loop 2 verification and **before Loop 3**; `tdd(<slug>): red(n) — amended requirements` after each approved escalation re-sync; `tdd(<slug>): green — implementation` on completion. Red and red(n) commits carry only `test.paths` content — `.shepherd/` artifacts are gitignored and never committed.
+The script refuses to start on a dirty working tree (untracked `.shepherd` files excepted). Automated commits, in order: `tdd(<slug>): chore — add <framework>` when the test-framework bootstrap pre-step (§9) runs, carrying only dependency-manifest and lockfile changes; `tdd(<slug>): red — failing tests` after Loop 2 verification and **before Loop 3**; `tdd(<slug>): red(n) — amended requirements` after each approved escalation re-sync; `tdd(<slug>): green — implementation` on completion. Red and red(n) commits carry only `test.paths` content — `.shepherd/` artifacts are gitignored and never committed.

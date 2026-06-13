@@ -217,6 +217,69 @@ def world(tmp_repo, tmp_path_factory):
     return tmp_repo, step
 
 
+@pytest.fixture()
+def bare_world(tmp_path_factory):
+    """A scratch project whose pyproject declares NO test framework, so the
+    Loop-1 → Loop-2 transition must run the bootstrap pre-step first."""
+
+    repo = tmp_path_factory.mktemp("bare_repo")
+    subprocess.run(["git", "init", "-b", "main"], cwd=repo, check=True, capture_output=True)
+    subprocess.run(["git", "config", "user.email", "t@example.com"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.name", "T"], cwd=repo, check=True)
+    # pyproject WITHOUT pytest — the trigger for the bootstrap pre-step.
+    (repo / "pyproject.toml").write_text('[project]\nname = "demo"\nversion = "0.1.0"\n')
+    (repo / "src").mkdir()
+    (repo / "src" / "app.py").write_text("def hello():\n    return 'hi'\n")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True, capture_output=True)
+    subprocess.run(["git", "commit", "-m", "initial"], cwd=repo, check=True, capture_output=True)
+
+    scripts_dir = tmp_path_factory.mktemp("bare_scripts")
+    counter = {"n": 0}
+
+    def step(args: list[str], runs: list[dict]) -> subprocess.CompletedProcess:
+        counter["n"] += 1
+        script = scripts_dir / f"step_{counter['n']}.json"
+        script.write_text(json.dumps({"runs": runs}))
+        return run_cli(args, repo, env_extra={"TDD_RUNNER": f"fake:{script}"})
+
+    init = run_cli(["init"], repo)
+    assert init.returncode == 0, init.stderr
+    # Pre-set the PASS-marker command + paths (the human-reviewed config); the
+    # bootstrap preserves a command the user already set.
+    import yaml
+
+    cfg = repo / ".shepherd" / "config.yaml"
+    data = yaml.safe_load(cfg.read_text())
+    data["test"]["command"] = PASS_COMMAND
+    data["test"]["paths"] = ["tests"]
+    cfg.write_text(yaml.safe_dump(data, sort_keys=False))
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True, capture_output=True)
+    subprocess.run(["git", "commit", "-m", "configure"], cwd=repo, check=True, capture_output=True)
+
+    new = run_cli(["new", "User auth"], repo)
+    assert new.returncode == 0, new.stderr
+    return repo, step
+
+
+BOOTSTRAP_INSTALL = {
+    "text": "Added pytest to the project.",
+    "session_id": "boot-sess",
+    "files": [
+        {
+            "path": "pyproject.toml",
+            "content": (
+                '[project]\nname = "demo"\nversion = "0.1.0"\n\n'
+                "[project.optional-dependencies]\ntest = [\"pytest\"]\n\n"
+                "[tool.pytest.ini_options]\ntestpaths = [\"tests\"]\n"
+            ),
+        }
+    ],
+    "tool_calls": [
+        {"tool_name": "Bash", "tool_input": {"command": "pip install pytest"}}
+    ],
+}
+
+
 def _subjects(repo: Path) -> list[str]:
     out = subprocess.run(
         ["git", "log", "--format=%s"], cwd=repo, check=True,
@@ -493,3 +556,71 @@ class TestCrashRecovery:
         r = step(["run"], [])
         assert r.returncode == ExitCode.DONE
         assert len(_subjects(repo)) == after
+
+
+class TestBootstrap:
+    def test_no_framework_proposes_installs_then_green(self, bare_world) -> None:
+        repo, step = bare_world
+
+        # 1. Sketch design → 15.
+        r = step(["run"], [SKETCH_DESIGN])
+        assert r.returncode == ExitCode.AWAITING_DESIGN_APPROVAL, r.stderr
+
+        # 2. Approve design → loop1 drafts requirements → 10.
+        r = step(["run", "--decision", "approve"], [DRAFT_REQUIREMENTS])
+        assert r.returncode == ExitCode.AWAITING_APPROVAL, r.stderr
+
+        # 3. Approve requirements → REQUIREMENTS_APPROVED → bootstrap intercepts
+        #    (no framework) → proposes → checkpoint 16. No agent run needed.
+        r = step(["run", "--decision", "approve"], [])
+        assert r.returncode == ExitCode.AWAITING_FRAMEWORK_APPROVAL, r.stderr
+        assert _phase(repo) == Phase.AWAITING_FRAMEWORK_APPROVAL.value
+        proposal = repo / ".shepherd/features/user-auth/.tdd/reports/framework_proposal.md"
+        assert proposal.is_file() and "pytest" in proposal.read_text()
+
+        # Redundant re-run at the framework checkpoint: idempotent, no commits.
+        before = len(_subjects(repo))
+        r = step(["run"], [])
+        assert r.returncode == ExitCode.AWAITING_FRAMEWORK_APPROVAL
+        assert len(_subjects(repo)) == before
+
+        # 4. Approve framework → install (chore commit) → loop2 red → loop3 green.
+        r = step(
+            ["run", "--decision", "approve"],
+            [BOOTSTRAP_INSTALL, GEN_TESTS, VERIFY_COVERED, IMPLEMENT_GREEN],
+        )
+        assert r.returncode == ExitCode.DONE, r.stderr
+        assert _phase(repo) == Phase.DONE.value
+
+        # Commit choreography: green, red, then the bootstrap chore beneath them.
+        subjects = [s for s in _subjects(repo) if s.startswith("tdd(")]
+        assert subjects[0] == COMMIT_GREEN.format(slug="user-auth")
+        assert subjects[1] == COMMIT_RED.format(slug="user-auth")
+        assert subjects[2] == "tdd(user-auth): chore — add pytest"
+
+        # The chore commit carried the manifest, never test/source paths.
+        chore_files = subprocess.run(
+            ["git", "show", "--name-only", "--format=", f"HEAD~2"],
+            cwd=repo, check=True, capture_output=True, text=True,
+        ).stdout
+        assert "pyproject.toml" in chore_files
+        assert "tests/" not in chore_files
+
+    def test_corrections_then_approve(self, bare_world) -> None:
+        repo, step = bare_world
+
+        r = step(["run"], [SKETCH_DESIGN])
+        assert r.returncode == ExitCode.AWAITING_DESIGN_APPROVAL
+        r = step(["run", "--decision", "approve"], [DRAFT_REQUIREMENTS])
+        assert r.returncode == ExitCode.AWAITING_APPROVAL
+        r = step(["run", "--decision", "approve"], [])
+        assert r.returncode == ExitCode.AWAITING_FRAMEWORK_APPROVAL
+
+        # Corrections re-propose and checkpoint again (no install yet).
+        r = step(["run", "--feedback", "keep pytest, thanks"], [])
+        assert r.returncode == ExitCode.AWAITING_FRAMEWORK_APPROVAL
+        assert _phase(repo) == Phase.AWAITING_FRAMEWORK_APPROVAL.value
+        data = json.loads(
+            (repo / ".shepherd/features/user-auth/.tdd/reports/framework_proposal.json").read_text()
+        )
+        assert data["feedback"] == "keep pytest, thanks"

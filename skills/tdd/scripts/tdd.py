@@ -282,12 +282,43 @@ def cmd_run(
             f"feature {ctx.slug!r} is in a terminal FAILED state; see its history",
         )
 
-    loop_number = RESUMABLE_PHASES[phase]
+    import tdd_bootstrap
+
     runner = None
     while True:
-        module = _import_loop(loop_number)
+        # Re-derive the phase each turn: a loop that ADVANCEs leaves the phase
+        # at the next loop's entry, so phase — not a counter — drives dispatch.
+        phase = Phase(ctx.state.phase)
         if runner is None:
             runner = _get_runner(ctx, verbose)
+
+        # Bootstrap pre-step (between Loop 1 and Loop 2): when the project has
+        # no test framework, add one — with a human checkpoint — before any
+        # test is written. Intercepts REQUIREMENTS_APPROVED and owns its own
+        # phases; on ADVANCE the phase lands at GENERATING_TESTS and the next
+        # turn dispatches Loop 2.
+        if phase in tdd_bootstrap.BOOTSTRAP_PHASES or (
+            phase is Phase.REQUIREMENTS_APPROVED and tdd_bootstrap.should_bootstrap(ctx)
+        ):
+            outcome = tdd_bootstrap.run_bootstrap(ctx, runner, decision, feedback)
+            decision = feedback = None
+            if outcome.status is LoopStatus.ADVANCE:
+                if outcome.detail:
+                    print(outcome.detail)
+                continue
+            code = (
+                outcome.exit_code if outcome.exit_code is not None
+                else ExitCode.INTERNAL_ERROR
+            )
+            if outcome.status is LoopStatus.CHECKPOINT:
+                if outcome.detail:
+                    print(outcome.detail)
+            elif outcome.detail:  # FAILED
+                print(outcome.detail, file=sys.stderr)
+            return int(code)
+
+        loop_number = RESUMABLE_PHASES[phase]
+        module = _import_loop(loop_number)
         if loop_number == 0:
             outcome = module.run_loop0(ctx, runner, decision, feedback)
         elif loop_number == 1:
@@ -303,7 +334,6 @@ def cmd_run(
                 print(outcome.detail)
             if loop_number == 3:
                 return int(ExitCode.DONE)
-            loop_number += 1
             continue
         code = outcome.exit_code if outcome.exit_code is not None else ExitCode.INTERNAL_ERROR
         if outcome.status is LoopStatus.CHECKPOINT:
