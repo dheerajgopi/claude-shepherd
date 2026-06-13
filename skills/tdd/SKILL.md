@@ -12,8 +12,9 @@ Drives one feature's full TDD lifecycle through a headless Python orchestrator
    optional flowcharts) for human approval before any requirement is written.
 1. **EARS specification** — drafts requirements spec files (the testable
    behaviors of the approved design) for human approval.
-2. **Test generation** — writes failing tests from approved requirements, verifies
-   coverage via a traceability matrix, commits the red state.
+2. **Test generation** — writes failing unit tests against the design's named
+   classes/functions (covering every requirement), verifies coverage via a
+   traceability matrix, commits the red state.
 3. **Implementation** — edits main code only until tests are green, then commits.
 
 The script is a resumable checkpoint state machine: it exits with a distinct

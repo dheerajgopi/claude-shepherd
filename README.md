@@ -39,10 +39,10 @@ four sequential loops:
    approves it before any requirement is written.
 1. **Specification** — an agent turns the approved design into EARS
    requirements (`WHEN …, THE SYSTEM SHALL …`); a human approves them.
-2. **Test generation** — approved requirements become executable tests in
-   your existing framework, verified requirement-by-requirement via a
-   traceability matrix, then committed *red* before any implementation
-   exists.
+2. **Test generation** — unit tests are written against the design's named
+   classes/functions (covering every requirement) in your existing framework,
+   verified requirement-by-requirement via a traceability matrix, then
+   committed *red* before any implementation exists.
 3. **Implementation** — an agent edits main code only until the suite is
    green; test edits are mechanically denied and must go through an
    auditable escalation channel.

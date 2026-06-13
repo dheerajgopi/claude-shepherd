@@ -187,6 +187,57 @@ class TestHappyPath:
         assert state.red_commit_count == 1
         assert state.session_ids["loop2"] == "gen-sess-1"
 
+    def test_approved_design_fed_to_first_generator_turn(self, feature) -> None:
+        ctx = _setup_loop2(feature)
+        (feature.design_dir / "design.md").write_text(
+            "# Design\n\n## Components\n\n- LoginService.login(creds) -> Session\n"
+        )
+        runner = _runner(
+            feature.repo,
+            [
+                {
+                    "text": "tests written",
+                    "session_id": "gen-sess-1",
+                    "files": [
+                        {"path": "tests/test_user_auth.py", "content": TEST_FILE_CONTENT}
+                    ],
+                },
+                {"text": _matrix_json(ROW_LOGIN_COVERED)},
+            ],
+        )
+
+        tdd_loop2.run_loop2(ctx, runner)
+
+        # The design names the unit to test; the generator sees it on turn 1.
+        gen_prompt = runner.received[0].prompt
+        assert "## Approved design" in gen_prompt
+        assert "LoginService.login(creds) -> Session" in gen_prompt
+        # Order: requirements (stable) before design before conventions.
+        assert gen_prompt.index("## Approved requirements") < gen_prompt.index(
+            "## Approved design"
+        ) < gen_prompt.index("## Project test conventions")
+
+    def test_absent_design_omits_section(self, feature) -> None:
+        # The `feature` fixture's design/ dir is empty.
+        ctx = _setup_loop2(feature)
+        runner = _runner(
+            feature.repo,
+            [
+                {
+                    "text": "tests written",
+                    "session_id": "gen-sess-1",
+                    "files": [
+                        {"path": "tests/test_user_auth.py", "content": TEST_FILE_CONTENT}
+                    ],
+                },
+                {"text": _matrix_json(ROW_LOGIN_COVERED)},
+            ],
+        )
+
+        tdd_loop2.run_loop2(ctx, runner)
+
+        assert "## Approved design" not in runner.received[0].prompt
+
 
 class TestGapIteration:
     def test_gap_then_covered_resumes_session_with_gaps_only(self, feature) -> None:

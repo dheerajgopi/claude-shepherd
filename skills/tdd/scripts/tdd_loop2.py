@@ -31,6 +31,7 @@ from tdd_agent import build_prompt
 from tdd_contracts import (
     COMMIT_RED,
     COVERAGE_COVERED,
+    DESIGN_FILE_GLOB,
     SPEC_FILE_GLOB,
     WRITE_TOOLS,
     AgentRunner,
@@ -189,6 +190,22 @@ def _requirements_content(ctx: FeatureContext) -> str:
         rel = path.relative_to(ctx.requirements_dir).as_posix()
         parts.append(f"### {rel}\n\n{path.read_text(encoding='utf-8')}")
     return "\n\n".join(parts) or "(no spec files found)"
+
+
+def _design_content(ctx: FeatureContext) -> str:
+    """The approved design sketch(es), or "" when none (older feature).
+
+    The design names the concrete classes/functions to be built; feeding it to
+    the generator lets it write unit tests bound to those real units, while the
+    requirements drive WHICH behaviors must be covered.
+    """
+
+    if not ctx.design_dir.is_dir():
+        return ""
+    parts = []
+    for path in sorted(ctx.design_dir.glob(DESIGN_FILE_GLOB)):
+        parts.append(f"### {path.name}\n\n{path.read_text(encoding='utf-8')}")
+    return "\n\n".join(parts)
 
 
 def _scan_summary(ctx: FeatureContext) -> str:
@@ -523,6 +540,7 @@ def run_loop2(ctx: FeatureContext, runner: AgentRunner) -> LoopOutcome:
     generator_system = TESTGEN_PROMPT_FILE.read_text(encoding="utf-8")
     verifier_system = VERIFIER_PROMPT_FILE.read_text(encoding="utf-8")
     requirements = _requirements_content(ctx)
+    design = _design_content(ctx)  # approved design sketch (§8 precursor)
     scan_summary = _scan_summary(ctx)  # deterministic pre-scan (§9)
 
     gap_text: Optional[str] = None
@@ -540,10 +558,10 @@ def run_loop2(ctx: FeatureContext, runner: AgentRunner) -> LoopOutcome:
             return guard
         if ctx.state.session_ids.get("loop2") is None:
             # First-ever turn: stable sections only (§12 cache prefix).
-            sections = [
-                ("Approved requirements", requirements),
-                ("Project test conventions", scan_summary),
-            ]
+            sections = [("Approved requirements", requirements)]
+            if design:
+                sections.append(("Approved design", design))
+            sections.append(("Project test conventions", scan_summary))
         else:
             # Resumed session: ONLY the volatile coverage gaps.
             sections = [("Coverage gaps", gap_text or _reentry_gap_text(ctx))]
