@@ -45,8 +45,9 @@ from tdd_contracts import (
     RunResult,
     RunSpec,
     TraceabilityMatrix,
+    matches_any_pattern,
 )
-from tdd_scan import _TEST_FILE_PATTERNS, format_convention_docs, scan_conventions
+from tdd_scan import format_convention_docs, scan_conventions
 from tdd_state import FeatureContext, utc_now_iso
 from tdd_trace import (
     bump_revisions,
@@ -216,7 +217,8 @@ def _scan_summary(ctx: FeatureContext) -> str:
     lines = [
         f"framework: {scan.framework or '(none detected)'}",
         f"test command: {ctx.config.test.command or scan.test_command or '(none detected)'}",
-        "test paths (writes are mechanically restricted to these): "
+        "test classifier (writes are mechanically restricted to files matching "
+        "these globs): "
         + (", ".join(ctx.config.test.paths) or "(none configured)"),
         "notes:",
         *(f"  - {note}" for note in scan.notes),
@@ -254,10 +256,12 @@ def _touched_paths(result: RunResult) -> set[Path]:
 
 
 def _tests_section(ctx: FeatureContext, touched: Iterable[Path]) -> str:
-    """Contents of every test file: generator-touched + pattern matches.
+    """Contents of every test file: generator-touched + classifier matches.
 
     Files are read from disk (the matrix must reflect what is actually on
-    disk), each capped at 20000 chars.
+    disk), each capped at 20000 chars. On-disk tests are found by classifying
+    the repo's tracked + untracked files against `test.paths` — works for
+    directory layouts and co-located (glob) layouts alike.
     """
 
     repo = ctx.repo_root.resolve(strict=False)
@@ -269,12 +273,11 @@ def _tests_section(ctx: FeatureContext, touched: Iterable[Path]) -> str:
         p = p.resolve(strict=False)
         if p.is_file():
             files.add(p)
-    for rel in ctx.config.test.paths:
-        base = repo / rel
-        if not base.is_dir():
-            continue
-        for pattern in _TEST_FILE_PATTERNS:
-            files.update(q.resolve(strict=False) for q in base.rglob(pattern))
+    for rel in tdd_git.list_files(ctx.repo_root):
+        if matches_any_pattern(rel, ctx.config.test.paths):
+            p = (repo / rel).resolve(strict=False)
+            if p.is_file():
+                files.add(p)
 
     parts = []
     for path in sorted(files):
@@ -451,15 +454,15 @@ def _syntax_errors(ctx: FeatureContext, matrix: TraceabilityMatrix) -> str:
 def _red_commit(ctx: FeatureContext, matrix: TraceabilityMatrix) -> LoopOutcome:
     """Full coverage: red commit (§9, BEFORE Loop 3 — the recovery anchor).
 
-    Only test paths are committed; the feature folder (requirements,
+    Only test-classified files are committed; the feature folder (requirements,
     traceability) lives under the gitignored .shepherd/ workspace.
     """
 
-    tdd_git.commit_paths(
-        ctx.repo_root,
-        COMMIT_RED.format(slug=ctx.slug),
-        list(ctx.config.test.paths),
-    )
+    test_files = tdd_git.changed_files_matching(ctx.repo_root, ctx.config.test.paths)
+    if test_files:
+        tdd_git.commit_paths(
+            ctx.repo_root, COMMIT_RED.format(slug=ctx.slug), test_files
+        )
     ctx.state.red_commit_count = 1
     ctx.store.transition(
         ctx.state,

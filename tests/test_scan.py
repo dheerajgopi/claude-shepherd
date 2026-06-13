@@ -83,6 +83,47 @@ class TestJestDetection:
         assert "jest" in blob or "npm" in blob
 
 
+class TestColocatedLayouts:
+    """Languages where tests are classified by filename, not directory."""
+
+    def test_go_uses_test_suffix_glob(self, tmp_path: Path) -> None:
+        repo = tmp_path / "gorepo"
+        repo.mkdir()
+        (repo / "go.mod").write_text("module demo\n\ngo 1.22\n")
+        (repo / "svc.go").write_text("package demo\n")
+        (repo / "svc_test.go").write_text(
+            "package demo\nfunc TestSvc(t *testing.T) {}\n"
+        )
+
+        scan = scan_conventions(repo)
+
+        assert scan.framework == "go"
+        assert scan.test_paths == ["**/*_test.go"]
+        # The classifier finds the co-located test as an exemplar.
+        assert scan.exemplar_test == "svc_test.go"
+
+    def test_jvm_uses_test_tree(self, tmp_path: Path) -> None:
+        repo = tmp_path / "javarepo"
+        repo.mkdir()
+        (repo / "pom.xml").write_text("<project></project>\n")
+
+        scan = scan_conventions(repo)
+
+        assert scan.framework == "maven"
+        assert scan.test_paths == ["src/test/**"]
+
+    def test_cargo_notes_unit_test_limit(self, tmp_path: Path) -> None:
+        repo = tmp_path / "rustrepo"
+        repo.mkdir()
+        (repo / "Cargo.toml").write_text("[package]\nname = \"demo\"\n")
+
+        scan = scan_conventions(repo)
+
+        assert scan.framework == "cargo"
+        assert scan.test_paths == ["tests/**"]
+        assert any("#[cfg(test)]" in note for note in scan.notes)
+
+
 class TestBareRepo:
     def test_nothing_detected_with_note(self, tmp_path: Path) -> None:
         repo = tmp_path / "bare"

@@ -15,7 +15,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
-from tdd_contracts import PathPolicyMode, ToolEvent, WRITE_TOOLS
+from tdd_contracts import (
+    PathPolicyMode,
+    ToolEvent,
+    WRITE_TOOLS,
+    matches_any_pattern,
+)
 
 # Tool name -> key in tool_input that carries the target path.
 _PATH_KEYS = {
@@ -66,27 +71,27 @@ def is_path_allowed(
             f"root '{repo_root}' — this boundary is mechanical, do not retry",
         )
 
-    # Segment-aware containment against each policy path (repo-relative).
-    resolved_policy_paths = [
-        (p, (repo_root / p).resolve(strict=False)) for p in policy.paths
-    ]
-    matching = [p for p, rp in resolved_policy_paths if target.is_relative_to(rp)]
+    # Glob classification against the policy patterns (repo-relative). A bare
+    # directory entry matches everything beneath it; globs like `**/*_test.go`
+    # match co-located tests no directory boundary could separate.
+    rel = target.relative_to(repo_root).as_posix()
+    matched = matches_any_pattern(rel, policy.paths)
 
     if policy.mode is PathPolicyMode.ALLOW_ONLY:
-        if matching:
+        if matched:
             return (True, "")
         return (
             False,
-            f"writes are restricted to {policy.paths}; '{raw_path}' is "
-            f"outside — this boundary is mechanical, do not retry",
+            f"writes are restricted to {policy.paths}; '{raw_path}' matches "
+            f"none — this boundary is mechanical, do not retry",
         )
 
     # PathPolicyMode.DENY_UNDER
-    if matching:
+    if matched:
         return (
             False,
-            f"'{raw_path}' is under protected path(s) {matching}; tests/specs "
-            f"are the contract. To request a test change use the "
+            f"'{raw_path}' matches a protected pattern in {policy.paths}; "
+            f"tests/specs are the contract. To request a test change use the "
             f"propose_test_change tool",
         )
     return (True, "")

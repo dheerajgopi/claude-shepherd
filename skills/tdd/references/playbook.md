@@ -124,8 +124,10 @@ the recorded `tdd/<slug>` branch).
    - If init exits nonzero reporting `missing required package(s)`, follow
      **Dependency bootstrap** below, then re-run init.
 2. After init, show the user the generated `.shepherd/config.yaml` for review —
-   **especially `test.command` and `test.paths`**, which feed the Loop 2/3
-   enforcement hooks; a wrong boundary undermines the safety model.
+   **especially `test.command` and `test.paths`** (the latter is a test-file
+   classifier of globs — `tests/`, `**/*_test.go`, `src/test`, `**/*.test.*` —
+   not just a directory), which feed the Loop 2/3 enforcement hooks; a wrong
+   classifier undermines the safety model.
 3. Once the config is confirmed, resume the original `run` invocation.
 
 ### 1 — INTERNAL_ERROR (or any other nonzero code)

@@ -17,8 +17,31 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
+from tdd_contracts import matches_any_pattern
+
 #: Conventional test directories probed when no config declares paths.
 _DEFAULT_TEST_DIRS = ("tests", "test", "spec", "src/__tests__")
+
+#: The test-file classifier (test.paths globs) per detected framework, used
+#: when the project declares no explicit test paths. Folder-based for languages
+#: that separate tests into a directory (pytest, JVM); filename-glob for those
+#: that co-locate tests with source (Go's `_test.go`, JS/TS suffix tests).
+#: Rust unit tests live INSIDE source files (`#[cfg(test)]`) and cannot be
+#: classified by path — only integration tests under `tests/` are separable.
+_FRAMEWORK_TEST_GLOBS = {
+    "go": ["**/*_test.go"],
+    "cargo": ["tests/**"],
+    "maven": ["src/test/**"],
+    "gradle": ["src/test/**"],
+    "jest": ["**/*.test.*", "**/*.spec.*", "**/__tests__/**"],
+    "vitest": ["**/*.test.*", "**/*.spec.*", "**/__tests__/**"],
+    "mocha": ["**/*.test.*", "**/*.spec.*", "**/test/**"],
+}
+
+#: Directories never worth walking for an exemplar test file.
+_EXEMPLAR_SKIP_DIRS = frozenset(
+    {".git", ".shepherd", "node_modules", "target", "build", "dist", "vendor", ".venv"}
+)
 
 #: Filename globs that identify a test file, across supported ecosystems.
 _TEST_FILE_PATTERNS = (
@@ -209,19 +232,24 @@ def _detect_jvm(repo_root: Path, scan: ConventionScan) -> bool:
 
 
 def _find_exemplar(repo_root: Path, test_paths: list[str]) -> Optional[str]:
-    """First test file (deterministic order) under the detected test paths."""
+    """First test file (deterministic order) the classifier accepts.
 
-    for raw in test_paths:
-        base = repo_root / raw
-        if not base.is_dir():
-            continue
-        matches: list[Path] = []
-        for pattern in _TEST_FILE_PATTERNS:
-            matches.extend(base.rglob(pattern))
-        if matches:
-            best = sorted(matches)[0]
-            return best.relative_to(repo_root).as_posix()
-    return None
+    Walks test-named files anywhere under `repo_root` (pruning vendored dirs)
+    and returns the first whose repo-relative path matches the `test_paths`
+    classifier — so it works for directory-based and co-located (glob) layouts
+    alike.
+    """
+
+    best: Optional[str] = None
+    for pattern in _TEST_FILE_PATTERNS:
+        for path in repo_root.rglob(pattern):
+            parts = path.relative_to(repo_root).parts
+            if any(seg in _EXEMPLAR_SKIP_DIRS for seg in parts):
+                continue
+            rel = "/".join(parts)
+            if matches_any_pattern(rel, test_paths) and (best is None or rel < best):
+                best = rel
+    return best
 
 
 def read_convention_docs(repo_root: Path) -> list[tuple[str, str]]:
@@ -287,6 +315,17 @@ def scan_conventions(repo_root: Path) -> ConventionScan:
             "no test command detected; set test.command in config.yaml manually"
         )
 
+    if not scan.test_paths and scan.framework in _FRAMEWORK_TEST_GLOBS:
+        scan.test_paths = list(_FRAMEWORK_TEST_GLOBS[scan.framework])
+        scan.notes.append(
+            f"test classifier from {scan.framework} convention: {scan.test_paths}"
+        )
+        if scan.framework == "cargo":
+            scan.notes.append(
+                "Rust unit tests live inside source files (#[cfg(test)]) and "
+                "cannot be path-classified; only integration tests under tests/ "
+                "are mechanically separable"
+            )
     if not scan.test_paths:
         found = [d for d in _DEFAULT_TEST_DIRS if (repo_root / d).is_dir()]
         if found:
@@ -294,9 +333,10 @@ def scan_conventions(repo_root: Path) -> ConventionScan:
             scan.notes.append(f"test paths from existing conventional dirs: {found}")
         else:
             scan.notes.append(
-                "no test directories found; set test.paths in config.yaml manually"
+                "no test paths found; set test.paths in config.yaml manually"
             )
-    # Canonical form: no trailing slash (hooks and config compare via Path).
+    # Canonical form: no trailing slash (the classifier strips it anyway, but
+    # keep config tidy). Glob patterns like `**/*_test.go` are unaffected.
     scan.test_paths = [p.rstrip("/") for p in scan.test_paths]
 
     scan.exemplar_test = _find_exemplar(repo_root, scan.test_paths)

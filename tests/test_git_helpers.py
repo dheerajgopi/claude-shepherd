@@ -12,12 +12,15 @@ tdd_git = pytest.importorskip("tdd_git")  # parallel track (T1-CORE)
 
 from tdd_git import (  # noqa: E402
     branch_exists,
+    changed_files,
+    changed_files_matching,
     commit_paths,
     create_branch,
     current_branch,
     git,
     head_sha,
     is_dirty,
+    list_files,
     repo_root,
 )
 
@@ -143,3 +146,47 @@ class TestCommitPaths:
 
         assert "tests/test_new.py" not in _status(tmp_repo)
         assert is_dirty(tmp_repo) is False
+
+
+class TestChangedFiles:
+    def test_lists_modified_added_and_untracked(self, tmp_repo: Path) -> None:
+        (tmp_repo / "src" / "app.py").write_text("def hello():\n    return 'hi'\n")
+        (tmp_repo / "tests" / "test_new.py").write_text("def test_new(): pass\n")
+
+        changed = changed_files(tmp_repo)
+
+        # The leading porcelain status column (" M") must not eat the path's
+        # first character — that was a real bug.
+        assert "src/app.py" in changed
+        assert "tests/test_new.py" in changed
+        assert all(not p.startswith(" ") for p in changed)
+
+    def test_classifier_filters_to_test_files(self, tmp_repo: Path) -> None:
+        (tmp_repo / "src" / "app.py").write_text("def hello():\n    return 'hi'\n")
+        (tmp_repo / "tests" / "test_new.py").write_text("def test_new(): pass\n")
+
+        matched = changed_files_matching(tmp_repo, ["tests"])
+
+        assert matched == ["tests/test_new.py"]
+
+    def test_classifier_handles_colocated_glob(self, tmp_repo: Path) -> None:
+        (tmp_repo / "pkg").mkdir()
+        (tmp_repo / "pkg" / "svc.go").write_text("package pkg\n")
+        (tmp_repo / "pkg" / "svc_test.go").write_text("package pkg\n")
+
+        matched = changed_files_matching(tmp_repo, ["**/*_test.go"])
+
+        assert matched == ["pkg/svc_test.go"]
+
+
+class TestListFiles:
+    def test_includes_tracked_and_untracked_excludes_ignored(self, tmp_repo: Path) -> None:
+        (tmp_repo / ".gitignore").write_text("ignored.txt\n")
+        (tmp_repo / "ignored.txt").write_text("nope\n")
+        (tmp_repo / "tests" / "test_new.py").write_text("def test_new(): pass\n")
+
+        files = list_files(tmp_repo)
+
+        assert "src/app.py" in files            # tracked
+        assert "tests/test_new.py" in files      # untracked, not ignored
+        assert "ignored.txt" not in files        # gitignored

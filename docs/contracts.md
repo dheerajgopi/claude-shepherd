@@ -118,18 +118,30 @@ tdd(<slug>): green — implementation
 The outer agent must NEVER hand-create commits matching `tdd(...)`.
 There is no spec commit: Loop 1 approval only advances the phase, because
 the spec artifacts live in the gitignored `.shepherd/` workspace. Red and
-red(n) commits carry only `test.paths` content. The bootstrap `chore` commit
-(test-framework pre-step) is the one exception that touches source-controlled
-files outside `test.paths`: it carries only dependency-manifest and lockfile
-changes, never tests.
+red(n) commits carry only changed files the test classifier accepts (the
+`test.paths` globs) — computed from `git status` and filtered, so the writable
+set in Loop 2 and the committable set are identical. The bootstrap `chore`
+commit (test-framework pre-step) is the one exception that touches
+source-controlled files outside the classifier: it carries only
+dependency-manifest and lockfile changes, never tests.
 
 ## Path policy (the mechanical boundary, §9–10)
 
-- Loops 0–2: `ALLOW_ONLY` — Write/Edit/MultiEdit/NotebookEdit permitted only under the listed
-  paths (Loop 0: the feature's `design/`; Loop 1: the feature's `requirements/`; Loop 2:
-  `test.paths` from config). The bootstrap install agent runs `ALLOW_ONLY` scoped to the
-  proposal's dependency-manifest file(s), plus `Bash` for the approved install command.
-- Loop 3: `DENY_UNDER` — same tools denied under `test.paths` + the `requirements/` folder.
+`test.paths` is a **test-file classifier**, not a directory list: each entry is a glob (see
+`matches_any_pattern` in the contracts module). A bare directory like `tests` matches everything
+beneath it; `**/*_test.go` matches Go's co-located tests; `src/test` matches a JVM test tree;
+`**/*.test.*` matches JS/TS suffix tests. Everything the classifier does NOT match is production
+source — so there is no separate `src` list: the source-protection guarantee is just the
+classifier's complement. (Rust unit tests live inside source files via `#[cfg(test)]` and cannot
+be path-classified — only integration tests under `tests/` are mechanically separable.)
+
+- Loops 0–2: `ALLOW_ONLY` — Write/Edit/MultiEdit/NotebookEdit permitted only where a pattern
+  matches (Loop 0: the feature's `design/`; Loop 1: the feature's `requirements/`; Loop 2: the
+  `test.paths` classifier — the agent may write only test files). The bootstrap install agent runs
+  `ALLOW_ONLY` scoped to the proposal's dependency-manifest file(s), plus `Bash` for the approved
+  install command.
+- Loop 3: `DENY_UNDER` — same tools denied where a pattern matches (the `test.paths` classifier +
+  the `requirements/` folder); the agent may write only non-test (production) files.
 - Enforced by a PreToolUse hook (verified deny shape in `docs/sdk-notes.md` §2); the pure decision
   function `is_path_allowed(tool_name, tool_input, policy)` lives in `tdd_hooks.py` and is the
   unit-tested core. Auto-applied minor test edits are direct Python file writes by the

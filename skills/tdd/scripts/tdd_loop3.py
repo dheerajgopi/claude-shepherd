@@ -561,9 +561,12 @@ def _commit_if_changes(repo: Path, message: str, paths: list[str]) -> bool:
     """commit_paths, but a no-op when the pathspecs hold no changes.
 
     Crash re-entry can land after a commit but before the phase transition;
-    re-committing nothing would error.
+    re-committing nothing would error. An empty pathspec is a no-op too —
+    never fall through to `git add -A --` (which would stage everything).
     """
 
+    if not paths:
+        return False
     status = tdd_git.git(["status", "--porcelain", "--", *paths], repo)
     if not status.strip():
         return False
@@ -826,15 +829,16 @@ def _amend_pipeline(ctx: FeatureContext, runner: AgentRunner) -> LoopOutcome:
     if outcome.status is not LoopStatus.ADVANCE:
         return outcome  # phase stays AMENDING_REQUIREMENTS; re-run recovers here
 
-    # (c) The renegotiation is visible in history: red(n) (§16). Only test
-    #     paths are committed; the amended spec stays in gitignored .shepherd/.
+    # (c) The renegotiation is visible in history: red(n) (§16). Only
+    #     test-classified files are committed; the amended spec stays in
+    #     gitignored .shepherd/.
     ctx.state.red_commit_count += 1
     n = ctx.state.red_commit_count
     ctx.store.save(ctx.state)
     _commit_if_changes(
         ctx.repo_root,
         COMMIT_RED_AMENDED.format(slug=ctx.slug, n=n),
-        list(ctx.config.test.paths),
+        tdd_git.changed_files_matching(ctx.repo_root, ctx.config.test.paths),
     )
 
     # (d) Back to implementation.

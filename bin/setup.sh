@@ -275,8 +275,9 @@ What was done
 
 What to review (init's detection is a best guess)
   - .shepherd/config.yaml -> test.command  (must run your test suite)
-  - .shepherd/config.yaml -> test.paths    (feeds the TDD edit-boundary hooks;
-    a wrong boundary undermines the safety model)
+  - .shepherd/config.yaml -> test.paths    (the test-file classifier: globs
+    that mark which files are tests, e.g. tests/ or **/*_test.go — feeds the
+    TDD edit-boundary hooks; a wrong classifier undermines the safety model)
 
 How to use
   - Open Claude Code in this project and run:  /shepherd:tdd

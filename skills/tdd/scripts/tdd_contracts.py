@@ -14,8 +14,9 @@ from __future__ import annotations
 
 import dataclasses
 import enum
+import re
 from dataclasses import dataclass, field
-from typing import Any, Callable, Optional, Protocol
+from typing import Any, Callable, Iterable, Optional, Protocol
 
 # ---------------------------------------------------------------------------
 # Exit codes (§13)
@@ -228,7 +229,13 @@ class ModelsConfig:
 @dataclass
 class TestConfig:
     command: str = ""              # e.g. "pytest -x -q"; detected by init scan
-    paths: list[str] = field(default_factory=list)  # feeds allow/deny hooks
+    #: The test-file classifier (feeds the Loop 2/3 hooks AND red-commit
+    #: staging). Each entry is a glob (see `matches_any_pattern`): a bare dir
+    #: like `tests` matches everything beneath it; `**/*_test.go` matches Go's
+    #: co-located tests; `src/test` matches a JVM test tree. Everything NOT
+    #: matched is production source — Loop 2 may only write matches, Loop 3 may
+    #: only write non-matches.
+    paths: list[str] = field(default_factory=list)
     syntax_check: bool = False     # optional Loop 2 syntax-only check (§9)
 
 
@@ -383,12 +390,76 @@ class ShepherdManifest:
 
 
 class PathPolicyMode(str, enum.Enum):
-    ALLOW_ONLY = "allow_only"   # writes permitted ONLY under listed paths (Loops 1-2)
-    DENY_UNDER = "deny_under"   # writes denied under listed paths (Loop 3)
+    ALLOW_ONLY = "allow_only"   # writes permitted ONLY where a pattern matches (Loops 0-2)
+    DENY_UNDER = "deny_under"   # writes denied where a pattern matches (Loop 3)
 
 
 #: Built-in tools whose path argument the policy hook must inspect.
 WRITE_TOOLS = ("Write", "Edit", "MultiEdit", "NotebookEdit")
+
+
+#: Glob metacharacters; a pattern without any is treated as a directory prefix.
+_GLOB_META = re.compile(r"[*?\[]")
+
+
+def _glob_to_regex(pattern: str) -> str:
+    """Translate one glob into an anchored-elsewhere regex body (no ^...$).
+
+    Segment-aware, gitignore/editorconfig style:
+      ``*``   any run of characters except ``/``
+      ``?``   a single character except ``/``
+      ``**``  crosses ``/`` (any number of path segments)
+      ``**/`` at a boundary matches zero or more leading directories
+    """
+
+    i, n = 0, len(pattern)
+    out: list[str] = []
+    while i < n:
+        c = pattern[i]
+        if c == "*":
+            if i + 1 < n and pattern[i + 1] == "*":
+                if i + 2 < n and pattern[i + 2] == "/":
+                    out.append("(?:.*/)?")   # **/ → zero or more leading dirs
+                    i += 3
+                else:
+                    out.append(".*")          # ** → cross-segment
+                    i += 2
+            else:
+                out.append("[^/]*")           # * → within one segment
+                i += 1
+        elif c == "?":
+            out.append("[^/]")
+            i += 1
+        else:
+            out.append(re.escape(c))
+            i += 1
+    return "".join(out)
+
+
+def matches_any_pattern(rel_path: str, patterns: Iterable[str]) -> bool:
+    """True if `rel_path` (repo-relative, posix) matches any of `patterns`.
+
+    The single test-file classifier shared by the path-policy hook
+    (`is_path_allowed`) and the loop commit-staging — keeping them from ever
+    disagreeing on what counts as a test. A pattern with no glob
+    metacharacter also matches anything beneath it (a bare directory like
+    `tests` matches `tests/a/b.py`) while staying segment-aware (`tests` never
+    matches `tests-extra/...`).
+    """
+
+    rel = rel_path.strip("/")
+    for raw in patterns:
+        pat = raw.strip().strip("/") if raw else ""
+        if pat.startswith("./"):
+            pat = pat[2:]
+        if not pat:
+            continue
+        body = _glob_to_regex(pat)
+        if re.fullmatch(body, rel):
+            return True
+        if not _GLOB_META.search(pat) and re.fullmatch(body + r"/.*", rel):
+            return True
+    return False
 
 
 # ---------------------------------------------------------------------------

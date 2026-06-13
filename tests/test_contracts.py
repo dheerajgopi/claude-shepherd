@@ -14,8 +14,66 @@ from tdd_contracts import (
     RESUMABLE_PHASES,
     ExitCode,
     Phase,
+    matches_any_pattern,
     validate_transition,
 )
+
+
+class TestMatchesAnyPattern:
+    """The test-file classifier shared by the hook and commit staging."""
+
+    @pytest.mark.parametrize(
+        "rel",
+        ["tests/test_a.py", "tests/sub/deep/test_b.py", "tests"],
+    )
+    def test_bare_dir_matches_everything_beneath(self, rel) -> None:
+        assert matches_any_pattern(rel, ["tests"]) is True
+
+    @pytest.mark.parametrize("rel", ["tests-extra/x.py", "src/tests.py", "src/x.py"])
+    def test_bare_dir_is_segment_aware(self, rel) -> None:
+        assert matches_any_pattern(rel, ["tests"]) is False
+
+    @pytest.mark.parametrize(
+        "rel", ["foo_test.go", "pkg/foo_test.go", "a/b/c/svc_test.go"]
+    )
+    def test_go_colocated_glob(self, rel) -> None:
+        # No directory boundary separates Go tests from source — only the suffix.
+        assert matches_any_pattern(rel, ["**/*_test.go"]) is True
+
+    @pytest.mark.parametrize("rel", ["pkg/foo.go", "main.go", "foo_testx.go"])
+    def test_go_glob_excludes_source(self, rel) -> None:
+        assert matches_any_pattern(rel, ["**/*_test.go"]) is False
+
+    @pytest.mark.parametrize(
+        "rel",
+        ["src/a.test.ts", "src/x.spec.js", "src/__tests__/a.js", "a.test.tsx"],
+    )
+    def test_js_colocated_globs(self, rel) -> None:
+        patterns = ["**/*.test.*", "**/*.spec.*", "**/__tests__/**"]
+        assert matches_any_pattern(rel, patterns) is True
+
+    @pytest.mark.parametrize("rel", ["src/app.ts", "src/index.js"])
+    def test_js_globs_exclude_source(self, rel) -> None:
+        patterns = ["**/*.test.*", "**/*.spec.*", "**/__tests__/**"]
+        assert matches_any_pattern(rel, patterns) is False
+
+    def test_jvm_test_tree_separates_from_main(self) -> None:
+        # The protected source is src/main, NOT src/ — src/test is the classifier.
+        assert matches_any_pattern("src/test/java/AppTest.java", ["src/test"]) is True
+        assert matches_any_pattern("src/main/java/App.java", ["src/test"]) is False
+
+    def test_single_star_stays_within_segment(self) -> None:
+        assert matches_any_pattern("a/b.py", ["a/*.py"]) is True
+        assert matches_any_pattern("a/sub/b.py", ["a/*.py"]) is False
+
+    def test_empty_and_blank_patterns_match_nothing(self) -> None:
+        assert matches_any_pattern("tests/x.py", []) is False
+        assert matches_any_pattern("tests/x.py", ["", "  "]) is False
+
+    def test_leading_dot_dir_not_mangled(self) -> None:
+        # A dotted dir (e.g. the requirements path) must survive normalization.
+        rel = ".shepherd/features/auth/requirements/auth.md"
+        assert matches_any_pattern(rel, [".shepherd/features/auth/requirements"]) is True
 
 
 class TestExitCodes:

@@ -10,7 +10,7 @@ The requirements define WHICH behaviors must hold; the design defines the concre
 
 ## Boundaries
 
-- Write tests ONLY under the configured test paths. This is mechanically enforced by a hook: a denied write means your path is wrong — fix the path, do not fight the hook or retry the same location.
+- Write ONLY test files — paths the configured test classifier accepts (a directory like `tests/`, or a co-located naming convention like `*_test.go` / `*.test.ts`, as the scan report shows). Production source is off-limits in this phase. This is mechanically enforced by a hook: a denied write means the path is not a test file — fix the path, do not fight the hook or retry the same location.
 - Use the EXISTING framework and conventions shown in the scan report and exemplar file. NEVER introduce a new test framework, assertion library, or directory convention, even if you consider one superior. Match the exemplar's style: imports, fixtures, naming, assertion idioms.
 
 ## Test rules

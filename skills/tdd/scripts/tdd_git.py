@@ -13,14 +13,17 @@ from pathlib import Path
 from typing import Optional
 
 import tdd_wsl
-from tdd_contracts import SHEPHERD_DIR, ExitCode
+from tdd_contracts import SHEPHERD_DIR, ExitCode, matches_any_pattern
 from tdd_state import ShepherdError
 
 
-def git(args: list[str], cwd: Path) -> str:
-    """Run `git <args>` in `cwd`; return stripped stdout.
+def git(args: list[str], cwd: Path, strip: bool = True) -> str:
+    """Run `git <args>` in `cwd`; return stdout (stripped unless `strip=False`).
 
-    Raises ShepherdError(INTERNAL_ERROR) with git's stderr on any failure.
+    `strip=False` is required for `status --porcelain`, whose leading status
+    column is a space (` M path`) that a global strip would eat off the first
+    line, corrupting its path. Raises ShepherdError(INTERNAL_ERROR) with git's
+    stderr on any failure.
 
     When `cwd` is a WSL-filesystem UNC path on a Windows host, git runs inside
     WSL (`git -C <linux_path>`) so the repo is touched by its own git config —
@@ -52,7 +55,7 @@ def git(args: list[str], cwd: Path) -> str:
             f"git {' '.join(args)} failed (exit {exc.returncode}): "
             f"{(exc.stderr or '').strip()}",
         ) from exc
-    return proc.stdout.strip()
+    return proc.stdout.strip() if strip else proc.stdout
 
 
 def repo_root(cwd: Path) -> Optional[Path]:
@@ -127,6 +130,63 @@ def branch_exists(repo: Path, name: str) -> bool:
         return True
     except ShepherdError:
         return False
+
+
+def _unquote_status_path(path: str) -> str:
+    """Strip git's C-style quoting from a porcelain/ls-files path (minimal).
+
+    Only surrounding quotes are removed (matching `is_dirty`); the unescaped
+    inner bytes are good enough for glob classification of ASCII paths.
+    """
+
+    if path.startswith('"') and path.endswith('"'):
+        return path[1:-1]
+    return path
+
+
+def changed_files(repo: Path) -> list[str]:
+    """Repo-relative posix paths of every changed entry (`git status --porcelain`).
+
+    Modified, added, renamed (the new name), and untracked-not-ignored files —
+    so `.shepherd/` (gitignored) never appears. `-u` expands untracked
+    directories to individual files (porcelain otherwise collapses a new dir to
+    `pkg/`, hiding the test files inside it). The caller filters these through
+    the test classifier to decide what a red commit stages.
+    """
+
+    out: list[str] = []
+    for line in git(
+        ["status", "--porcelain", "-u"], repo, strip=False
+    ).splitlines():
+        if not line.strip():
+            continue
+        path = line[3:]
+        if " -> " in path:               # rename/copy: keep the destination
+            path = path.split(" -> ", 1)[1]
+        out.append(_unquote_status_path(path))
+    return out
+
+
+def changed_files_matching(repo: Path, patterns: list[str]) -> list[str]:
+    """Changed files whose repo-relative path matches the classifier `patterns`.
+
+    What a red / red(n) commit stages: the writable set in Loop 2 (ALLOW_ONLY
+    the classifier) and the committable set are then identical, so the red
+    anchor stays self-contained even for co-located or scaffolding tests.
+    """
+
+    return [p for p in changed_files(repo) if matches_any_pattern(p, patterns)]
+
+
+def list_files(repo: Path) -> list[str]:
+    """Repo-relative posix paths of tracked + untracked-not-ignored files.
+
+    `git ls-files --cached --others --exclude-standard` — the on-disk file set
+    the test classifier scans to assemble the verifier's view of the tests.
+    """
+
+    out = git(["ls-files", "--cached", "--others", "--exclude-standard"], repo)
+    return [_unquote_status_path(line) for line in out.splitlines() if line.strip()]
 
 
 def commit_paths(repo: Path, message: str, paths: list[str]) -> None:

@@ -156,6 +156,61 @@ class TestDenyUnder:
         assert allowed
 
 
+class TestGlobClassifier:
+    """Co-located test layouts (Go/JS) the directory model can't express."""
+
+    @pytest.fixture
+    def go_repo(self, tmp_path: Path) -> Path:
+        for d in ("pkg", "cmd"):
+            (tmp_path / d).mkdir(parents=True)
+        return tmp_path
+
+    def test_allow_only_permits_colocated_go_test(self, go_repo) -> None:
+        policy = PathPolicy(
+            mode=PathPolicyMode.ALLOW_ONLY, paths=["**/*_test.go"], repo_root=go_repo
+        )
+        ok, _ = is_path_allowed(
+            "Write", {"file_path": str(go_repo / "pkg" / "svc_test.go")}, policy
+        )
+        assert ok
+
+    def test_allow_only_denies_go_source(self, go_repo) -> None:
+        policy = PathPolicy(
+            mode=PathPolicyMode.ALLOW_ONLY, paths=["**/*_test.go"], repo_root=go_repo
+        )
+        ok, reason = is_path_allowed(
+            "Write", {"file_path": str(go_repo / "pkg" / "svc.go")}, policy
+        )
+        assert not ok and reason
+
+    def test_deny_under_protects_go_test_but_allows_source(self, go_repo) -> None:
+        policy = PathPolicy(
+            mode=PathPolicyMode.DENY_UNDER, paths=["**/*_test.go"], repo_root=go_repo
+        )
+        test_ok, _ = is_path_allowed(
+            "Write", {"file_path": str(go_repo / "pkg" / "svc_test.go")}, policy
+        )
+        src_ok, _ = is_path_allowed(
+            "Write", {"file_path": str(go_repo / "pkg" / "svc.go")}, policy
+        )
+        assert not test_ok and src_ok
+
+    def test_js_suffix_globs(self, tmp_path: Path) -> None:
+        (tmp_path / "src").mkdir()
+        policy = PathPolicy(
+            mode=PathPolicyMode.ALLOW_ONLY,
+            paths=["**/*.test.*", "**/__tests__/**"],
+            repo_root=tmp_path,
+        )
+        ok_test, _ = is_path_allowed(
+            "Write", {"file_path": str(tmp_path / "src" / "a.test.ts")}, policy
+        )
+        ok_src, _ = is_path_allowed(
+            "Write", {"file_path": str(tmp_path / "src" / "a.ts")}, policy
+        )
+        assert ok_test and not ok_src
+
+
 class TestNonWriteTools:
     @pytest.mark.parametrize("tool", ["Read", "Glob", "Grep", "Bash", "TodoWrite"])
     def test_always_allowed_under_both_policies(
