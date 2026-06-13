@@ -6,6 +6,7 @@ Subcommands per the pinned grammar in docs/contracts.md:
     tdd.py init [--force]
     tdd.py new <title...> [--task-stdin]
     tdd.py run [--feature SLUG] [--force] [--decision approve|reject] [--feedback TEXT]
+               [--verbose | --no-verbose]
     tdd.py status [--json]
 
 All informational output goes to stdout, errors to stderr; the exit code is
@@ -239,7 +240,7 @@ def _import_loop(loop_number: int):
         sys.exit(int(ExitCode.INTERNAL_ERROR))
 
 
-def _get_runner(ctx: FeatureContext):
+def _get_runner(ctx: FeatureContext, verbose: bool):
     """Obtain the AgentRunner lazily so the SDK is only touched by `run`."""
 
     try:
@@ -247,7 +248,7 @@ def _get_runner(ctx: FeatureContext):
     except ImportError:
         print("agent runner unavailable (tdd_agent not yet implemented)", file=sys.stderr)
         sys.exit(int(ExitCode.INTERNAL_ERROR))
-    return get_runner(ctx.repo_root)
+    return get_runner(ctx.repo_root, verbose=verbose)
 
 
 def cmd_run(
@@ -255,6 +256,7 @@ def cmd_run(
     force: bool,
     decision: Optional[str],
     feedback: Optional[str],
+    verbose: bool = True,
 ) -> int:
     """`tdd.py run` — dispatch the three-loop state machine on the active feature."""
 
@@ -283,7 +285,7 @@ def cmd_run(
     while True:
         module = _import_loop(loop_number)
         if runner is None:
-            runner = _get_runner(ctx)
+            runner = _get_runner(ctx, verbose)
         if loop_number == 1:
             outcome = module.run_loop1(ctx, runner, decision, feedback)
         elif loop_number == 2:
@@ -409,6 +411,15 @@ def _build_parser() -> argparse.ArgumentParser:
         help="human decision after a checkpoint exit (10/12)",
     )
     p_run.add_argument("--feedback", help="human corrections/rationale text")
+    p_run.add_argument(
+        "--verbose",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "stream the agent's prose and tool activity to stderr (on by "
+            "default; use --no-verbose for a silent headless run)"
+        ),
+    )
 
     p_status = sub.add_parser("status", help="phases of all features")
     p_status.add_argument(
@@ -427,7 +438,9 @@ def main(argv: Optional[list[str]] = None) -> None:
         elif args.command == "new":
             code = cmd_new(" ".join(args.title), args.task_stdin)
         elif args.command == "run":
-            code = cmd_run(args.feature, args.force, args.decision, args.feedback)
+            code = cmd_run(
+                args.feature, args.force, args.decision, args.feedback, args.verbose
+            )
         else:  # status
             code = cmd_status(args.as_json)
     except ShepherdError as exc:

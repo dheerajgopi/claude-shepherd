@@ -9,6 +9,7 @@ inside function/method bodies so that `get_runner` with a fake runner
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 
 from tdd_contracts import (
@@ -36,6 +37,44 @@ def build_prompt(sections: list[tuple[str, str]]) -> str:
     return "\n\n".join(f"## {name}\n\n{content}" for name, content in sections)
 
 
+def _format_tool_use(name: str, tool_input: dict) -> str:
+    """Compact one-line description of a tool call for the verbose trace.
+
+    Shows the argument that matters for the common tools (the file path for
+    edits/reads, the command for Bash) and falls back to the tool name alone.
+    """
+    if name in ("Write", "Edit", "MultiEdit", "NotebookEdit", "Read"):
+        target = tool_input.get("file_path") or tool_input.get("notebook_path") or ""
+        return f"{name} {target}".rstrip()
+    if name == "Bash":
+        cmd = " ".join(str(tool_input.get("command", "")).split())
+        if len(cmd) > 120:
+            cmd = cmd[:117] + "..."
+        return f"$ {cmd}"
+    return name
+
+
+def _emit_assistant(message, out) -> None:
+    """Stream one AssistantMessage's prose and tool activity to `out` (stderr).
+
+    This is display only — the engine's protocol is the exit code and stdout;
+    the trace lets a human watch the headless agent the way Claude Code does.
+    """
+    from claude_agent_sdk import TextBlock, ToolUseBlock
+
+    for block in message.content:
+        if isinstance(block, TextBlock):
+            text = block.text.strip()
+            if text:
+                print(text, file=out, flush=True)
+        elif isinstance(block, ToolUseBlock):
+            print(
+                f"  → {_format_tool_use(block.name, block.input)}",
+                file=out,
+                flush=True,
+            )
+
+
 class SdkAgentRunner:
     """Production AgentRunner backed by the Claude Agent SDK.
 
@@ -44,8 +83,9 @@ class SdkAgentRunner:
     the cached prefix, §12). Synchronous wrapper; wraps anyio internally.
     """
 
-    def __init__(self, repo_root: Path):
+    def __init__(self, repo_root: Path, verbose: bool = False):
         self.repo_root = repo_root
+        self.verbose = verbose
 
     def run(self, spec: RunSpec) -> RunResult:
         import anyio
@@ -54,6 +94,7 @@ class SdkAgentRunner:
 
     async def _run_async(self, spec: RunSpec) -> RunResult:
         from claude_agent_sdk import (
+            AssistantMessage,
             ClaudeAgentOptions,
             CLIConnectionError,
             CLINotFoundError,
@@ -143,6 +184,8 @@ class SdkAgentRunner:
         try:
             result_msg = None
             async for message in query(prompt=spec.prompt, options=opts):
+                if self.verbose and isinstance(message, AssistantMessage):
+                    _emit_assistant(message, sys.stderr)
                 if isinstance(message, ResultMessage):
                     result_msg = message
 
@@ -175,12 +218,13 @@ class SdkAgentRunner:
             )
 
 
-def get_runner(repo_root: Path) -> AgentRunner:
+def get_runner(repo_root: Path, verbose: bool = False) -> AgentRunner:
     """Select the AgentRunner: real SDK, or a fake via TDD_RUNNER (tests).
 
     TDD_RUNNER="fake:<path-to-script-json>" selects FakeAgentRunner so that
     subprocess-level tests never touch the SDK; anything else (or unset)
-    returns the production SdkAgentRunner.
+    returns the production SdkAgentRunner. `verbose` streams the agent's prose
+    and tool activity to stderr (SdkAgentRunner only; the fake has no stream).
     """
     runner_spec = os.environ.get(RUNNER_ENV_VAR, "")
     if runner_spec.startswith("fake:"):
@@ -190,4 +234,4 @@ def get_runner(repo_root: Path) -> AgentRunner:
         return tdd_fake_runner.FakeAgentRunner.from_script(
             script_path, repo_root
         )
-    return SdkAgentRunner(repo_root)
+    return SdkAgentRunner(repo_root, verbose=verbose)

@@ -26,6 +26,7 @@ in `skills/tdd/references/playbook.md`, setup.sh, prompts). Requirement referenc
 tdd.py init [--force]
 tdd.py new <title...> [--task-stdin]
 tdd.py run [--feature SLUG] [--force] [--decision approve|reject] [--feedback TEXT]
+           [--verbose | --no-verbose]
 tdd.py status [--json]
 ```
 
@@ -39,6 +40,10 @@ tdd.py status [--json]
   - exit 10 → re-invoke with `--decision approve` **or** `--feedback "<corrections>"`
   - exit 12 → re-invoke with `--decision approve` or `--decision reject [--feedback "<why>"]`
 - `--force` overrides BRANCH_MISMATCH (21) only; never anything else.
+- `--verbose` (default **on**) streams the agent's prose and tool activity to
+  stderr so a human can watch the headless run, the way Claude Code does;
+  `--no-verbose` silences it. Display-only — it never changes stdout, the exit
+  code, or token cost (that output is generated either way).
 - All informational output on stdout; errors on stderr; the exit code is the protocol.
 - Invocation from a target project root: `python3 <plugin>/skills/tdd/scripts/tdd.py …`
   (the command resolves the plugin path via `${CLAUDE_PLUGIN_ROOT}`).

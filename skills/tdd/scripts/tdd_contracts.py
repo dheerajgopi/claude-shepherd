@@ -141,12 +141,16 @@ GITIGNORE_ENTRIES = [
 #   tdd.py new <title...> [--task-stdin]
 #   tdd.py run [--feature SLUG] [--force]
 #              [--decision approve|reject] [--feedback TEXT]
+#              [--verbose | --no-verbose]
 #   tdd.py status [--json]
 #
 # `--decision/--feedback` is the human-input channel: the outer command
 # re-invokes `run` with the human's answer after a checkpoint exit (10/12).
 # `--feedback` alone (no --decision) means "corrections" for the exit-10
 # revision cycle. `--force` on run overrides BRANCH_MISMATCH (§7).
+# `--verbose` (default on) streams the agent's prose and tool activity to
+# stderr so a human can watch the headless run; `--no-verbose` silences it.
+# It is display-only — stdout and the exit code remain the machine protocol.
 # `--task-stdin` on new reads the full task statement for task.md from
 # stdin (pipe/heredoc — no temp files, so concurrent agents cannot
 # collide); the title still names the slug/branch. Without it, the title
