@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 import tdd_git
+import tdd_wsl
 from tdd_agent import build_prompt
 from tdd_contracts import (
     COMMIT_GREEN,
@@ -188,16 +189,27 @@ def _triage_spec(ctx: FeatureContext, prompt: str) -> RunSpec:
 
 
 def _run_test_command(ctx: FeatureContext) -> tuple[int, str]:
-    """Run the configured test command; (returncode, combined output tail)."""
+    """Run the configured test command; (returncode, combined output tail).
 
+    On a Windows host driving a WSL-filesystem repo the command is routed
+    through ``wsl.exe`` (see tdd_wsl) so it runs in a login shell with the
+    project's PATH; otherwise it runs natively via the local shell.
+    """
+
+    target = tdd_wsl.wsl_target(ctx.repo_root)
+    if target is None:
+        args, kwargs = ctx.config.test.command, {"shell": True, "cwd": ctx.repo_root}
+    else:
+        distro, linux_path = target
+        args = tdd_wsl.shell_argv(ctx.config.test.command, distro, linux_path)
+        kwargs = {}  # cwd is carried by the `cd` inside WSL; a UNC cwd is unusable
     try:
         proc = subprocess.run(
-            ctx.config.test.command,
-            shell=True,
-            cwd=ctx.repo_root,
+            args,
             capture_output=True,
             text=True,
             timeout=_TEST_COMMAND_TIMEOUT,
+            **kwargs,
         )
     except subprocess.TimeoutExpired:
         return 1, f"test command timed out after {_TEST_COMMAND_TIMEOUT}s"

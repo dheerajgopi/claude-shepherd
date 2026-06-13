@@ -12,6 +12,7 @@ import subprocess
 from pathlib import Path
 from typing import Optional
 
+import tdd_wsl
 from tdd_contracts import SHEPHERD_DIR, ExitCode
 from tdd_state import ShepherdError
 
@@ -20,12 +21,23 @@ def git(args: list[str], cwd: Path) -> str:
     """Run `git <args>` in `cwd`; return stripped stdout.
 
     Raises ShepherdError(INTERNAL_ERROR) with git's stderr on any failure.
+
+    When `cwd` is a WSL-filesystem UNC path on a Windows host, git runs inside
+    WSL (`git -C <linux_path>`) so the repo is touched by its own git config —
+    avoiding Windows git's dubious-ownership / line-ending surprises on a Linux
+    checkout (see tdd_wsl).
     """
 
+    target = tdd_wsl.wsl_target(cwd)
+    if target is None:
+        argv, run_cwd = ["git", *args], cwd
+    else:
+        distro, linux_path = target
+        argv, run_cwd = tdd_wsl.exec_argv(distro, ["git", "-C", linux_path, *args]), None
     try:
         proc = subprocess.run(
-            ["git", *args],
-            cwd=cwd,
+            argv,
+            cwd=run_cwd,
             check=True,
             capture_output=True,
             text=True,
@@ -44,12 +56,22 @@ def git(args: list[str], cwd: Path) -> str:
 
 
 def repo_root(cwd: Path) -> Optional[Path]:
-    """Toplevel of the git repo containing `cwd`, or None if not in a repo."""
+    """Toplevel of the git repo containing `cwd`, or None if not in a repo.
+
+    On a Windows host driving a WSL repo, WSL-side git answers with a Linux
+    path; it is re-expressed as a UNC path so it stays usable on Windows and
+    keeps tripping WSL detection on later calls.
+    """
 
     try:
-        return Path(git(["rev-parse", "--show-toplevel"], cwd)).resolve()
+        toplevel = git(["rev-parse", "--show-toplevel"], cwd)
     except ShepherdError:
         return None
+    if tdd_wsl.wsl_target(cwd) is not None:
+        unc = tdd_wsl.to_unc(toplevel, cwd)
+        if unc is not None:
+            return Path(unc)
+    return Path(toplevel).resolve()
 
 
 def current_branch(repo: Path) -> str:

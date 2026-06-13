@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Iterable, Optional
 
 import tdd_git
+import tdd_wsl
 from tdd_agent import build_prompt
 from tdd_contracts import (
     COMMIT_RED,
@@ -423,13 +424,21 @@ def _syntax_errors(ctx: FeatureContext, matrix: TraceabilityMatrix) -> str:
             if "::" in ref
         }
     )
+    target = tdd_wsl.wsl_target(ctx.repo_root)
     problems = []
     for rel in files:
+        if target is None:
+            args, kwargs = [sys.executable, "-m", "py_compile", rel], {"cwd": ctx.repo_root}
+        else:
+            distro, linux_path = target
+            abs_rel = linux_path.rstrip("/") + "/" + rel
+            args = tdd_wsl.exec_argv(distro, ["python3", "-m", "py_compile", abs_rel])
+            kwargs = {}  # absolute path carries the location; a UNC cwd is unusable
         proc = subprocess.run(
-            [sys.executable, "-m", "py_compile", rel],
-            cwd=ctx.repo_root,
+            args,
             capture_output=True,
             text=True,
+            **kwargs,
         )
         if proc.returncode != 0:
             problems.append(f"{rel}:\n{(proc.stderr or proc.stdout).strip()}")
