@@ -175,12 +175,45 @@ def _read_task_statement() -> str:
     return text
 
 
-def cmd_new(title: str, task_stdin: bool = False) -> int:
+def _read_task_file(path: str, root: Path) -> str:
+    """Read the full task statement from a file (`--task-file`).
+
+    The stdin alternative for hosts where piping into the subprocess is
+    unreliable (notably the Windows+WSL interop boundary, which silently
+    delivers empty stdin). The agent writes the statement with the Write tool
+    to a scratch path under `.shepherd/` — gitignored and excepted from the
+    dirty-tree check — and passes it here. A scratch file under `.shepherd/` is
+    unlinked once copied into task.md so nothing stale lingers.
+    """
+
+    task_path = Path(path)
+    try:
+        text = task_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise ShepherdError(
+            ExitCode.INTERNAL_ERROR, f"--task-file {path!r} is not readable: {exc}"
+        ) from exc
+    if not text.strip():
+        raise ShepherdError(
+            ExitCode.INTERNAL_ERROR,
+            f"--task-file {path!r} is empty; write the task statement to it first",
+        )
+    try:
+        resolved = task_path.resolve()
+        if resolved.is_relative_to((root / SHEPHERD_DIR).resolve()):
+            resolved.unlink()
+    except OSError:
+        pass  # best-effort cleanup; a leftover gitignored scratch file is harmless
+    return text
+
+
+def cmd_new(title: str, task_stdin: bool = False, task_file: Optional[str] = None) -> int:
     """`tdd.py new <title...>` — scaffold a feature folder + tdd/<slug> branch (§6).
 
     The slug and branch always derive from the title. task.md — the Loop 1
-    agent's only source of requirements — holds the full task statement read
-    from stdin when `--task-stdin` is given, else the title.
+    agent's only source of requirements — holds the full task statement, taken
+    from `--task-file` if given, else stdin when `--task-stdin` is given, else
+    the title.
     """
 
     cwd = Path.cwd()
@@ -188,7 +221,12 @@ def cmd_new(title: str, task_stdin: bool = False) -> int:
     load_config(root)  # raises SHEPHERD_NOT_INITIALIZED if init has not run
     _refuse_dirty_tree(root)
 
-    task_text = _read_task_statement() if task_stdin else title
+    if task_file is not None:
+        task_text = _read_task_file(task_file, root)
+    elif task_stdin:
+        task_text = _read_task_statement()
+    else:
+        task_text = title
 
     try:
         slug = slugify(title)
@@ -433,6 +471,15 @@ def _build_parser() -> argparse.ArgumentParser:
             "(pipe or heredoc); without it, the title is the task statement"
         ),
     )
+    p_new.add_argument(
+        "--task-file",
+        help=(
+            "read the full task statement for task.md from this file instead "
+            "of stdin (use when piping is unreliable, e.g. Windows+WSL); a "
+            "scratch file under .shepherd/ is unlinked after it is read. Wins "
+            "over --task-stdin if both are given"
+        ),
+    )
 
     p_run = sub.add_parser("run", help="run the three-loop state machine")
     p_run.add_argument("--feature", help="explicit feature slug (always wins, §7)")
@@ -470,7 +517,7 @@ def main(argv: Optional[list[str]] = None) -> None:
         if args.command == "init":
             code = cmd_init(args.force)
         elif args.command == "new":
-            code = cmd_new(" ".join(args.title), args.task_stdin)
+            code = cmd_new(" ".join(args.title), args.task_stdin, args.task_file)
         elif args.command == "run":
             code = cmd_run(
                 args.feature, args.force, args.decision, args.feedback, args.verbose

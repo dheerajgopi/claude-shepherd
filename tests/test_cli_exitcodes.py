@@ -126,6 +126,66 @@ class TestNew:
         # Nothing scaffolded on refusal.
         assert not (tmp_repo / ".shepherd" / "features" / "add-user-auth").exists()
 
+    def test_new_task_file_becomes_task_md_and_is_unlinked(self, tmp_repo) -> None:
+        # The stdin alternative for hosts where piping is unreliable (Win+WSL).
+        assert run_cli(["init"], tmp_repo).returncode == 0
+        statement = (
+            "List users with pagination.\n\n"
+            "- Default page size is 20.\n- Max page size is 100.\n"
+        )
+        scratch = tmp_repo / ".shepherd" / "task-paginated-user-list.md"
+        scratch.write_text(statement)
+
+        result = run_cli(
+            ["new", "Paginated user list", "--task-file", ".shepherd/task-paginated-user-list.md"],
+            tmp_repo,
+        )
+        assert result.returncode == 0, result.stderr
+
+        assert _current_branch(tmp_repo) == "tdd/paginated-user-list"
+        task_md = (
+            tmp_repo / ".shepherd" / "features" / "paginated-user-list" / "task.md"
+        )
+        assert task_md.read_text() == statement
+        # A scratch file under .shepherd/ is cleaned up once copied into task.md.
+        assert not scratch.exists()
+
+    def test_new_task_file_wins_over_stdin(self, tmp_repo) -> None:
+        assert run_cli(["init"], tmp_repo).returncode == 0
+        (tmp_repo / ".shepherd" / "t.md").write_text("from file\n")
+
+        result = run_cli(
+            ["new", "Add user auth", "--task-stdin", "--task-file", ".shepherd/t.md"],
+            tmp_repo,
+            stdin="from stdin\n",
+        )
+        assert result.returncode == 0, result.stderr
+
+        task_md = tmp_repo / ".shepherd" / "features" / "add-user-auth" / "task.md"
+        assert task_md.read_text() == "from file\n"
+
+    def test_new_rejects_empty_task_file(self, tmp_repo) -> None:
+        assert run_cli(["init"], tmp_repo).returncode == 0
+        (tmp_repo / ".shepherd" / "t.md").write_text("  \n")
+
+        result = run_cli(
+            ["new", "Add user auth", "--task-file", ".shepherd/t.md"], tmp_repo
+        )
+
+        assert result.returncode != 0
+        assert "empty" in result.stderr
+        assert not (tmp_repo / ".shepherd" / "features" / "add-user-auth").exists()
+
+    def test_new_rejects_unreadable_task_file(self, tmp_repo) -> None:
+        assert run_cli(["init"], tmp_repo).returncode == 0
+
+        result = run_cli(
+            ["new", "Add user auth", "--task-file", ".shepherd/missing.md"], tmp_repo
+        )
+
+        assert result.returncode != 0
+        assert "not readable" in result.stderr
+
     def test_new_refuses_dirty_tree(self, tmp_repo) -> None:
         assert run_cli(["init"], tmp_repo).returncode == 0
         readme = tmp_repo / "README.md"

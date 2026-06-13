@@ -75,7 +75,15 @@ class TestArgvBuilders:
         argv = shell_argv("pytest", "Ubuntu", "/home/dev/my project")
         assert argv[-1] == "cd '/home/dev/my project' && pytest"
 
-    def test_exec_argv_prefixes_without_shell(self) -> None:
+    def test_exec_argv_uses_login_shell(self) -> None:
+        # The login shell is what puts WSL's git/python ahead of the Windows
+        # ones on PATH; a bare `wsl.exe -- git` picks up C:\...\git and mangles
+        # Linux paths.
         assert exec_argv("Ubuntu", ["git", "-C", "/home/dev/x", "status"]) == [
-            "wsl.exe", "-d", "Ubuntu", "--", "git", "-C", "/home/dev/x", "status",
+            "wsl.exe", "-d", "Ubuntu", "--", "bash", "-lc",
+            "git -C /home/dev/x status",
         ]
+
+    def test_exec_argv_quotes_paths_with_spaces(self) -> None:
+        argv = exec_argv("Ubuntu", ["python3", "-m", "py_compile", "/home/dev/my project/t.py"])
+        assert argv[-1] == "python3 -m py_compile '/home/dev/my project/t.py'"

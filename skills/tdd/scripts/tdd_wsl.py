@@ -91,10 +91,17 @@ def shell_argv(command: str, distro: str, linux_path: str) -> list[str]:
 
 
 def exec_argv(distro: str, inner_argv: list[str]) -> list[str]:
-    """argv running an explicit ``inner_argv`` inside WSL — no shell, no
-    quoting hazards. Used for git (``git -C <linux_path> …``) and the
-    ``py_compile`` syntax gate, which carry their working directory as an
-    argument rather than via cwd.
+    """argv running an explicit ``inner_argv`` inside WSL through a login shell.
+    Used for git (``git -C <linux_path> …``) and the ``py_compile`` syntax
+    gate, which carry their working directory as an argument rather than via
+    cwd.
+
+    The login shell (``bash -lc``) is essential, not cosmetic: ``wsl.exe -- git``
+    runs with the bare interop PATH (default dirs + appended Windows ``Path``),
+    so a Windows ``git``/``python`` shadows the WSL one and mangles ``/home/…``
+    into ``C:\\…\\home\\…``. Sourcing the profile puts WSL's own binaries first.
+    Each token is ``shlex.quote``d before being joined into the command line.
     """
 
-    return ["wsl.exe", "-d", distro, "--", *inner_argv]
+    inner = " ".join(shlex.quote(token) for token in inner_argv)
+    return ["wsl.exe", "-d", distro, "--", "bash", "-lc", inner]

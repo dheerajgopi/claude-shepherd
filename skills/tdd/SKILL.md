@@ -54,7 +54,7 @@ CLI grammar (pinned):
 
 ```
 tdd.py init [--force]
-tdd.py new <title...> [--task-stdin]
+tdd.py new <title...> [--task-stdin | --task-file PATH]
 tdd.py run [--feature SLUG] [--force] [--decision approve|reject] [--feedback TEXT]
 tdd.py status [--json]
 ```
@@ -83,8 +83,18 @@ tdd.py status [--json]
   see this conversation. Carry over every concrete detail the user stated:
   defaults (page sizes, limits, timeouts), edge cases, error behaviors,
   acceptance criteria. Do not condense to a title; a detail dropped here is
-  invisible to every later loop. Never write the statement to a file (temp
-  files collide across concurrent agents) — always the heredoc.
+  invisible to every later loop. Prefer the heredoc; never write the statement
+  to a *fixed-named* file (those collide across concurrent agents).
+
+  **If the heredoc delivers empty stdin** (the Windows+WSL Bash-tool boundary
+  silently drops piped stdin), fall back to `--task-file`: Write the statement
+  to a unique scratch path under `.shepherd/` (gitignored, dirty-tree-excepted),
+  then pass it — the engine reads and unlinks it:
+
+  ```bash
+  python3 "${CLAUDE_PLUGIN_ROOT}/skills/tdd/scripts/tdd.py" new "<short title>" \
+    --task-file .shepherd/task-<short-title>.md
+  ```
 - **Existing feature slug** → `tdd.py run --feature <slug>` directly.
 - **Neither** → bare `tdd.py run` and let branch convention or exit 20
   resolve it.

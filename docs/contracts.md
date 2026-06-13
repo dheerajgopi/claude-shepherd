@@ -27,7 +27,7 @@ in `skills/tdd/references/playbook.md`, setup.sh, prompts). Requirement referenc
 
 ```
 tdd.py init [--force]
-tdd.py new <title...> [--task-stdin]
+tdd.py new <title...> [--task-stdin | --task-file PATH]
 tdd.py run [--feature SLUG] [--force] [--decision approve|reject] [--feedback TEXT]
            [--verbose | --no-verbose]
 tdd.py status [--json]
@@ -39,6 +39,11 @@ tdd.py status [--json]
   is the task statement. `task.md` is write-once at `new` time: it is read
   into Loop 0's first session turn (and Loop 1's) and never re-read, so editing
   it after `new` has no effect on the run.
+- `--task-file PATH` is the alternative when piping into the subprocess is
+  unreliable — notably the **Windows+WSL** interop boundary, which silently
+  delivers empty stdin. The statement is read from `PATH`; a `PATH` under
+  `.shepherd/` (gitignored, excepted from the dirty-tree check) is unlinked
+  once copied into `task.md`. `--task-file` wins if both flags are given.
 - The human-input channel is `--decision` / `--feedback` on `run`:
   - exit 15 → re-invoke with `--decision approve` **or** `--feedback "<corrections>"` (design)
   - exit 16 → re-invoke with `--decision approve` **or** `--feedback "<corrections>"` (test framework)

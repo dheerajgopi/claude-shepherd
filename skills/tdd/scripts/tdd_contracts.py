@@ -180,7 +180,7 @@ GITIGNORE_ENTRIES = [
 # ---------------------------------------------------------------------------
 #
 #   tdd.py init [--force]
-#   tdd.py new <title...> [--task-stdin]
+#   tdd.py new <title...> [--task-stdin | --task-file PATH]
 #   tdd.py run [--feature SLUG] [--force]
 #              [--decision approve|reject] [--feedback TEXT]
 #              [--verbose | --no-verbose]
@@ -196,9 +196,13 @@ GITIGNORE_ENTRIES = [
 # It is display-only — stdout and the exit code remain the machine protocol.
 # `--task-stdin` on new reads the full task statement for task.md from
 # stdin (pipe/heredoc — no temp files, so concurrent agents cannot
-# collide); the title still names the slug/branch. Without it, the title
-# is the task statement. task.md is write-once at `new` time — it is read
-# into Loop 1's first session turn and never re-read.
+# collide); the title still names the slug/branch. `--task-file PATH` is
+# the alternative for hosts where piping into the subprocess is unreliable
+# (notably the Windows+WSL interop boundary, which silently delivers empty
+# stdin): the statement is read from PATH, and a PATH under .shepherd/ is
+# unlinked once copied into task.md. --task-file wins if both are given.
+# Without either, the title is the task statement. task.md is write-once at
+# `new` time — it is read into Loop 1's first session turn and never re-read.
 
 DECISION_APPROVE = "approve"
 DECISION_REJECT = "reject"
