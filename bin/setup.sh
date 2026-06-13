@@ -5,9 +5,11 @@
 #   /path/to/shepherd/bin/setup.sh           # install (default)
 #   /path/to/shepherd/bin/setup.sh update    # report upstream vs local drift (no writes)
 #
-# Idempotent. Preflight runs before any mutation, so a failure never leaves a
-# half-installed state. Workspace logic lives in `tdd.py init`; this script is
-# plumbing: preflight -> settings merge -> init -> manifest.
+# Idempotent. Preflight runs before any repo mutation, so a failure never
+# leaves a half-installed workspace (its one side effect is installing the
+# Python deps, which is itself idempotent). Workspace logic lives in
+# `tdd.py init`; this script is plumbing: preflight -> settings merge ->
+# init -> manifest.
 
 set -euo pipefail
 
@@ -50,7 +52,13 @@ install_hint() {
     fi
 }
 
-# --- preflight (no mutations; fail loudly with fixes) --------------------------
+# True iff both runtime deps import under the ambient python3 (the interpreter
+# the engine runs under).
+deps_importable() {
+    python3 -c 'import claude_agent_sdk, yaml' >/dev/null 2>&1
+}
+
+# --- preflight (auto-installs missing deps; else fails loudly with fixes) ------
 
 preflight() {
     info "==> Preflight checks"
@@ -90,12 +98,23 @@ preflight() {
   Install: npm install -g @anthropic-ai/claude-code  (or see https://docs.claude.com/en/docs/claude-code)"
     fi
 
-    # 5. Python deps importable. Do NOT auto-install (the human owns the env).
-    if ! python3 -c 'import claude_agent_sdk' >/dev/null 2>&1 \
-        || ! python3 -c 'import yaml' >/dev/null 2>&1; then
-        die "required Python packages are missing (claude-agent-sdk and/or pyyaml).
-  Fix, then re-run setup.sh:
-    $(install_hint)"
+    # 5. Python deps importable. If missing, install them automatically WITHOUT
+    #    sudo (into this python3's per-user site-packages, where the engine's
+    #    bare `python3` finds them) and re-check. This is the one mutation
+    #    preflight makes — it is idempotent and reversible, and it is what lets
+    #    `tdd.py init` (run later, same interpreter) clear its own dep gate.
+    if ! deps_importable; then
+        info "    Python deps missing; installing without sudo:"
+        info "      $(install_hint)"
+        eval "$(install_hint)" || true
+        if ! deps_importable; then
+            die "claude-agent-sdk and/or pyyaml are still missing after install.
+  This python3 is likely 'externally managed' (PEP 668). Install into a
+  user-writable interpreter, then re-run setup.sh — e.g.:
+    $(install_hint) --break-system-packages
+  (or create and activate a venv that becomes the 'python3' on PATH)."
+        fi
+        info "    installed claude-agent-sdk + pyyaml (user site-packages)"
     fi
 
     info "    ok: git repo root, python3 >= 3.10, uv/pip, python deps"
