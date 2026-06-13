@@ -89,13 +89,41 @@ the recorded `tdd/<slug>` branch).
 ### 22 — SHEPHERD_NOT_INITIALIZED
 1. Offer (via `AskUserQuestion`) to run
    `python3 "${CLAUDE_PLUGIN_ROOT}/skills/tdd/scripts/tdd.py" init`.
+   - If init exits nonzero reporting `missing required package(s)`, follow
+     **Dependency bootstrap** below, then re-run init.
 2. After init, show the user the generated `.shepherd/config.yaml` for review —
    **especially `test.command` and `test.paths`**, which feed the Loop 2/3
    enforcement hooks; a wrong boundary undermines the safety model.
 3. Once the config is confirmed, resume the original `run` invocation.
 
 ### 1 — INTERNAL_ERROR (or any other nonzero code)
-Show stderr verbatim to the user. Stop. Do not retry blindly.
+**First, check stderr for a missing-dependency error** — a message containing
+`missing required package(s)` (claude-agent-sdk / pyyaml). If present, follow
+**Dependency bootstrap** below and retry the same invocation; this is the
+common first-run case on a marketplace install, where nothing has installed the
+engine's Python deps yet. For any other error: show stderr verbatim to the
+user, stop, and do not retry blindly.
+
+## Dependency bootstrap
+
+The engine needs `claude-agent-sdk` and `pyyaml` importable by the **same
+`python3`** that runs `tdd.py`. A marketplace install ships the plugin files
+but does NOT install these — so the first `init`/`run` can fail with
+`missing required package(s)`. When you see that, install them **without sudo**
+into that interpreter's per-user site-packages, then retry the failed command:
+
+```bash
+python3 -m pip install --user claude-agent-sdk pyyaml
+```
+
+- Use the bare `python3` here (no venv path) — it is the same interpreter the
+  engine runs under, so a `--user` install lands exactly where it looks.
+- If the install fails or the error persists, the `python3` is likely
+  "externally managed" (PEP 668). Surface that and suggest re-running with
+  `--break-system-packages`, or installing the deps into a venv that is the
+  `python3` on PATH. Do not silently add `--break-system-packages` yourself.
+- `bin/setup.sh` does this same install automatically; it is only needed for the
+  manual (non-marketplace) install path.
 
 ## Run mechanics
 

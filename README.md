@@ -21,8 +21,11 @@ workspace, and records install state in `.shepherd/manifest.json`. **Review
 `.shepherd/config.yaml` afterwards** — especially `test.command` and
 `test.paths`, which feed the enforcement hooks.
 
-Requires: git, Python ≥ 3.10, `claude-agent-sdk` + `pyyaml` importable, and
-the Claude Code CLI authenticated.
+Requires: git, Python ≥ 3.10, and the Claude Code CLI authenticated. The
+runtime deps (`claude-agent-sdk` + `pyyaml`) are installed automatically when
+missing — by `bin/setup.sh` on the manual path, and by the skill on first run
+for a marketplace install — sudo-free, into the ambient `python3`'s per-user
+site-packages.
 
 ## Skills
 

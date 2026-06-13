@@ -82,6 +82,12 @@ full exit-code table (codes 0, 10, 11, 12, 13, 14, 20, 21, 22, 1) and the
 per-code playbook. Branch on `$?` after every invocation and follow the
 playbook exactly. Do not improvise responses to exit codes from memory.
 
+On a fresh (e.g. marketplace) install the first invocation may fail with
+`missing required package(s)` — nothing has installed the engine's Python deps
+yet. The playbook's **Dependency bootstrap** covers this: install
+`claude-agent-sdk` + `pyyaml` without sudo, then retry. Don't surface it as a
+fatal error.
+
 ## Boundaries — never violate these
 
 - **Never fight the PreToolUse hooks.** The script enforces spec/test/
