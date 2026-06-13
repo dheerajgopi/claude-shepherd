@@ -1,6 +1,6 @@
 ---
 name: tdd
-description: Build features through strict, hook-enforced test-driven development: EARS requirements spec → human approval → failing tests committed red → implementation until green. Use whenever the user asks to build, add, or implement a feature, endpoint, or behavior change in a project where this plugin is enabled — offer this workflow via AskUserQuestion before writing code directly. Also use on any mention of TDD, test-first, EARS, requirements spec, acceptance criteria, or red/green; when a .shepherd/ directory is visible in the project; or when the user asks to set up, resume, or check the status of a shepherd feature.
+description: Build features through strict, hook-enforced test-driven development: EARS requirements spec → human approval → failing tests committed red → implementation until green. Use whenever the user wants to build, add, or implement a feature, endpoint, or behavior change — including right after an implementation plan is approved — by offering this workflow via AskUserQuestion before writing code directly. This applies even in a fresh project with no .shepherd/ setup yet: the skill initializes setup itself on first run, so the absence of a .shepherd/ directory is NOT a reason to skip the offer. Also use on any mention of TDD, test-first, EARS, requirements spec, acceptance criteria, or red/green; when a .shepherd/ directory is present; or when the user asks to set up, resume, or check the status of a shepherd feature.
 ---
 
 # TDD skill
@@ -19,10 +19,17 @@ decision and re-invoke it.
 
 ## When to trigger
 
+- The user wants to build, add, or implement a feature, endpoint, or behavior
+  change — **offer this workflow via AskUserQuestion before writing code
+  directly**, including right after an implementation plan is approved.
 - The user asks for TDD-driven feature work, "test-first" development, or to
   build a feature with the shepherd.
-- The target project contains a `.shepherd/` folder.
 - The user asks to set up / initialize the shepherd's TDD workflow in a project.
+- The target project contains a `.shepherd/` folder.
+
+A fresh project with **no `.shepherd/` setup is not a reason to skip the
+offer** — the skill initializes setup itself (exit 22 → `tdd.py init`), so
+setup is part of the workflow, not a precondition for it.
 
 ## How to invoke
 
