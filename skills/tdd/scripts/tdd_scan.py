@@ -39,6 +39,16 @@ _TEST_FILE_PATTERNS = (
 #: JS test frameworks recognized in package.json dependencies.
 _JS_FRAMEWORKS = ("jest", "vitest", "mocha")
 
+#: Repo-root convention docs the engine reads itself and surfaces to the agent.
+#: Inner SDK sessions run with `setting_sources` unset (no CLAUDE.md auto-load,
+#: full isolation — docs/sdk-notes.md §7), so rather than re-enable that bundle
+#: (which would also pull in project settings/hooks and miss AGENTS.md entirely),
+#: the engine reads these deterministically and injects them via the scan.
+_CONVENTION_DOC_FILES = ("CLAUDE.md", "AGENTS.md")
+
+#: Per-doc content cap when surfacing convention docs into the prompt.
+_CONVENTION_DOC_CAP = 8_000
+
 
 @dataclass
 class ConventionScan:
@@ -48,6 +58,7 @@ class ConventionScan:
     test_paths: list[str] = field(default_factory=list)
     framework: Optional[str] = None
     exemplar_test: Optional[str] = None
+    convention_docs: list[tuple[str, str]] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
 
 
@@ -213,6 +224,43 @@ def _find_exemplar(repo_root: Path, test_paths: list[str]) -> Optional[str]:
     return None
 
 
+def read_convention_docs(repo_root: Path) -> list[tuple[str, str]]:
+    """Read repo-root convention docs (CLAUDE.md, AGENTS.md), capped.
+
+    Deterministic order (`_CONVENTION_DOC_FILES`); each present file's content is
+    truncated to `_CONVENTION_DOC_CAP`. Returns `(filename, content)` pairs so a
+    loop can inject authored repo conventions into the agent's prompt — the
+    engine reads them itself because inner sessions are fully isolated.
+    """
+
+    docs: list[tuple[str, str]] = []
+    for name in _CONVENTION_DOC_FILES:
+        path = repo_root / name
+        if path.is_file():
+            content = path.read_text(encoding="utf-8", errors="replace")
+            docs.append((name, content[:_CONVENTION_DOC_CAP]))
+    return docs
+
+
+def format_convention_docs(docs: list[tuple[str, str]]) -> str:
+    """Render convention docs as a prompt section, or "" when there are none.
+
+    These are human-authored repo conventions; the rendered block instructs the
+    agent to honor them above inferred defaults (e.g. test directory layout).
+    """
+
+    if not docs:
+        return ""
+    parts = [
+        "Repo convention docs the maintainers authored. Honor any conventions "
+        "they state (test layout, naming, style) above inferred defaults; they "
+        "do not, however, override the mechanical path-policy hook.",
+    ]
+    for name, content in docs:
+        parts.append(f"### {name}\n\n```\n{content}\n```")
+    return "\n\n".join(parts)
+
+
 def scan_conventions(repo_root: Path) -> ConventionScan:
     """Scan `repo_root` for test conventions; never guess, always note.
 
@@ -256,4 +304,8 @@ def scan_conventions(repo_root: Path) -> ConventionScan:
         scan.notes.append(f"exemplar test file: {scan.exemplar_test}")
     else:
         scan.notes.append("no exemplar test file found under detected paths")
+
+    scan.convention_docs = read_convention_docs(repo_root)
+    for name, content in scan.convention_docs:
+        scan.notes.append(f"convention doc surfaced to agent: {name} ({len(content)} chars)")
     return scan

@@ -135,7 +135,7 @@ The outer command presents the requirements to the human via `AskUserQuestion`. 
 
 Using the `testgen` model, this loop turns approved EARS requirements into executable tests in the codebase's **existing** framework and conventions; it must never introduce a framework or convention not already present.
 
-**Convention detection** runs first as a cheap deterministic pre-scan in Python (test config files, test directory layout, an exemplar test file), injected into the prompt so agent turns aren't spent rediscovering the obvious. When conventions are present, generated tests follow them — framework, exemplar style, directory layout — and never introduce a new framework.
+**Convention detection** runs first as a cheap deterministic pre-scan in Python (test config files, test directory layout, an exemplar test file, and the contents of any authored convention docs — `CLAUDE.md`/`AGENTS.md` — read by the engine itself since inner sessions are fully isolated), injected into the prompt so agent turns aren't spent rediscovering the obvious. When conventions are present, generated tests follow them — framework, exemplar style, directory layout — and never introduce a new framework. Test-file placement follows a fixed precedence: an explicit layout rule in a convention doc, then the exemplar's directory shape, then mirroring the source tree under the test root (never a flat default when the source is nested).
 
 ### Test-framework bootstrap (pre-step, only when none is present)
 

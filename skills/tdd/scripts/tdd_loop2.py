@@ -46,7 +46,7 @@ from tdd_contracts import (
     RunSpec,
     TraceabilityMatrix,
 )
-from tdd_scan import _TEST_FILE_PATTERNS, scan_conventions
+from tdd_scan import _TEST_FILE_PATTERNS, format_convention_docs, scan_conventions
 from tdd_state import FeatureContext, utc_now_iso
 from tdd_trace import (
     bump_revisions,
@@ -233,6 +233,9 @@ def _scan_summary(ctx: FeatureContext) -> str:
                 content[:_EXEMPLAR_CAP],
                 "```",
             ]
+    docs = format_convention_docs(scan.convention_docs)
+    if docs:
+        lines += ["", docs]
     return "\n".join(lines)
 
 

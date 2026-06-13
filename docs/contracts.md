@@ -146,6 +146,9 @@ verifier prompts; Loop 2/3 parse with bounded retry.
 
 - Inner sessions: `permission_mode="bypassPermissions"`, `setting_sources` unset (no CLAUDE.md /
   project settings leak), `cwd` = target repo root, per-loop `model`, `resume=<session_id>` for
-  every iteration after the first.
+  every iteration after the first. Repo convention docs (`CLAUDE.md`/`AGENTS.md`) still reach the
+  agent — the engine reads them deterministically (`tdd_scan.read_convention_docs`) and injects
+  them via the prompt, rather than re-enabling `setting_sources` (which would also load project
+  settings/hooks and miss `AGENTS.md`).
 - Native caps set per session: `max_turns` from `budgets.max_turns_per_loop`; cumulative
   cost/wall-clock tracked in `state.json` by the orchestrator.

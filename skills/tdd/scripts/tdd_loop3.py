@@ -32,6 +32,7 @@ from typing import Any, Optional
 import tdd_git
 import tdd_wsl
 from tdd_agent import build_prompt
+from tdd_scan import format_convention_docs, read_convention_docs
 from tdd_contracts import (
     COMMIT_GREEN,
     COMMIT_RED_AMENDED,
@@ -768,8 +769,11 @@ def _main_cycle(
                     "requirements are read-only contracts. Test command: "
                     f"{ctx.config.test.command}",
                 ),
-                ("Test output", output),
             ]
+            docs = format_convention_docs(read_convention_docs(ctx.repo_root))
+            if docs:
+                sections.append(("Repo conventions", docs))
+            sections.append(("Test output", output))
         else:
             sections = [*(pending_sections or []), ("Test output", output)]
         pending_sections = None

@@ -93,3 +93,47 @@ class TestBareRepo:
 
         assert scan.test_command is None
         assert scan.notes  # a note explaining that detection found nothing
+
+
+class TestConventionDocs:
+    def test_none_present(self, pytest_repo: Path) -> None:
+        scan = scan_conventions(pytest_repo)
+        assert scan.convention_docs == []
+
+    def test_claude_md_surfaced(self, pytest_repo: Path) -> None:
+        (pytest_repo / "CLAUDE.md").write_text(
+            "Put router tests under tests/routers/.\n"
+        )
+        scan = scan_conventions(pytest_repo)
+        names = [name for name, _ in scan.convention_docs]
+        assert names == ["CLAUDE.md"]
+        assert "tests/routers/" in scan.convention_docs[0][1]
+        assert any("CLAUDE.md" in note for note in scan.notes)
+
+    def test_both_docs_in_deterministic_order(self, pytest_repo: Path) -> None:
+        (pytest_repo / "AGENTS.md").write_text("agents guidance\n")
+        (pytest_repo / "CLAUDE.md").write_text("claude guidance\n")
+        scan = scan_conventions(pytest_repo)
+        names = [name for name, _ in scan.convention_docs]
+        assert names == ["CLAUDE.md", "AGENTS.md"]
+
+    def test_content_capped(self, pytest_repo: Path) -> None:
+        from tdd_scan import _CONVENTION_DOC_CAP
+
+        (pytest_repo / "CLAUDE.md").write_text("x" * (_CONVENTION_DOC_CAP + 500))
+        scan = scan_conventions(pytest_repo)
+        assert len(scan.convention_docs[0][1]) == _CONVENTION_DOC_CAP
+
+
+class TestFormatConventionDocs:
+    def test_empty_is_blank(self) -> None:
+        from tdd_scan import format_convention_docs
+
+        assert format_convention_docs([]) == ""
+
+    def test_renders_each_doc(self) -> None:
+        from tdd_scan import format_convention_docs
+
+        out = format_convention_docs([("CLAUDE.md", "layout rule")])
+        assert "### CLAUDE.md" in out
+        assert "layout rule" in out
