@@ -44,10 +44,10 @@ We standardize on hooks; do not mix both for the same policy.
 async def propose_test_change(args: dict) -> dict:
     return {"content": [{"type": "text", "text": "Proposal recorded."}]}
 
-server = create_sdk_mcp_server("tdd", tools=[propose_test_change])
+server = create_sdk_mcp_server("spec_implement", tools=[propose_test_change])
 options = ClaudeAgentOptions(
-    mcp_servers={"tdd": server},
-    allowed_tools=["Write", "mcp__tdd__propose_test_change"],  # name = mcp__<server>__<tool>
+    mcp_servers={"spec_implement": server},
+    allowed_tools=["Write", "mcp__spec_implement__propose_test_change"],  # name = mcp__<server>__<tool>
 )
 ```
 

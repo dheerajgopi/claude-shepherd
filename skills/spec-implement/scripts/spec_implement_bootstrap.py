@@ -19,7 +19,7 @@ project with no recognized language marker has no recipe and is left untouched
 
 The install agent's writes are mechanically scoped (ALLOW_ONLY) to the
 proposal's manifest files; it never writes tests or source and never commits —
-the engine owns the `tdd(<slug>): chore — add <framework>` commit. The approved
+the engine owns the `spec-implement(<slug>): chore — add <framework>` commit. The approved
 proposal is persisted to reports/framework_proposal.json so the install step
 adds exactly what the human saw.
 """
@@ -33,9 +33,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-import tdd_git
-from tdd_agent import build_prompt
-from tdd_contracts import (
+import spec_implement_git
+from spec_implement_agent import build_prompt
+from spec_implement_contracts import (
     COMMIT_BOOTSTRAP,
     DECISION_APPROVE,
     AgentRunner,
@@ -48,7 +48,7 @@ from tdd_contracts import (
     RunSpec,
     WRITE_TOOLS,
 )
-from tdd_state import FeatureContext, save_config, utc_now_iso
+from spec_implement_state import FeatureContext, save_config, utc_now_iso
 
 _REFERENCES_DIR = Path(__file__).resolve().parent.parent / "references"
 BOOTSTRAP_PROMPT_FILE = _REFERENCES_DIR / "bootstrap_prompt.md"
@@ -524,7 +524,7 @@ def _install(ctx: FeatureContext, runner: AgentRunner) -> LoopOutcome:
             detail=result.error or "bootstrap agent failed without an error message",
         )
 
-    if not tdd_git.is_dirty(ctx.repo_root):
+    if not spec_implement_git.is_dirty(ctx.repo_root):
         return LoopOutcome(
             status=LoopStatus.FAILED,
             exit_code=ExitCode.INTERNAL_ERROR,
@@ -534,7 +534,7 @@ def _install(ctx: FeatureContext, runner: AgentRunner) -> LoopOutcome:
             ),
         )
 
-    tdd_git.commit_paths(
+    spec_implement_git.commit_paths(
         ctx.repo_root,
         COMMIT_BOOTSTRAP.format(slug=ctx.slug, framework=proposal.framework),
         _commit_paths(ctx, proposal, result),

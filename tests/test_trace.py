@@ -1,4 +1,4 @@
-"""Tests for tdd_trace — traceability matrix parse/validate/bump/report (§9-§10)."""
+"""Tests for spec_implement_trace — traceability matrix parse/validate/bump/report (§9-§10)."""
 
 from __future__ import annotations
 
@@ -8,9 +8,9 @@ from pathlib import Path
 
 import pytest
 
-tdd_trace = pytest.importorskip("tdd_trace")  # parallel track (T1-CORE)
+spec_implement_trace = pytest.importorskip("spec_implement_trace")  # parallel track (T1-CORE)
 
-from tdd_contracts import (  # noqa: E402
+from spec_implement_contracts import (  # noqa: E402
     COVERAGE_COVERED,
     COVERAGE_MISSING,
     COVERAGE_PARTIAL,
@@ -18,7 +18,7 @@ from tdd_contracts import (  # noqa: E402
     TraceabilityMatrix,
     asdict_state,
 )
-from tdd_trace import (  # noqa: E402
+from spec_implement_trace import (  # noqa: E402
     bump_revisions,
     gap_report,
     load_matrix,
@@ -214,12 +214,12 @@ class TestGapReport:
 class TestLoadSaveMatrix:
     def test_load_returns_none_when_absent(self, tmp_path: Path) -> None:
         feature_dir = tmp_path / "user-auth"
-        (feature_dir / ".tdd").mkdir(parents=True)
+        (feature_dir / ".spec-implement").mkdir(parents=True)
         assert load_matrix(feature_dir) is None
 
     def test_round_trip(self, tmp_path: Path) -> None:
         feature_dir = tmp_path / "user-auth"
-        (feature_dir / ".tdd").mkdir(parents=True)
+        (feature_dir / ".spec-implement").mkdir(parents=True)
         m = _matrix(
             _scn("auth:a", COVERAGE_COVERED, ["tests/t.py::test_a"], revision=2)
         )
@@ -230,4 +230,4 @@ class TestLoadSaveMatrix:
         assert loaded is not None
         assert asdict_state(loaded) == asdict_state(m)
         # Committed audit artifact lives at the pinned location (§5).
-        assert (feature_dir / ".tdd" / "traceability.json").exists()
+        assert (feature_dir / ".spec-implement" / "traceability.json").exists()

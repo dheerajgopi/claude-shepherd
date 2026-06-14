@@ -8,7 +8,7 @@
     {
       "name": "shepherd",
       "source": "./",
-      "description": "Engineering workflow skills and commands for Claude Code, with mechanical guardrails enforced by hooks. Currently ships the strict TDD skill.",
+      "description": "Engineering workflow skills and commands for Claude Code, with mechanical guardrails enforced by hooks. Currently ships the strict spec-implement skill.",
       "author": {
         "name": "Dheeraj Gopinath",
         "email": "dheerajgopinath@gmail.com"

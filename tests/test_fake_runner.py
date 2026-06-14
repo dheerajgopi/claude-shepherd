@@ -1,7 +1,7 @@
-"""Tests for tdd_fake_runner.FakeAgentRunner (owned by this track).
+"""Tests for spec_implement_fake_runner.FakeAgentRunner (owned by this track).
 
-Only the path-policy test needs the sibling tdd_hooks module; everything else
-runs against tdd_contracts + the fake alone.
+Only the path-policy test needs the sibling spec_implement_hooks module; everything else
+runs against spec_implement_contracts + the fake alone.
 """
 
 from __future__ import annotations
@@ -11,8 +11,8 @@ from pathlib import Path
 
 import pytest
 
-from tdd_contracts import PathPolicyMode, RunSpec
-from tdd_fake_runner import FakeAgentRunner
+from spec_implement_contracts import PathPolicyMode, RunSpec
+from spec_implement_fake_runner import FakeAgentRunner
 
 
 def _spec(**overrides) -> RunSpec:
@@ -125,7 +125,7 @@ class TestFileSideEffects:
         assert event.tool_input["file_path"] == str(repo / "notes" / "a.txt")
 
     def test_policy_gates_file_writes(self, tmp_path: Path) -> None:
-        pytest.importorskip("tdd_hooks")  # real policy engine, parallel track
+        pytest.importorskip("spec_implement_hooks")  # real policy engine, parallel track
 
         repo = tmp_path / "repo"
         (repo / "tests").mkdir(parents=True)
@@ -159,7 +159,7 @@ class TestFileSideEffects:
 
     def test_tool_calls_appended_verbatim(self, tmp_path: Path) -> None:
         call = {
-            "tool_name": "mcp__tdd__propose_test_change",
+            "tool_name": "mcp__spec_implement__propose_test_change",
             "tool_input": {
                 "test_file": "tests/test_auth.py",
                 "related_requirement": "auth:Login",
@@ -174,7 +174,7 @@ class TestFileSideEffects:
 
         assert len(result.tool_events) == 1
         event = result.tool_events[0]
-        assert event.tool_name == "mcp__tdd__propose_test_change"
+        assert event.tool_name == "mcp__spec_implement__propose_test_change"
         assert event.tool_input == call["tool_input"]
         assert event.denied is False
 

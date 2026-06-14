@@ -1,13 +1,13 @@
 """FakeAgentRunner — scripted test double for the AgentRunner protocol.
 
 Owned by the test track (T2-TESTS). Production code never imports this except
-through `tdd_agent.get_runner` when the TDD_RUNNER env var selects
+through `spec_implement_agent.get_runner` when the SPEC_IMPLEMENT_RUNNER env var selects
 "fake:<script.json>" (subprocess-level tests).
 
-Stdlib only. Imports tdd_contracts always, and tdd_hooks lazily — the REAL
+Stdlib only. Imports spec_implement_contracts always, and spec_implement_hooks lazily — the REAL
 path-policy decision function gates scripted file side-effects, so the fake
 exercises the same mechanical boundary as production. Runs without a path
-policy never touch tdd_hooks at all.
+policy never touch spec_implement_hooks at all.
 
 Script file format (JSON)::
 
@@ -23,7 +23,7 @@ Script file format (JSON)::
             {"path": "tests/test_x.py", "content": "..."}   // path repo-relative
           ],
           "tool_calls": [                            // appended verbatim as ToolEvents
-            {"tool_name": "mcp__tdd__propose_test_change", "tool_input": {...}}
+            {"tool_name": "mcp__spec_implement__propose_test_change", "tool_input": {...}}
           ]
         }
       ]
@@ -42,11 +42,11 @@ import json
 from pathlib import Path
 from typing import Any
 
-from tdd_contracts import RunResult, RunSpec, ToolEvent
+from spec_implement_contracts import RunResult, RunSpec, ToolEvent
 
 
 class FakeAgentRunner:
-    """Scripted implementation of the AgentRunner protocol (tdd_contracts)."""
+    """Scripted implementation of the AgentRunner protocol (spec_implement_contracts)."""
 
     def __init__(
         self,
@@ -135,7 +135,7 @@ class FakeAgentRunner:
         policy = None
         if spec.path_policy_mode is not None:
             # Lazy import: only policy-bearing specs need the sibling module.
-            from tdd_hooks import PathPolicy
+            from spec_implement_hooks import PathPolicy
 
             policy = PathPolicy(
                 mode=spec.path_policy_mode,
@@ -151,7 +151,7 @@ class FakeAgentRunner:
             if policy is None:
                 allowed, reason = True, ""
             else:
-                from tdd_hooks import is_path_allowed
+                from spec_implement_hooks import is_path_allowed
 
                 allowed, reason = is_path_allowed("Write", tool_input, policy)
 

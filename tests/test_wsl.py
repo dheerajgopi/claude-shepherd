@@ -1,4 +1,4 @@
-"""Pure-function tests for tdd_wsl — the Windows-host → WSL routing decision.
+"""Pure-function tests for spec_implement_wsl — the Windows-host → WSL routing decision.
 
 The behaviour is Windows-only in production, but every function is platform
 parameterised, so the win32 paths are exercised from any host.
@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import pytest
 
-tdd_wsl = pytest.importorskip("tdd_wsl")
+spec_implement_wsl = pytest.importorskip("spec_implement_wsl")
 
-from tdd_wsl import exec_argv, shell_argv, to_unc, wsl_target  # noqa: E402
+from spec_implement_wsl import exec_argv, shell_argv, to_unc, wsl_target  # noqa: E402
 
 UNC = r"\\wsl.localhost\Ubuntu\home\dev\users-api"
 UNC_LEGACY = r"\\wsl$\Debian\srv\app"

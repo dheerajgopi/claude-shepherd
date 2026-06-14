@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
-from tdd_contracts import (
+from spec_implement_contracts import (
     PathPolicyMode,
     ToolEvent,
     WRITE_TOOLS,
@@ -106,7 +106,7 @@ def make_pretooluse_hook(
     `(input_data, tool_use_id, context)` and returns the verified deny shape
     (docs/sdk-notes.md §2) on deny, `{}` (no opinion) on allow.
 
-    If `events` is provided, a tdd_contracts.ToolEvent is appended for every
+    If `events` is provided, a spec_implement_contracts.ToolEvent is appended for every
     WRITE_TOOLS invocation observed, with denied/deny_reason set accordingly.
     """
 

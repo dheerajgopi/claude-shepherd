@@ -1,4 +1,4 @@
-"""Tests for tdd_state.resolve_feature — active-feature resolution (§7)."""
+"""Tests for spec_implement_state.resolve_feature — active-feature resolution (§7)."""
 
 from __future__ import annotations
 
@@ -7,10 +7,10 @@ from pathlib import Path
 
 import pytest
 
-tdd_state = pytest.importorskip("tdd_state")  # parallel track (T1-CORE)
+spec_implement_state = pytest.importorskip("spec_implement_state")  # parallel track (T1-CORE)
 
-from tdd_contracts import ExitCode  # noqa: E402
-from tdd_state import ShepherdError, resolve_feature  # noqa: E402
+from spec_implement_contracts import ExitCode  # noqa: E402
+from spec_implement_state import ShepherdError, resolve_feature  # noqa: E402
 
 from conftest import scaffold_feature  # noqa: E402
 
@@ -31,7 +31,7 @@ class TestExplicitArgument:
         # select user-auth (force bypasses the resulting branch mismatch).
         scaffold_feature(feature.repo, "other-feat", checkout=True)
         assert _git(feature.repo, "rev-parse", "--abbrev-ref", "HEAD").strip() == (
-            "tdd/other-feat"
+            "spec-implement/other-feat"
         )
 
         ctx = resolve_feature(feature.repo, "user-auth", True)
@@ -45,7 +45,7 @@ class TestExplicitArgument:
 
 
 class TestBranchConvention:
-    def test_tdd_branch_with_folder_resolves(self, feature) -> None:
+    def test_spec_implement_branch_with_folder_resolves(self, feature) -> None:
         ctx = resolve_feature(feature.repo, None, False)
         assert ctx.slug == "user-auth"
 
@@ -54,9 +54,9 @@ class TestBranchConvention:
         assert Path(ctx.repo_root).resolve() == feature.repo.resolve()
         assert Path(ctx.feature_dir).resolve() == feature.feature_dir.resolve()
         assert Path(ctx.requirements_dir).resolve() == feature.requirements_dir.resolve()
-        assert Path(ctx.tdd_dir).resolve() == feature.tdd_dir.resolve()
+        assert Path(ctx.spec_implement_dir).resolve() == feature.spec_implement_dir.resolve()
         assert ctx.state.slug == "user-auth"
-        assert ctx.state.branch == "tdd/user-auth"
+        assert ctx.state.branch == "spec-implement/user-auth"
         assert ctx.config.test.paths == ["tests"]
         assert ctx.store is not None
         assert ctx.reports_dir is not None

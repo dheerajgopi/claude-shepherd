@@ -5,7 +5,7 @@ models:
   verifier: claude-haiku-4-5      # coverage matrix + escalation triage
   implement: claude-sonnet-4-6
 test:
-  # filled by tdd.py init convention scan — REVIEW before first run
+  # filled by spec_implement.py init convention scan — REVIEW before first run
   command: ""
   paths: []
   syntax_check: false

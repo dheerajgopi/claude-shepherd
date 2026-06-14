@@ -13,8 +13,8 @@ approved test-change proposal; it resumes the Loop 1 session, amends only the
 affected requirements, and returns their requirement ids. Phase transitions
 around amendment are owned by Loop 3 — this function never transitions.
 
-All shared vocabulary comes from tdd_contracts; state mutations go through
-ctx.store; prompt assembly through tdd_agent.build_prompt with sections
+All shared vocabulary comes from spec_implement_contracts; state mutations go through
+ctx.store; prompt assembly through spec_implement_agent.build_prompt with sections
 ordered stable → volatile (§12).
 """
 
@@ -24,8 +24,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from tdd_agent import build_prompt
-from tdd_contracts import (
+from spec_implement_agent import build_prompt
+from spec_implement_contracts import (
     DECISION_APPROVE,
     DESIGN_FILE_GLOB,
     SPEC_FILE_GLOB,
@@ -39,7 +39,7 @@ from tdd_contracts import (
     RunResult,
     RunSpec,
 )
-from tdd_state import FeatureContext, ShepherdError, utc_now_iso
+from spec_implement_state import FeatureContext, ShepherdError, utc_now_iso
 
 #: Loop 1 tool surface (§8): read-only exploration + Write scoped by policy.
 LOOP1_ALLOWED_TOOLS = ["Read", "Glob", "Grep", "Write"]

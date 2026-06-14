@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""TDD shepherd CLI — the phased orchestrator entry point (§6, §13).
+"""spec-implement shepherd CLI — the phased orchestrator entry point (§6, §13).
 
 Subcommands per the pinned grammar in docs/contracts.md:
 
-    tdd.py init [--force]
-    tdd.py new <title...> [--task-stdin]
-    tdd.py run [--feature SLUG] [--force] [--decision approve|reject] [--feedback TEXT]
+    spec_implement.py init [--force]
+    spec_implement.py new <title...> [--task-stdin]
+    spec_implement.py run [--feature SLUG] [--force] [--decision approve|reject] [--feedback TEXT]
                [--verbose | --no-verbose]
-    tdd.py status [--json]
+    spec_implement.py status [--json]
 
 All informational output goes to stdout, errors to stderr; the exit code is
-the protocol (tdd_contracts.ExitCode). Sibling modules are importable because
+the protocol (spec_implement_contracts.ExitCode). Sibling modules are importable because
 this file's directory lands on sys.path when it is executed as a script.
 """
 
@@ -26,8 +26,8 @@ import traceback
 from pathlib import Path
 from typing import Optional
 
-import tdd_git
-from tdd_contracts import (
+import spec_implement_git
+from spec_implement_contracts import (
     BRANCH_PREFIX,
     CONFIG_FILE,
     DECISION_APPROVE,
@@ -47,8 +47,8 @@ from tdd_contracts import (
     Phase,
     RESUMABLE_PHASES,
 )
-from tdd_scan import ConventionScan, scan_conventions
-from tdd_state import (
+from spec_implement_scan import ConventionScan, scan_conventions
+from spec_implement_state import (
     FeatureContext,
     ShepherdError,
     StateStore,
@@ -65,7 +65,7 @@ _REQUIRED_PACKAGES = ("claude_agent_sdk", "yaml")
 def _require_repo_root(cwd: Path, missing_code: ExitCode) -> Path:
     """Resolve the git repo root containing `cwd` or fail with `missing_code`."""
 
-    root = tdd_git.repo_root(cwd)
+    root = spec_implement_git.repo_root(cwd)
     if root is None:
         raise ShepherdError(
             missing_code, f"{cwd} is not inside a git repository"
@@ -76,7 +76,7 @@ def _require_repo_root(cwd: Path, missing_code: ExitCode) -> Path:
 def _refuse_dirty_tree(repo_root: Path) -> None:
     """Refuse to operate on a dirty tree (§16; untracked .shepherd excepted)."""
 
-    if tdd_git.is_dirty(repo_root, excepted_paths=(".gitignore",)):
+    if spec_implement_git.is_dirty(repo_root, excepted_paths=(".gitignore",)):
         raise ShepherdError(
             ExitCode.INTERNAL_ERROR,
             "working tree is dirty; commit or stash your changes first "
@@ -117,10 +117,10 @@ def _append_gitignore_entries(repo_root: Path) -> None:
 
 
 def cmd_init(force: bool) -> int:
-    """`tdd.py init [--force]` — bootstrap .shepherd, explicit and idempotent (§6)."""
+    """`spec_implement.py init [--force]` — bootstrap .shepherd, explicit and idempotent (§6)."""
 
     cwd = Path.cwd().resolve()
-    root = tdd_git.repo_root(cwd)
+    root = spec_implement_git.repo_root(cwd)
     if root is None or root != cwd:
         raise ShepherdError(
             ExitCode.INTERNAL_ERROR,
@@ -150,7 +150,7 @@ def cmd_init(force: bool) -> int:
     _append_gitignore_entries(root)
 
     print("")
-    print("Detected test conventions — REVIEW THIS before running `tdd.py run`;")
+    print("Detected test conventions — REVIEW THIS before running `spec_implement.py run`;")
     print(f"detection is a best guess, and {CONFIG_FILE} test.command / test.paths")
     print("feed the Loop 2/3 enforcement hooks:")
     print(f"  test command: {scan.test_command or '(none detected)'}")
@@ -208,7 +208,7 @@ def _read_task_file(path: str, root: Path) -> str:
 
 
 def cmd_new(title: str, task_stdin: bool = False, task_file: Optional[str] = None) -> int:
-    """`tdd.py new <title...>` — scaffold a feature folder + tdd/<slug> branch (§6).
+    """`spec_implement.py new <title...>` — scaffold a feature folder + spec-implement/<slug> branch (§6).
 
     The slug and branch always derive from the title. task.md — the Loop 1
     agent's only source of requirements — holds the full task statement, taken
@@ -240,14 +240,14 @@ def cmd_new(title: str, task_stdin: bool = False, task_file: Optional[str] = Non
             ExitCode.INTERNAL_ERROR,
             f"feature {slug!r} already exists; choose a different title",
         )
-    if tdd_git.branch_exists(root, branch):
+    if spec_implement_git.branch_exists(root, branch):
         raise ShepherdError(
             ExitCode.INTERNAL_ERROR,
             f"branch {branch!r} already exists; choose a different title",
         )
 
-    base_commit = tdd_git.head_sha(root)
-    tdd_git.create_branch(root, branch)
+    base_commit = spec_implement_git.head_sha(root)
+    spec_implement_git.create_branch(root, branch)
     (feature_dir / DESIGN_DIR).mkdir(parents=True)
     (feature_dir / REQUIREMENTS_DIR).mkdir(parents=True)
     (feature_dir / REPORTS_DIR).mkdir(parents=True)
@@ -271,10 +271,10 @@ def cmd_new(title: str, task_stdin: bool = False, task_file: Optional[str] = Non
 
 
 def _import_loop(loop_number: int):
-    """Import tdd_loop<N> lazily; exit INTERNAL_ERROR if it does not exist yet."""
+    """Import spec_implement_loop<N> lazily; exit INTERNAL_ERROR if it does not exist yet."""
 
     try:
-        return importlib.import_module(f"tdd_loop{loop_number}")
+        return importlib.import_module(f"spec_implement_loop{loop_number}")
     except ImportError:
         print(f"loop {loop_number} not yet implemented", file=sys.stderr)
         sys.exit(int(ExitCode.INTERNAL_ERROR))
@@ -284,9 +284,9 @@ def _get_runner(ctx: FeatureContext, verbose: bool):
     """Obtain the AgentRunner lazily so the SDK is only touched by `run`."""
 
     try:
-        from tdd_agent import get_runner
+        from spec_implement_agent import get_runner
     except ImportError:
-        print("agent runner unavailable (tdd_agent not yet implemented)", file=sys.stderr)
+        print("agent runner unavailable (spec_implement_agent not yet implemented)", file=sys.stderr)
         sys.exit(int(ExitCode.INTERNAL_ERROR))
     return get_runner(ctx.repo_root, verbose=verbose)
 
@@ -298,14 +298,14 @@ def cmd_run(
     feedback: Optional[str],
     verbose: bool = True,
 ) -> int:
-    """`tdd.py run` — dispatch the three-loop state machine on the active feature."""
+    """`spec_implement.py run` — dispatch the three-loop state machine on the active feature."""
 
     cwd = Path.cwd()
     root = _require_repo_root(cwd, ExitCode.SHEPHERD_NOT_INITIALIZED)
     if not (root / SHEPHERD_DIR).is_dir():
         raise ShepherdError(
             ExitCode.SHEPHERD_NOT_INITIALIZED,
-            f"no {SHEPHERD_DIR} folder found at {root}; run `tdd.py init` first",
+            f"no {SHEPHERD_DIR} folder found at {root}; run `spec_implement.py init` first",
         )
     ctx = resolve_feature(root, feature, force)
     _refuse_dirty_tree(root)
@@ -320,7 +320,7 @@ def cmd_run(
             f"feature {ctx.slug!r} is in a terminal FAILED state; see its history",
         )
 
-    import tdd_bootstrap
+    import spec_implement_bootstrap
 
     runner = None
     while True:
@@ -335,10 +335,10 @@ def cmd_run(
         # test is written. Intercepts REQUIREMENTS_APPROVED and owns its own
         # phases; on ADVANCE the phase lands at GENERATING_TESTS and the next
         # turn dispatches Loop 2.
-        if phase in tdd_bootstrap.BOOTSTRAP_PHASES or (
-            phase is Phase.REQUIREMENTS_APPROVED and tdd_bootstrap.should_bootstrap(ctx)
+        if phase in spec_implement_bootstrap.BOOTSTRAP_PHASES or (
+            phase is Phase.REQUIREMENTS_APPROVED and spec_implement_bootstrap.should_bootstrap(ctx)
         ):
-            outcome = tdd_bootstrap.run_bootstrap(ctx, runner, decision, feedback)
+            outcome = spec_implement_bootstrap.run_bootstrap(ctx, runner, decision, feedback)
             decision = feedback = None
             if outcome.status is LoopStatus.ADVANCE:
                 if outcome.detail:
@@ -421,21 +421,21 @@ def _status_rows(root: Path) -> list[dict[str, Optional[str]]]:
 
 
 def cmd_status(as_json: bool) -> int:
-    """`tdd.py status [--json]` — phases of all features; no branch requirements."""
+    """`spec_implement.py status [--json]` — phases of all features; no branch requirements."""
 
     cwd = Path.cwd()
     root = _require_repo_root(cwd, ExitCode.SHEPHERD_NOT_INITIALIZED)
     if not (root / SHEPHERD_DIR).is_dir():
         raise ShepherdError(
             ExitCode.SHEPHERD_NOT_INITIALIZED,
-            f"no {SHEPHERD_DIR} folder found at {root}; run `tdd.py init` first",
+            f"no {SHEPHERD_DIR} folder found at {root}; run `spec_implement.py init` first",
         )
     rows = _status_rows(root)
     if as_json:
         print(json.dumps(rows, indent=2))
         return int(ExitCode.DONE)
     if not rows:
-        print("no features yet — create one with `tdd.py new <title>`")
+        print("no features yet — create one with `spec_implement.py new <title>`")
         return int(ExitCode.DONE)
     for row in rows:
         updated = row["last_updated"] or "-"
@@ -450,7 +450,7 @@ def _build_parser() -> argparse.ArgumentParser:
     """The argparse tree, exactly per the pinned CLI grammar (docs/contracts.md)."""
 
     parser = argparse.ArgumentParser(
-        prog="tdd.py", description="TDD shepherd — phased three-loop orchestrator"
+        prog="spec_implement.py", description="spec-implement shepherd — phased three-loop orchestrator"
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -459,7 +459,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--force", action="store_true", help="overwrite an existing config.yaml"
     )
 
-    p_new = sub.add_parser("new", help="scaffold a feature folder + tdd/<slug> branch")
+    p_new = sub.add_parser("new", help="scaffold a feature folder + spec-implement/<slug> branch")
     p_new.add_argument(
         "title", nargs="+", help="feature title (names the slug and branch)"
     )

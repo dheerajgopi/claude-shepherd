@@ -1,7 +1,7 @@
-# TDD run playbook — exit-code protocol
+# spec-implement run playbook — exit-code protocol
 
-Read this in full before any `tdd.py run` invocation. `tdd.py` is a headless,
-resumable TDD state machine: it exits with a distinct code whenever human
+Read this in full before any `spec_implement.py run` invocation. `spec_implement.py` is a headless,
+resumable spec-implement state machine: it exits with a distinct code whenever human
 input is needed; you interpret the code, gather the human's decision with
 `AskUserQuestion`, and re-invoke. The exit code is the protocol — branch on
 `$?` after every invocation.
@@ -12,7 +12,7 @@ Run via Bash **from the target project root**, with a long timeout
 (600000 ms — loops are long-running agent sessions):
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/tdd/scripts/tdd.py" run [--feature <slug>] [--decision approve|reject] [--feedback "<text>"] [--force]
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/spec-implement/scripts/spec_implement.py" run [--feature <slug>] [--decision approve|reject] [--feedback "<text>"] [--force]
 echo "exit: $?"
 ```
 
@@ -25,7 +25,7 @@ re-invocation.
 |------|------|----------------------|
 | 0 | DONE | Report success |
 | 10 | AWAITING_APPROVAL | AskUserQuestion: approve or give corrections |
-| 11 | COVERAGE_GAP | Surface gap report (`.tdd/reports/`) to human |
+| 11 | COVERAGE_GAP | Surface gap report (`.spec-implement/reports/`) to human |
 | 12 | ESCALATED | AskUserQuestion: approve (→ Loop 1 amend) or reject |
 | 13 | BUDGET_EXCEEDED | Surface status report |
 | 14 | NEEDS_INPUT | AskUserQuestion: answer the implementer's question, re-invoke with `--feedback` |
@@ -33,7 +33,7 @@ re-invocation.
 | 16 | AWAITING_FRAMEWORK_APPROVAL | AskUserQuestion: approve adding the proposed test framework or give corrections |
 | 20 | NO_FEATURE_RESOLVED | Present feature list, re-invoke with `--feature` |
 | 21 | BRANCH_MISMATCH | Warn human; re-invoke with `--force` only if intended |
-| 22 | SHEPHERD_NOT_INITIALIZED | Offer `tdd.py init`, then review generated config |
+| 22 | SHEPHERD_NOT_INITIALIZED | Offer `spec_implement.py init`, then review generated config |
 | 1 | INTERNAL_ERROR | Unexpected failure; surface stderr verbatim |
 
 ## Per-code playbook
@@ -60,13 +60,13 @@ Only reached when the project has **no test framework** — tests cannot be
 generated or run until one is added. This checkpoint sits between requirements
 approval and test generation.
 1. Read the proposal `framework_proposal.md` from
-   `.shepherd/features/<slug>/.tdd/reports/` — it names the framework, the
+   `.shepherd/features/<slug>/.spec-implement/reports/` — it names the framework, the
    manifest file(s) to edit, the install command, and the resulting test
    command and test directory.
 2. Present it via `AskUserQuestion` with options: **Approve** / **Give corrections**.
 3. On approve: re-invoke `run --feature <slug> --decision approve`. The script
    runs an install agent (scoped to the manifest), commits
-   `tdd(<slug>): chore — add <framework>`, records the test command/paths in
+   `spec-implement(<slug>): chore — add <framework>`, records the test command/paths in
    config, and continues into test generation.
 4. On corrections: collect the user's feedback (e.g. a different framework),
    then re-invoke `run --feature <slug> --feedback "<text>"`. This re-proposes
@@ -83,11 +83,11 @@ approval and test generation.
    approval.
 
 ### 11 — COVERAGE_GAP
-Read the gap report from `.shepherd/features/<slug>/.tdd/reports/` and surface
+Read the gap report from `.shepherd/features/<slug>/.spec-implement/reports/` and surface
 its content to the user. Stop — this needs human judgment, not a retry.
 
 ### 12 — ESCALATED (significant test change proposed)
-1. Read the proposal report from `.shepherd/features/<slug>/.tdd/reports/`.
+1. Read the proposal report from `.shepherd/features/<slug>/.spec-implement/reports/`.
 2. Present it via `AskUserQuestion` with options: **Approve** / **Reject**.
 3. On approve: re-invoke `run --feature <slug> --decision approve`
    (the script amends the affected requirements via Loop 1 and re-syncs tests).
@@ -96,11 +96,11 @@ its content to the user. Stop — this needs human judgment, not a retry.
 
 ### 13 — BUDGET_EXCEEDED
 Surface the status report (stdout and any report file under
-`.shepherd/features/<slug>/.tdd/reports/`) to the user. Stop.
+`.shepherd/features/<slug>/.spec-implement/reports/`) to the user. Stop.
 
 ### 14 — NEEDS_INPUT (implementer is blocked, asked a question)
 1. Read the latest blocker report `blocker_<n>.md` from
-   `.shepherd/features/<slug>/.tdd/reports/`.
+   `.shepherd/features/<slug>/.spec-implement/reports/`.
 2. Present its **Question** (and **Suggested options** as choices, if present)
    to the user via `AskUserQuestion`. The user may always answer freely.
 3. Collect the answer, then re-invoke
@@ -108,7 +108,7 @@ Surface the status report (stdout and any report file under
    implementer session with the answer in hand and continues toward green.
 
 ### 20 — NO_FEATURE_RESOLVED
-1. Run `python3 "${CLAUDE_PLUGIN_ROOT}/skills/tdd/scripts/tdd.py" status`.
+1. Run `python3 "${CLAUDE_PLUGIN_ROOT}/skills/spec-implement/scripts/spec_implement.py" status`.
 2. Present the features and their phases via `AskUserQuestion`.
 3. Re-invoke `run --feature <slug>` with the chosen slug.
 
@@ -116,11 +116,11 @@ Surface the status report (stdout and any report file under
 Warn the user that the current branch differs from the one recorded in the
 feature's state. Only re-invoke with `--force` if the user explicitly confirms
 they intend to proceed on this branch. Otherwise stop (or help them switch to
-the recorded `tdd/<slug>` branch).
+the recorded `spec-implement/<slug>` branch).
 
 ### 22 — SHEPHERD_NOT_INITIALIZED
 1. Offer (via `AskUserQuestion`) to run
-   `python3 "${CLAUDE_PLUGIN_ROOT}/skills/tdd/scripts/tdd.py" init`.
+   `python3 "${CLAUDE_PLUGIN_ROOT}/skills/spec-implement/scripts/spec_implement.py" init`.
    - If init exits nonzero reporting `missing required package(s)`, follow
      **Dependency bootstrap** below, then re-run init.
 2. After init, show the user the generated `.shepherd/config.yaml` for review —
@@ -141,7 +141,7 @@ user, stop, and do not retry blindly.
 ## Dependency bootstrap
 
 The engine needs `claude-agent-sdk` and `pyyaml` importable by the **same
-`python3`** that runs `tdd.py`. A marketplace install ships the plugin files
+`python3`** that runs `spec_implement.py`. A marketplace install ships the plugin files
 but does NOT install these — so the first `init`/`run` can fail with
 `missing required package(s)`. When you see that, install them **without sudo**
 into that interpreter's per-user site-packages, then retry the failed command:
@@ -162,5 +162,5 @@ python3 -m pip install --user claude-agent-sdk pyyaml
 - Thread `--feature <slug>` through every re-invocation once known.
 - Always use long Bash timeouts (600000 ms) for `run`.
 - `--force` is for exit 21 only.
-- The hard boundaries (hooks, `tdd(...)` commits, `.tdd/` files) are in
+- The hard boundaries (hooks, `spec-implement(...)` commits, `.spec-implement/` files) are in
   SKILL.md's **Boundaries** section — they apply to every step here.

@@ -1,10 +1,10 @@
-"""Contract pinning tests for tdd_contracts (depends only on the contracts module)."""
+"""Contract pinning tests for spec_implement_contracts (depends only on the contracts module)."""
 
 from __future__ import annotations
 
 import pytest
 
-from tdd_contracts import (
+from spec_implement_contracts import (
     COMMIT_BOOTSTRAP,
     COMMIT_GREEN,
     COMMIT_RED,
@@ -195,22 +195,22 @@ class TestCommitFormats:
 
     def test_red(self) -> None:
         assert COMMIT_RED.format(slug="user-auth") == (
-            "tdd(user-auth): red — failing tests"
+            "spec-implement(user-auth): red — failing tests"
         )
 
     def test_red_amended(self) -> None:
         assert COMMIT_RED_AMENDED.format(slug="user-auth", n=2) == (
-            "tdd(user-auth): red(2) — amended requirements"
+            "spec-implement(user-auth): red(2) — amended requirements"
         )
 
     def test_green(self) -> None:
         assert COMMIT_GREEN.format(slug="user-auth") == (
-            "tdd(user-auth): green — implementation"
+            "spec-implement(user-auth): green — implementation"
         )
 
     def test_bootstrap(self) -> None:
         assert COMMIT_BOOTSTRAP.format(slug="user-auth", framework="pytest") == (
-            "tdd(user-auth): chore — add pytest"
+            "spec-implement(user-auth): chore — add pytest"
         )
 
 

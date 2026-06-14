@@ -1,10 +1,10 @@
-# TDD skill contracts — the shared vocabulary
+# spec-implement skill contracts — the shared vocabulary
 
-Contracts for the shepherd plugin's TDD skill (other skills will pin their own).
-Source of truth: `skills/tdd/scripts/tdd_contracts.py` (stdlib-only, import it — never re-derive).
+Contracts for the shepherd plugin's spec-implement skill (other skills will pin their own).
+Source of truth: `skills/spec-implement/scripts/spec_implement_contracts.py` (stdlib-only, import it — never re-derive).
 This doc is the prose companion for artifacts that can't import Python (SKILL.md, the playbook
-in `skills/tdd/references/playbook.md`, prompts). Requirement references (§n):
-`docs/tdd-skill-requirements.md`.
+in `skills/spec-implement/references/playbook.md`, prompts). Requirement references (§n):
+`docs/spec-implement-skill-requirements.md`.
 
 ## Exit codes (§13)
 
@@ -12,7 +12,7 @@ in `skills/tdd/references/playbook.md`, prompts). Requirement references (§n):
 |------|------|------------------------|
 | 0 | DONE | Report success |
 | 10 | AWAITING_APPROVAL | AskUserQuestion: approve or give corrections |
-| 11 | COVERAGE_GAP | Surface gap report (`.tdd/reports/`) to human |
+| 11 | COVERAGE_GAP | Surface gap report (`.spec-implement/reports/`) to human |
 | 12 | ESCALATED | AskUserQuestion: approve (→ Loop 1 amend) or reject |
 | 13 | BUDGET_EXCEEDED | Surface status report |
 | 14 | NEEDS_INPUT | AskUserQuestion: answer the implementer's question, re-invoke with `--feedback` |
@@ -20,17 +20,17 @@ in `skills/tdd/references/playbook.md`, prompts). Requirement references (§n):
 | 16 | AWAITING_FRAMEWORK_APPROVAL | AskUserQuestion: approve adding the proposed test framework or give corrections |
 | 20 | NO_FEATURE_RESOLVED | Present feature list, re-invoke with `--feature` |
 | 21 | BRANCH_MISMATCH | Warn human; re-invoke with `--force` only if intended |
-| 22 | SHEPHERD_NOT_INITIALIZED | Offer `tdd.py init`, then review generated config |
+| 22 | SHEPHERD_NOT_INITIALIZED | Offer `spec_implement.py init`, then review generated config |
 | 1 | INTERNAL_ERROR | Unexpected failure; surface stderr verbatim |
 
 ## CLI grammar (§6) — pinned
 
 ```
-tdd.py init [--force]
-tdd.py new <title...> [--task-stdin | --task-file PATH]
-tdd.py run [--feature SLUG] [--force] [--decision approve|reject] [--feedback TEXT]
+spec_implement.py init [--force]
+spec_implement.py new <title...> [--task-stdin | --task-file PATH]
+spec_implement.py run [--feature SLUG] [--force] [--decision approve|reject] [--feedback TEXT]
            [--verbose | --no-verbose]
-tdd.py status [--json]
+spec_implement.py status [--json]
 ```
 
 - `--task-stdin` on `new` reads the **full task statement** for `task.md`
@@ -57,7 +57,7 @@ tdd.py status [--json]
   `--no-verbose` silences it. Display-only — it never changes stdout, the exit
   code, or token cost (that output is generated either way).
 - All informational output on stdout; errors on stderr; the exit code is the protocol.
-- Invocation from a target project root: `python3 <plugin>/skills/tdd/scripts/tdd.py …`
+- Invocation from a target project root: `python3 <plugin>/skills/spec-implement/scripts/spec_implement.py …`
   (the command resolves the plugin path via `${CLAUDE_PLUGIN_ROOT}`).
 
 ## Phases (§14)
@@ -73,7 +73,7 @@ transitions: `PHASE_TRANSITIONS` in the contracts module; the state store refuse
 Loop ownership (`RESUMABLE_PHASES`): Loop 0 owns the SKETCHING_DESIGN / AWAITING_DESIGN_APPROVAL
 design phases; DESIGN_APPROVED is Loop 1's entry from Loop 0 (Loop 1 transitions it into
 DRAFTING_REQUIREMENTS, mirroring how Loop 2 enters from REQUIREMENTS_APPROVED). The bootstrap
-phases sit at the front of Loop 2's territory and are owned by `tdd_bootstrap`, which the
+phases sit at the front of Loop 2's territory and are owned by `spec_implement_bootstrap`, which the
 dispatcher intercepts before the loop-number dispatch.
 
 ## On-disk artifacts (§5)
@@ -87,11 +87,11 @@ The entire `.shepherd/` workspace is **gitignored** (init appends `.shepherd/` t
 | `features/<slug>/task.md` | verbatim text |
 | `features/<slug>/design/*.md` | design sketch files (Loop 0) |
 | `features/<slug>/requirements/*.md` | EARS spec files |
-| `features/<slug>/.tdd/state.json` | `FeatureState` |
-| `features/<slug>/.tdd/traceability.json` | `TraceabilityMatrix` |
-| `features/<slug>/.tdd/reports/*` | markdown + json |
+| `features/<slug>/.spec-implement/state.json` | `FeatureState` |
+| `features/<slug>/.spec-implement/traceability.json` | `TraceabilityMatrix` |
+| `features/<slug>/.spec-implement/reports/*` | markdown + json |
 
-Branch convention: `tdd/<slug>` (`BRANCH_PREFIX`). No ACTIVE pointer file, ever (§7).
+Branch convention: `spec-implement/<slug>` (`BRANCH_PREFIX`). No ACTIVE pointer file, ever (§7).
 
 ## EARS spec format (§8) — pinned
 
@@ -108,13 +108,13 @@ Declarative only: no function names, endpoints, classes, tables, or UI widgets.
 ## Commit messages (§16) — format strings, exact
 
 ```
-tdd(<slug>): chore — add <framework>
-tdd(<slug>): red — failing tests
-tdd(<slug>): red(<n>) — amended requirements
-tdd(<slug>): green — implementation
+spec-implement(<slug>): chore — add <framework>
+spec-implement(<slug>): red — failing tests
+spec-implement(<slug>): red(<n>) — amended requirements
+spec-implement(<slug>): green — implementation
 ```
 
-The outer agent must NEVER hand-create commits matching `tdd(...)`.
+The outer agent must NEVER hand-create commits matching `spec-implement(...)`.
 There is no spec commit: Loop 1 approval only advances the phase, because
 the spec artifacts live in the gitignored `.shepherd/` workspace. Red and
 red(n) commits carry only changed files the test classifier accepts (the
@@ -142,15 +142,15 @@ be path-classified — only integration tests under `tests/` are mechanically se
 - Loop 3: `DENY_UNDER` — same tools denied where a pattern matches (the `test.paths` classifier +
   the `requirements/` folder); the agent may write only non-test (production) files.
 - Enforced by a PreToolUse hook (verified deny shape in `docs/sdk-notes.md` §2); the pure decision
-  function `is_path_allowed(tool_name, tool_input, policy)` lives in `tdd_hooks.py` and is the
+  function `is_path_allowed(tool_name, tool_input, policy)` lives in `spec_implement_hooks.py` and is the
   unit-tested core. Auto-applied minor test edits are direct Python file writes by the
   orchestrator — never an agent turn — so the "agent can never edit tests" invariant holds.
 
 ## The SDK seam
 
 `AgentRunner.run(RunSpec) -> RunResult` (contracts module). Production adapter `SdkAgentRunner`
-in `tdd_agent.py`; tests use `FakeAgentRunner`. Subprocess-level tests select the fake via the
-`TDD_RUNNER` env var (`fake:<script.json>`). Loops never import the SDK directly.
+in `spec_implement_agent.py`; tests use `FakeAgentRunner`. Subprocess-level tests select the fake via the
+`SPEC_IMPLEMENT_RUNNER` env var (`fake:<script.json>`). Loops never import the SDK directly.
 
 ## Verifier output schemas
 
@@ -163,7 +163,7 @@ verifier prompts; Loop 2/3 parse with bounded retry.
 - Inner sessions: `permission_mode="bypassPermissions"`, `setting_sources` unset (no CLAUDE.md /
   project settings leak), `cwd` = target repo root, per-loop `model`, `resume=<session_id>` for
   every iteration after the first. Repo convention docs (`CLAUDE.md`/`AGENTS.md`) still reach the
-  agent — the engine reads them deterministically (`tdd_scan.read_convention_docs`) and injects
+  agent — the engine reads them deterministically (`spec_implement_scan.read_convention_docs`) and injects
   them via the prompt, rather than re-enabling `setting_sources` (which would also load project
   settings/hooks and miss `AGENTS.md`).
 - Native caps set per session: `max_turns` from `budgets.max_turns_per_loop`; cumulative

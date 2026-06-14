@@ -3,7 +3,7 @@
 A Claude Code plugin that packages engineering workflows as skills and
 commands. Where a workflow needs hard boundaries, they are **hooks, not
 prompts**: PreToolUse path policies make violations impossible — not merely
-discouraged. The plugin currently ships one skill, **strict TDD**, with more
+discouraged. The plugin currently ships one skill, **spec-implement**, with more
 skills and commands to follow.
 
 Pinned contracts (exit codes, schemas, CLI): [docs/contracts.md](docs/contracts.md).
@@ -17,8 +17,8 @@ Add this repo as a marketplace and install the plugin from Claude Code:
 /plugin install shepherd
 ```
 
-On its first run in a project the TDD skill bootstraps the `.shepherd/`
-workspace itself (`tdd.py init`, explicit and idempotent). **Review `.shepherd/config.yaml` afterwards** — especially
+On its first run in a project the spec-implement skill bootstraps the `.shepherd/`
+workspace itself (`spec_implement.py init`, explicit and idempotent). **Review `.shepherd/config.yaml` afterwards** — especially
 `test.command` and `test.paths`, which feed the enforcement hooks.
 
 Requires: git, Python ≥ 3.10, and the Claude Code CLI authenticated. The
@@ -28,10 +28,10 @@ site-packages.
 
 ## Skills
 
-### TDD — `/shepherd:tdd`
+### spec-implement — `/shepherd:spec-implement`
 
-Drives **strict test-driven development** for one feature at a time through
-four sequential loops:
+Drives a **strict, spec-driven, test-first** build loop for one feature at a
+time (red-green), through four sequential loops:
 
 0. **Design sketch** — an agent explores your repo read-only and drafts a
    rough design (components, responsibilities, optional flowcharts); a human
@@ -46,12 +46,12 @@ four sequential loops:
    green; test edits are mechanically denied and must go through an
    auditable escalation channel.
 
-Full requirements: [docs/tdd-skill-requirements.md](docs/tdd-skill-requirements.md).
+Full requirements: [docs/spec-implement-skill-requirements.md](docs/spec-implement-skill-requirements.md).
 
 In Claude Code, in an installed project:
 
 ```
-/shepherd:tdd Add rate limiting to the login endpoint
+/shepherd:spec-implement Add rate limiting to the login endpoint
 ```
 
 The command drives the engine and pauses at human checkpoints (design
@@ -59,10 +59,10 @@ approval, requirements approval, escalations, coverage gaps). The engine is
 also usable directly:
 
 ```
-tdd.py init                  # bootstrap .shepherd (explicit, never silent)
-tdd.py new "Add user auth"   # feature folder + tdd/<slug> branch
-tdd.py run [--feature slug]  # the three-loop state machine
-tdd.py status                # phases of all features
+spec_implement.py init                  # bootstrap .shepherd (explicit, never silent)
+spec_implement.py new "Add user auth"   # feature folder + spec-implement/<slug> branch
+spec_implement.py run [--feature slug]  # the three-loop state machine
+spec_implement.py status                # phases of all features
 ```
 
 `run` communicates through exit codes (0 done, 10 awaiting approval,
@@ -70,12 +70,12 @@ tdd.py status                # phases of all features
 20–22 resolution errors); human decisions return via
 `run --decision approve|reject [--feedback …]`.
 
-What the TDD skill lands in your repo:
+What the spec-implement skill lands in your repo:
 
 - `.shepherd/` — config, one folder per feature (task statement, approved
   EARS spec files, traceability matrix + reports, session state). The whole
   workspace is gitignored: everything in it is machine-local.
-- Automated commits per feature: `tdd(<slug>): red` →
+- Automated commits per feature: `spec-implement(<slug>): red` →
   [`red(n)` after approved escalations] → `green`. The red commit is the
   recovery anchor and the proof the tests failed before the implementation
   existed.
@@ -92,12 +92,12 @@ claude --plugin-dir /path/to/shepherd  # load the plugin surface in a scratch pr
 ```
 
 Plugin surface: `.claude-plugin/plugin.json`, plus one folder per capability
-under `skills/` and `commands/`. Each skill is self-contained: the TDD engine
-lives in `skills/tdd/scripts/` (`tdd_contracts.py` pins every shared contract;
-`tdd.py` is the CLI; loops in `tdd_loop{1,2,3}.py`; the SDK seam is the
+under `skills/` and `commands/`. Each skill is self-contained: the spec-implement engine
+lives in `skills/spec-implement/scripts/` (`spec_implement_contracts.py` pins every shared contract;
+`spec_implement.py` is the CLI; loops in `spec_implement_loop{1,2,3}.py`; the SDK seam is the
 `AgentRunner` protocol — tests script `FakeAgentRunner` while production uses
-`SdkAgentRunner`), with its skill definition in `skills/tdd/SKILL.md`, the
-exit-code playbook in `skills/tdd/references/playbook.md`, and a thin
-entry-point command in `commands/tdd.md` that invokes the skill. Verified SDK
+`SdkAgentRunner`), with its skill definition in `skills/spec-implement/SKILL.md`, the
+exit-code playbook in `skills/spec-implement/references/playbook.md`, and a thin
+entry-point command in `commands/spec-implement.md` that invokes the skill. Verified SDK
 behavior notes (shared
 by any skill built on the Agent SDK): [docs/sdk-notes.md](docs/sdk-notes.md).

@@ -1,4 +1,4 @@
-"""Exhaustive tests for tdd_hooks — the mechanical path-policy boundary (§9/§10)."""
+"""Exhaustive tests for spec_implement_hooks — the mechanical path-policy boundary (§9/§10)."""
 
 from __future__ import annotations
 
@@ -7,10 +7,10 @@ from pathlib import Path
 
 import pytest
 
-tdd_hooks = pytest.importorskip("tdd_hooks")  # parallel track (T1-HOOKS)
+spec_implement_hooks = pytest.importorskip("spec_implement_hooks")  # parallel track (T1-HOOKS)
 
-from tdd_contracts import PathPolicyMode, WRITE_TOOLS  # noqa: E402
-from tdd_hooks import PathPolicy, is_path_allowed, make_pretooluse_hook  # noqa: E402
+from spec_implement_contracts import PathPolicyMode, WRITE_TOOLS  # noqa: E402
+from spec_implement_hooks import PathPolicy, is_path_allowed, make_pretooluse_hook  # noqa: E402
 
 REQUIREMENTS = ".shepherd/features/user-auth/requirements"
 

@@ -1,4 +1,4 @@
-"""Tests for tdd_loop2 — test generation + coverage verification (§9, §12).
+"""Tests for spec_implement_loop2 — test generation + coverage verification (§9, §12).
 
 World-building uses the conftest fixtures (tmp_repo/shepherd_repo/feature) plus
 direct state edits; the agent seam is FakeAgentRunner with per-test scripted
@@ -14,8 +14,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Callable, Optional
 
-import tdd_loop2
-from tdd_contracts import (
+import spec_implement_loop2
+from spec_implement_contracts import (
     COMMIT_RED,
     ExitCode,
     LoopStatus,
@@ -24,9 +24,9 @@ from tdd_contracts import (
     RequirementTrace,
     TraceabilityMatrix,
 )
-from tdd_fake_runner import FakeAgentRunner
-from tdd_state import StateStore, resolve_feature
-from tdd_trace import load_matrix, save_matrix
+from spec_implement_fake_runner import FakeAgentRunner
+from spec_implement_state import StateStore, resolve_feature
+from spec_implement_trace import load_matrix, save_matrix
 
 TESTGEN_MODEL = "claude-sonnet-4-6"   # conftest shepherd_repo config defaults
 VERIFIER_MODEL = "claude-haiku-4-5"
@@ -144,7 +144,7 @@ class TestHappyPath:
             ],
         )
 
-        outcome = tdd_loop2.run_loop2(ctx, runner)
+        outcome = spec_implement_loop2.run_loop2(ctx, runner)
 
         assert outcome.status is LoopStatus.ADVANCE
         assert "red committed" in outcome.detail
@@ -166,7 +166,7 @@ class TestHappyPath:
         assert "## Requirements" in ver_spec.prompt
         assert "test_successful_login" in ver_spec.prompt  # tests read from disk
 
-        # Matrix persisted at .tdd/traceability.json with covered rows.
+        # Matrix persisted at .spec-implement/traceability.json with covered rows.
         matrix = load_matrix(ctx.feature_dir)
         assert matrix is not None
         assert [s.requirement_id for s in matrix.requirements] == [LOGIN_ID]
@@ -206,7 +206,7 @@ class TestHappyPath:
             ],
         )
 
-        tdd_loop2.run_loop2(ctx, runner)
+        spec_implement_loop2.run_loop2(ctx, runner)
 
         # The design names the unit to test; the generator sees it on turn 1.
         gen_prompt = runner.received[0].prompt
@@ -234,7 +234,7 @@ class TestHappyPath:
             ],
         )
 
-        tdd_loop2.run_loop2(ctx, runner)
+        spec_implement_loop2.run_loop2(ctx, runner)
 
         assert "## Approved design" not in runner.received[0].prompt
 
@@ -268,7 +268,7 @@ class TestGapIteration:
             ],
         )
 
-        outcome = tdd_loop2.run_loop2(ctx, runner)
+        outcome = spec_implement_loop2.run_loop2(ctx, runner)
 
         assert outcome.status is LoopStatus.ADVANCE
         assert len(runner.received) == 4  # gen, verify, gen, verify
@@ -309,7 +309,7 @@ class TestGapIteration:
             ],
         )
 
-        outcome = tdd_loop2.run_loop2(ctx, runner)
+        outcome = spec_implement_loop2.run_loop2(ctx, runner)
 
         assert outcome.status is LoopStatus.CHECKPOINT
         assert outcome.exit_code is ExitCode.COVERAGE_GAP  # exit 11
@@ -337,7 +337,7 @@ class TestGapIteration:
             ],
         )
 
-        outcome = tdd_loop2.run_loop2(ctx, runner)
+        outcome = spec_implement_loop2.run_loop2(ctx, runner)
 
         assert outcome.status is LoopStatus.CHECKPOINT
         assert outcome.exit_code is ExitCode.COVERAGE_GAP  # exit 11 with max 1
@@ -386,7 +386,7 @@ class TestMatrixMerge:
             ],
         )
 
-        outcome = tdd_loop2.run_loop2(ctx, runner)
+        outcome = spec_implement_loop2.run_loop2(ctx, runner)
 
         assert outcome.status is LoopStatus.ADVANCE
         matrix = load_matrix(ctx.feature_dir)
@@ -432,7 +432,7 @@ class TestResync:
             ],
         )
 
-        outcome = tdd_loop2.resync_tests(ctx, runner, [LOGIN_ID])
+        outcome = spec_implement_loop2.resync_tests(ctx, runner, [LOGIN_ID])
 
         assert outcome.status is LoopStatus.ADVANCE
 
@@ -462,7 +462,7 @@ class TestResync:
         ctx = _setup_loop2(feature)
         runner = _runner(feature.repo, [])
 
-        outcome = tdd_loop2.resync_tests(ctx, runner, [LOGIN_ID])
+        outcome = spec_implement_loop2.resync_tests(ctx, runner, [LOGIN_ID])
 
         assert outcome.status is LoopStatus.FAILED
         assert outcome.exit_code is ExitCode.INTERNAL_ERROR
@@ -477,7 +477,7 @@ class TestGuards:
         ctx = _setup_loop2(feature, state_mut=blow_budget)
         runner = _runner(feature.repo, [])
 
-        outcome = tdd_loop2.run_loop2(ctx, runner)
+        outcome = spec_implement_loop2.run_loop2(ctx, runner)
 
         assert outcome.status is LoopStatus.CHECKPOINT
         assert outcome.exit_code is ExitCode.BUDGET_EXCEEDED  # exit 13
@@ -488,7 +488,7 @@ class TestGuards:
         ctx = _setup_loop2(feature)
         runner = _runner(feature.repo, [{"text": "", "is_error": True}])
 
-        outcome = tdd_loop2.run_loop2(ctx, runner)
+        outcome = spec_implement_loop2.run_loop2(ctx, runner)
 
         assert outcome.status is LoopStatus.FAILED
         assert outcome.exit_code is ExitCode.INTERNAL_ERROR
@@ -497,7 +497,7 @@ class TestGuards:
         ctx = _setup_loop2(feature, phase=Phase.DRAFTING_REQUIREMENTS)
         runner = _runner(feature.repo, [])
 
-        outcome = tdd_loop2.run_loop2(ctx, runner)
+        outcome = spec_implement_loop2.run_loop2(ctx, runner)
 
         assert outcome.status is LoopStatus.FAILED
         assert outcome.exit_code is ExitCode.INTERNAL_ERROR

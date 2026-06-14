@@ -4,7 +4,7 @@ Turns approved EARS requirements into executable tests using the `testgen`
 model, with the mechanical ALLOW_ONLY path policy restricting writes to the
 configured test paths, then verifies coverage with the cheap `verifier`
 model, which emits the traceability matrix (requirement → tests). Generation
-iterates on the gaps; full coverage produces the red commit (`tdd(<slug>):
+iterates on the gaps; full coverage produces the red commit (`spec-implement(<slug>):
 red — failing tests`) — the recovery anchor created BEFORE Loop 3 begins.
 
 Also owns `resync_tests` (§10): after an approved escalation amendment,
@@ -26,10 +26,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Optional
 
-import tdd_git
-import tdd_wsl
-from tdd_agent import build_prompt
-from tdd_contracts import (
+import spec_implement_git
+import spec_implement_wsl
+from spec_implement_agent import build_prompt
+from spec_implement_contracts import (
     COMMIT_RED,
     COVERAGE_COVERED,
     DESIGN_FILE_GLOB,
@@ -47,9 +47,9 @@ from tdd_contracts import (
     TraceabilityMatrix,
     matches_any_pattern,
 )
-from tdd_scan import format_convention_docs, scan_conventions
-from tdd_state import FeatureContext, utc_now_iso
-from tdd_trace import (
+from spec_implement_scan import format_convention_docs, scan_conventions
+from spec_implement_state import FeatureContext, utc_now_iso
+from spec_implement_trace import (
     bump_revisions,
     gap_report,
     load_matrix,
@@ -273,7 +273,7 @@ def _tests_section(ctx: FeatureContext, touched: Iterable[Path]) -> str:
         p = p.resolve(strict=False)
         if p.is_file():
             files.add(p)
-    for rel in tdd_git.list_files(ctx.repo_root):
+    for rel in spec_implement_git.list_files(ctx.repo_root):
         if matches_any_pattern(rel, ctx.config.test.paths):
             p = (repo / rel).resolve(strict=False)
             if p.is_file():
@@ -430,7 +430,7 @@ def _syntax_errors(ctx: FeatureContext, matrix: TraceabilityMatrix) -> str:
             if "::" in ref
         }
     )
-    target = tdd_wsl.wsl_target(ctx.repo_root)
+    target = spec_implement_wsl.wsl_target(ctx.repo_root)
     problems = []
     for rel in files:
         if target is None:
@@ -438,7 +438,7 @@ def _syntax_errors(ctx: FeatureContext, matrix: TraceabilityMatrix) -> str:
         else:
             distro, linux_path = target
             abs_rel = linux_path.rstrip("/") + "/" + rel
-            args = tdd_wsl.exec_argv(distro, ["python3", "-m", "py_compile", abs_rel])
+            args = spec_implement_wsl.exec_argv(distro, ["python3", "-m", "py_compile", abs_rel])
             kwargs = {}  # absolute path carries the location; a UNC cwd is unusable
         proc = subprocess.run(
             args,
@@ -458,9 +458,9 @@ def _red_commit(ctx: FeatureContext, matrix: TraceabilityMatrix) -> LoopOutcome:
     traceability) lives under the gitignored .shepherd/ workspace.
     """
 
-    test_files = tdd_git.changed_files_matching(ctx.repo_root, ctx.config.test.paths)
+    test_files = spec_implement_git.changed_files_matching(ctx.repo_root, ctx.config.test.paths)
     if test_files:
-        tdd_git.commit_paths(
+        spec_implement_git.commit_paths(
             ctx.repo_root, COMMIT_RED.format(slug=ctx.slug), test_files
         )
     ctx.state.red_commit_count = 1

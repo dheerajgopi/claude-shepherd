@@ -1,4 +1,4 @@
-"""Tests for tdd_state: slugify, StateStore round-trip, transitions."""
+"""Tests for spec_implement_state: slugify, StateStore round-trip, transitions."""
 
 from __future__ import annotations
 
@@ -9,9 +9,9 @@ from pathlib import Path
 
 import pytest
 
-tdd_state = pytest.importorskip("tdd_state")  # parallel track (T1-CORE)
+spec_implement_state = pytest.importorskip("spec_implement_state")  # parallel track (T1-CORE)
 
-from tdd_contracts import (  # noqa: E402
+from spec_implement_contracts import (  # noqa: E402
     STATE_FILE,
     BudgetsSpent,
     ExitCode,
@@ -20,7 +20,7 @@ from tdd_contracts import (  # noqa: E402
     Phase,
     asdict_state,
 )
-from tdd_state import ShepherdError, StateStore, slugify  # noqa: E402
+from spec_implement_state import ShepherdError, StateStore, slugify  # noqa: E402
 
 KEBAB = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
@@ -65,14 +65,14 @@ class TestSlugify:
 @pytest.fixture
 def feature_dir(tmp_path: Path) -> Path:
     d = tmp_path / "user-auth"
-    (d / ".tdd").mkdir(parents=True)
+    (d / ".spec-implement").mkdir(parents=True)
     return d
 
 
 def _full_state() -> FeatureState:
     return FeatureState(
         slug="user-auth",
-        branch="tdd/user-auth",
+        branch="spec-implement/user-auth",
         base_commit="a" * 40,
         phase=Phase.AWAITING_APPROVAL.value,
         session_ids={"loop1": "sess-1", "loop2": None, "loop3": None},
@@ -129,7 +129,7 @@ class TestStateStore:
         store = StateStore(feature_dir)
         state = FeatureState(
             slug="user-auth",
-            branch="tdd/user-auth",
+            branch="spec-implement/user-auth",
             base_commit="a" * 40,
             phase=Phase.DRAFTING_REQUIREMENTS.value,
         )
@@ -152,7 +152,7 @@ class TestStateStore:
         store = StateStore(feature_dir)
         state = FeatureState(
             slug="user-auth",
-            branch="tdd/user-auth",
+            branch="spec-implement/user-auth",
             base_commit="a" * 40,
             phase=Phase.DRAFTING_REQUIREMENTS.value,
         )
@@ -167,7 +167,7 @@ class TestStateStore:
         store = StateStore(feature_dir)
         state = FeatureState(
             slug="user-auth",
-            branch="tdd/user-auth",
+            branch="spec-implement/user-auth",
             base_commit="a" * 40,
             phase=Phase.GENERATING_TESTS.value,
         )

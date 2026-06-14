@@ -1,4 +1,4 @@
-# TDD Skill & Shepherd Plugin — Requirements
+# Spec-implement Skill & Shepherd Plugin — Requirements
 
 ## 1. Purpose
 
@@ -10,13 +10,13 @@ The skill owns one feature's lifecycle from task statement to green tests. It do
 
 ## 3. Architecture
 
-The skill follows the **checkpoint state machine** pattern. The script (`scripts/tdd.py`) runs headlessly via the Agent SDK and exits with a distinct code whenever human input is required. The outer Claude Code agent interprets the exit code, gathers the human's decision using its native `AskUserQuestion` tool, and re-invokes the script with that decision as input. The script resumes the relevant SDK session rather than starting fresh, which preserves the prompt-cache prefix across iterations.
+The skill follows the **checkpoint state machine** pattern. The script (`scripts/spec_implement.py`) runs headlessly via the Agent SDK and exits with a distinct code whenever human input is required. The outer Claude Code agent interprets the exit code, gathers the human's decision using its native `AskUserQuestion` tool, and re-invokes the script with that decision as input. The script resumes the relevant SDK session rather than starting fresh, which preserves the prompt-cache prefix across iterations.
 
-The TDD skill is not distributed standalone: it ships inside a **shepherd plugin** (§4). All operational guidance for the outer agent — exit-code handling, "do not fight the hooks," no hand-created `tdd(...)` commits — lives in the plugin's own artifacts: triggering, invocation, and boundary rules in `SKILL.md`, with the per-exit-code playbook in `skills/tdd/references/playbook.md` (loaded before any `run`). The command definition (`/shepherd:tdd`) is a thin entry point that invokes the skill, so both invocation paths converge on the same instructions. No content is injected into the target project's `CLAUDE.md`; instructions load only when the workflow is actually triggered and stay versioned with the shepherd.
+The spec-implement skill is not distributed standalone: it ships inside a **shepherd plugin** (§4). All operational guidance for the outer agent — exit-code handling, "do not fight the hooks," no hand-created `spec-implement(...)` commits — lives in the plugin's own artifacts: triggering, invocation, and boundary rules in `SKILL.md`, with the per-exit-code playbook in `skills/spec-implement/references/playbook.md` (loaded before any `run`). The command definition (`/shepherd:spec-implement`) is a thin entry point that invokes the skill, so both invocation paths converge on the same instructions. No content is injected into the target project's `CLAUDE.md`; instructions load only when the workflow is actually triggered and stay versioned with the shepherd.
 
 ## 4. Distribution — the shepherd plugin
 
-Shepherd is a separate repository structured as a **Claude Code plugin** (publishable as its own marketplace), bundling skills and commands. The plugin is not TDD-specific — the TDD skill and its outer-loop command are simply the first capabilities it ships. Capability distribution (skill, command, hooks) uses the native plugin mechanism; only project-workspace bootstrap is custom, and the TDD skill owns it directly.
+Shepherd is a separate repository structured as a **Claude Code plugin** (publishable as its own marketplace), bundling skills and commands. The plugin is not tied to one workflow — the spec-implement skill and its outer-loop command are simply the first capabilities it ships. Capability distribution (skill, command, hooks) uses the native plugin mechanism; only project-workspace bootstrap is custom, and the spec-implement skill owns it directly.
 
 ### Shepherd repo layout
 
@@ -26,47 +26,47 @@ shepherd/
 │   ├── plugin.json              # plugin manifest
 │   └── marketplace.json         # marketplace catalog (this repo as its own marketplace)
 ├── skills/
-│   └── tdd/
+│   └── spec-implement/
 │       ├── SKILL.md             # trigger conditions, invocation, boundaries
 │       ├── scripts/
-│       │   └── tdd.py           # phased orchestrator (Claude Agent SDK)
+│       │   └── spec_implement.py           # phased orchestrator (Claude Agent SDK)
 │       └── references/
 │           ├── playbook.md      # exit-code contract + per-code playbook (§13)
 │           ├── requirements_prompt.md
 │           ├── testgen_prompt.md
 │           └── impl_prompt.md
-├── commands/                    # /shepherd:tdd — thin entry point invoking the skill
+├── commands/                    # /shepherd:spec-implement — thin entry point invoking the skill
 ├── templates/
 │   ├── config.yaml              # default per-loop models, budgets
 │   └── gitignore.snippet
 └── docs/
-    └── tdd-skill-requirements.md
+    └── spec-implement-skill-requirements.md
 ```
 
 Structural rule: only `plugin.json` lives inside `.claude-plugin/`; `skills/`, `commands/`, and other component directories sit at the plugin root.
 
-The TDD enforcement hooks (path-based edit denial in Loops 2–3) are **Agent SDK in-process hooks inside `tdd.py`** — they travel with the script and require no installation into target projects. Plugin-level hooks are reserved for any future outer-session behaviors.
+The spec-implement enforcement hooks (path-based edit denial in Loops 2–3) are **Agent SDK in-process hooks inside `spec_implement.py`** — they travel with the script and require no installation into target projects. Plugin-level hooks are reserved for any future outer-session behaviors.
 
 ### Per-project setup
 
-The plugin is installed through the native marketplace mechanism (`/plugin marketplace add <path-or-url>` + `/plugin install shepherd`), which owns capability registration (skill, command, hooks) and plugin enablement. Everything project-specific is owned by the TDD skill, lazily, on first run:
+The plugin is installed through the native marketplace mechanism (`/plugin marketplace add <path-or-url>` + `/plugin install shepherd`), which owns capability registration (skill, command, hooks) and plugin enablement. Everything project-specific is owned by the spec-implement skill, lazily, on first run:
 
-1. **Workspace bootstrap** — the skill invokes `tdd.py init` (§6) the first time it runs in a project with no `.shepherd/`; a fresh project is not a precondition to skip the offer. `init` is explicit and idempotent and owns all the logic (config detection, `.gitignore` policy).
+1. **Workspace bootstrap** — the skill invokes `spec_implement.py init` (§6) the first time it runs in a project with no `.shepherd/`; a fresh project is not a precondition to skip the offer. `init` is explicit and idempotent and owns all the logic (config detection, `.gitignore` policy).
 2. **Runtime deps** — `init`/`run` check that `claude-agent-sdk` and `pyyaml` import under the engine's `python3`; when missing, the skill installs them sudo-free into that interpreter's per-user site-packages and retries (PEP 668 surfaced, never silently overridden).
 
 Shepherd leaves a deliberately small footprint in target projects: the `.shepherd/` workspace (gitignored, machine-local). No edits to the project's own files.
 
-### Versioning of `tdd.py`
+### Versioning of `spec_implement.py`
 
 Current decision: the plugin carries the script (one repo, simplest). The script's CLI contract (§6 verbs, §13 exit codes) is kept stable so that extracting the engine into a versioned Python package later — with the skill invoking it via `uvx --from git+…` and projects pinning a version in `config.yaml` — is a mechanical change, not a redesign.
 
 ### Local development and testing
 
-During development the plugin is loaded directly, without a marketplace: `claude --plugin-dir /path/to/shepherd` from a scratch project, with `/reload-plugins` picking up edits mid-session. A locally loaded plugin with the same name takes precedence over an installed marketplace copy for that session, which is also the mechanism for testing in-development versions against real projects after publication. Before publishing a release, one pass through the local-marketplace route (`/plugin marketplace add /path/to/shepherd` + install) validates marketplace metadata, caching, and namespacing. Note that `--plugin-dir` exercises only the plugin surface; the workspace bootstrap (`tdd.py init`) runs from the skill and is tested directly in the scratch project. Test installs are confined to disposable scratch projects, due in part to a known Claude Code issue where local/user-scope installs can block reinstallation into a different project.
+During development the plugin is loaded directly, without a marketplace: `claude --plugin-dir /path/to/shepherd` from a scratch project, with `/reload-plugins` picking up edits mid-session. A locally loaded plugin with the same name takes precedence over an installed marketplace copy for that session, which is also the mechanism for testing in-development versions against real projects after publication. Before publishing a release, one pass through the local-marketplace route (`/plugin marketplace add /path/to/shepherd` + install) validates marketplace metadata, caching, and namespacing. Note that `--plugin-dir` exercises only the plugin surface; the workspace bootstrap (`spec_implement.py init`) runs from the skill and is tested directly in the scratch project. Test installs are confined to disposable scratch projects, due in part to a known Claude Code issue where local/user-scope installs can block reinstallation into a different project.
 
 ## 5. Workspace layout (`.shepherd`)
 
-All shepherd state lives in a `.shepherd` folder at the repository root. Each feature is a folder under `.shepherd/features/`, and that feature's runtime state lives in a `.tdd` folder inside it.
+All shepherd state lives in a `.shepherd` folder at the repository root. Each feature is a folder under `.shepherd/features/`, and that feature's runtime state lives in a `.spec-implement` folder inside it.
 
 ```
 .shepherd/
@@ -76,7 +76,7 @@ All shepherd state lives in a `.shepherd` folder at the repository root. Each fe
     │   ├── task.md                # original task statement, verbatim
     │   ├── requirements/
     │   │   └── *.md               # approved EARS requirements (the contract)
-    │   └── .tdd/
+    │   └── .spec-implement/
     │       ├── state.json         # phase, session IDs, branch, history
     │       ├── traceability.json  # requirement → test mapping with revisions
     │       └── reports/           # gap reports, escalation proposals
@@ -93,10 +93,10 @@ Version-control policy: the entire `.shepherd/` workspace is **gitignored** and 
 The script is a single CLI with subcommands rather than a collection of scripts:
 
 ```
-tdd.py init                  # bootstrap .shepherd (explicit, never silent)
-tdd.py new "Add user auth"   # scaffold a feature folder + tdd/<slug> branch
-tdd.py run [--feature slug]  # the three-loop state machine
-tdd.py status                # phases of all features
+spec_implement.py init                  # bootstrap .shepherd (explicit, never silent)
+spec_implement.py new "Add user auth"   # scaffold a feature folder + spec-implement/<slug> branch
+spec_implement.py run [--feature slug]  # the three-loop state machine
+spec_implement.py status                # phases of all features
 ```
 
 **`init` is explicit, not automatic.** If `run` finds no `.shepherd` folder, it exits with code 22 (`SHEPHERD_NOT_INITIALIZED`); the outer command then offers initialization via `AskUserQuestion`. Silent auto-creation is rejected because init makes decisions a human must confirm — above all the detected test command and `test.paths`, which feed the Loop 2/3 enforcement hooks; a wrong auto-detected boundary would undermine the entire safety model.
@@ -109,14 +109,14 @@ tdd.py status                # phases of all features
 4. Check preconditions (`claude-agent-sdk` importable, API auth available) so failures surface at init time rather than mid-Loop-1.
 5. Append `.gitignore` entries per the version-control policy in §5.
 
-**`new` owns feature creation**: slug generation and collision check, `task.md` written verbatim, the `tdd/<slug>` branch created, and `state.json` seeded with branch and base commit. This is the step that makes branch-convention resolution (§7) possible.
+**`new` owns feature creation**: slug generation and collision check, `task.md` written verbatim, the `spec-implement/<slug>` branch created, and `state.json` seeded with branch and base commit. This is the step that makes branch-convention resolution (§7) possible.
 
 ## 7. Active feature resolution
 
 When multiple features exist under `.shepherd/features/`, the script resolves which one is active in strict priority order, with **no inference and no guessing**:
 
-1. **Explicit argument** — `tdd.py --feature <slug>`. Always wins. The wrapping command threads the slug through every invocation once known.
-2. **Git branch convention** — if no argument is given, the current branch must match `tdd/<slug>` and a corresponding feature folder must exist. The script creates this branch when a feature starts, so the working context itself carries the feature identity. This also makes parallel features safe: separate worktrees on separate `tdd/*` branches never contend over shared state.
+1. **Explicit argument** — `spec_implement.py --feature <slug>`. Always wins. The wrapping command threads the slug through every invocation once known.
+2. **Git branch convention** — if no argument is given, the current branch must match `spec-implement/<slug>` and a corresponding feature folder must exist. The script creates this branch when a feature starts, so the working context itself carries the feature identity. This also makes parallel features safe: separate worktrees on separate `spec-implement/*` branches never contend over shared state.
 3. **Error** — anything else exits with code 20 (`NO_FEATURE_RESOLVED`), listing existing features and their phases so the outer command can present them to the human.
 
 Additionally, `state.json` records the branch and base commit the feature was created on. On every invocation the script verifies the current branch matches the recorded one; a mismatch exits with code 21 (`BRANCH_MISMATCH`) unless `--force` is passed. There is deliberately no `ACTIVE` pointer file: pointer files go stale across branch switches, worktrees, and crashed runs, and a stale pointer silently corrupts the wrong feature's state.
@@ -135,15 +135,15 @@ Using the `testgen` model, this loop turns approved EARS requirements into execu
 
 ### Test-framework bootstrap (pre-step, only when none is present)
 
-When the project has **no test framework or library**, tests cannot be generated or run, so a bootstrap pre-step runs between requirements approval and test generation (`tdd_bootstrap.py`). A deterministic `propose_framework` inspects the project's own markers and picks the idiomatic framework — pytest (Python), jest/vitest (JS/TS), JUnit (Java); Go and Rust ship stdlib harnesses and never bootstrap; an unrecognized language has no recipe and the step is skipped. The proposal (framework, dependency-manifest file(s), install command, resulting test command and directory) is written to `.tdd/reports/framework_proposal.md` and the script **checkpoints with code 16 (`AWAITING_FRAMEWORK_APPROVAL`)** for human approval; corrections re-propose (e.g. a different framework). On approval an agent — writes mechanically scoped (ALLOW_ONLY) to the manifest file(s), plus Bash for the approved install command — declares and installs the dependency; the engine commits `tdd(<slug>): chore — add <framework>`, records the framework's `test.command`/`test.paths` in config (preserving any the human already set), and advances to test generation. The agent never writes tests or source and never commits.
+When the project has **no test framework or library**, tests cannot be generated or run, so a bootstrap pre-step runs between requirements approval and test generation (`spec_implement_bootstrap.py`). A deterministic `propose_framework` inspects the project's own markers and picks the idiomatic framework — pytest (Python), jest/vitest (JS/TS), JUnit (Java); Go and Rust ship stdlib harnesses and never bootstrap; an unrecognized language has no recipe and the step is skipped. The proposal (framework, dependency-manifest file(s), install command, resulting test command and directory) is written to `.spec-implement/reports/framework_proposal.md` and the script **checkpoints with code 16 (`AWAITING_FRAMEWORK_APPROVAL`)** for human approval; corrections re-propose (e.g. a different framework). On approval an agent — writes mechanically scoped (ALLOW_ONLY) to the manifest file(s), plus Bash for the approved install command — declares and installs the dependency; the engine commits `spec-implement(<slug>): chore — add <framework>`, records the framework's `test.command`/`test.paths` in config (preserving any the human already set), and advances to test generation. The agent never writes tests or source and never commits.
 
 **Boundary enforcement is mechanical.** A PreToolUse hook (or `canUseTool` callback) denies any Write/Edit whose path falls outside the configured test paths, returning a clear denial reason. The prompt also states the rule, but the hook is the enforcement.
 
-**Coverage verification** uses the cheap `verifier` model: it receives the requirements and the generated tests and must emit a structured JSON **traceability matrix** (requirement → test function(s) → covered/partial/missing) written to `traceability.json`. Generation iterates on the gaps. If gaps remain after the configured maximum iterations, the script writes a gap report to `.tdd/reports/` and exits with code 11 (`COVERAGE_GAP`) — it raises the issue rather than silently degrading.
+**Coverage verification** uses the cheap `verifier` model: it receives the requirements and the generated tests and must emit a structured JSON **traceability matrix** (requirement → test function(s) → covered/partial/missing) written to `traceability.json`. Generation iterates on the gaps. If gaps remain after the configured maximum iterations, the script writes a gap report to `.spec-implement/reports/` and exits with code 11 (`COVERAGE_GAP`) — it raises the issue rather than silently degrading.
 
 The suite is **expected not to compile/pass** at this point, since tests reference implementation that doesn't exist yet. An optional syntax-only check on test files distinguishes malformed tests from missing-implementation errors.
 
-On full coverage the script commits the red state: `tdd(<slug>): red — failing tests`. **This commit happens before Loop 3 begins** and is the recovery anchor — a failed Loop 3 is revertible with a single `git reset --hard`. It is also a permanent, auditable artifact proving the tests existed and failed before the implementation did.
+On full coverage the script commits the red state: `spec-implement(<slug>): red — failing tests`. **This commit happens before Loop 3 begins** and is the recovery anchor — a failed Loop 3 is revertible with a single `git reset --hard`. It is also a permanent, auditable artifact proving the tests existed and failed before the implementation did.
 
 ## 10. Loop 3 — Implementation
 
@@ -154,13 +154,13 @@ Using the `implement` model, the agent runs the configured test command, reads f
 The agent is given one custom tool, `propose_test_change(test_file, related_requirement, reason, proposed_diff)`, funneling all test-modification pressure through a single auditable channel. The `verifier` model triages each proposal with one question — **does the change alter what the test expects?**
 
 - **Minor / mechanical** (import path, fixture name, syntax error; no change to behavioral expectations): the script auto-applies the scoped edit, logs it in `traceability.json` with a revision note, and the loop continues.
-- **Significant** (changed assertion values, weakened conditions, added/removed tests), or any triage verdict of "unsure": the script writes the proposal to `.tdd/reports/`, sets phase `ESCALATED`, and exits with code 12. **Only significant changes escalate.**
+- **Significant** (changed assertion values, weakened conditions, added/removed tests), or any triage verdict of "unsure": the script writes the proposal to `.spec-implement/reports/`, sets phase `ESCALATED`, and exits with code 12. **Only significant changes escalate.**
 
-On human approval of an escalation, control returns to **Loop 1, incrementally**: the Loop 1 session is resumed with the proposal as feedback and only the affected requirements are amended; Loop 2 then re-syncs only the tests mapped to those requirements via the traceability matrix (requirement `revision` fields are bumped); a **new** red commit is created — `tdd(<slug>): red(n) — amended requirements` — so each spec renegotiation is visible in history; then Loop 3 resumes. On rejection, Loop 3 resumes with the rejection as feedback. The cache invalidation caused by amending early-prefix requirements content is accepted; escalations are rare and correctness wins.
+On human approval of an escalation, control returns to **Loop 1, incrementally**: the Loop 1 session is resumed with the proposal as feedback and only the affected requirements are amended; Loop 2 then re-syncs only the tests mapped to those requirements via the traceability matrix (requirement `revision` fields are bumped); a **new** red commit is created — `spec-implement(<slug>): red(n) — amended requirements` — so each spec renegotiation is visible in history; then Loop 3 resumes. On rejection, Loop 3 resumes with the rejection as feedback. The cache invalidation caused by amending early-prefix requirements content is accepted; escalations are rare and correctness wins.
 
 ### Completion and budgets
 
-Completion requires the test command to exit 0 **and** the traceability matrix to still validate (a deleted test cannot fake a green run), after which the script commits `tdd(<slug>): green — implementation` and exits 0. Budget guards — max turns per loop, max cumulative cost (tracked from SDK usage data), wall-clock limit — abort with code 13 (`BUDGET_EXCEEDED`) and a status report.
+Completion requires the test command to exit 0 **and** the traceability matrix to still validate (a deleted test cannot fake a green run), after which the script commits `spec-implement(<slug>): green — implementation` and exits 0. Budget guards — max turns per loop, max cumulative cost (tracked from SDK usage data), wall-clock limit — abort with code 13 (`BUDGET_EXCEEDED`) and a status report.
 
 ## 11. Configuration
 
@@ -198,9 +198,9 @@ The Agent SDK applies `cache_control` automatically; the script's responsibility
 | 14 | `NEEDS_INPUT` — implementer blocked, asked the human a question | `AskUserQuestion`: answer it, re-invoke with `--feedback` |
 | 15 | `AWAITING_DESIGN_APPROVAL` — design sketch drafted/revised | `AskUserQuestion`: approve the design or give corrections |
 | 16 | `AWAITING_FRAMEWORK_APPROVAL` — test-framework bootstrap proposed | `AskUserQuestion`: approve adding the framework or give corrections |
-| 20 | `NO_FEATURE_RESOLVED` — no `--feature` arg, no `tdd/<slug>` branch | Present feature list, re-invoke with `--feature` |
+| 20 | `NO_FEATURE_RESOLVED` — no `--feature` arg, no `spec-implement/<slug>` branch | Present feature list, re-invoke with `--feature` |
 | 21 | `BRANCH_MISMATCH` — current branch ≠ branch recorded in state | Warn human; re-invoke with `--force` only if intended |
-| 22 | `SHEPHERD_NOT_INITIALIZED` — no `.shepherd` folder found | `AskUserQuestion`: offer to run `tdd.py init`, then review generated config |
+| 22 | `SHEPHERD_NOT_INITIALIZED` — no `.shepherd` folder found | `AskUserQuestion`: offer to run `spec_implement.py init`, then review generated config |
 
 ## 14. Phase model
 
@@ -210,9 +210,9 @@ The Agent SDK applies `cache_control` automatically; the script's responsibility
 
 ```mermaid
 flowchart TD
-    Start([Command invokes tdd.py]) --> R{Resolve active feature}
+    Start([Command invokes spec_implement.py]) --> R{Resolve active feature}
     R -->|"--feature slug (explicit)"| V{Current branch matches state.json?}
-    R -->|"git branch convention tdd/slug"| V
+    R -->|"git branch convention spec-implement/slug"| V
     R -->|"No match"| E20[/Exit 20: NO_FEATURE_RESOLVED/]
     V -->|"Mismatch, no --force"| E21[/Exit 21: BRANCH_MISMATCH/]
     V -->|OK| P{Dispatch on phase}
@@ -261,4 +261,4 @@ flowchart TD
 
 ## 16. Commit choreography
 
-The script refuses to start on a dirty working tree (untracked `.shepherd` files excepted). Automated commits, in order: `tdd(<slug>): chore — add <framework>` when the test-framework bootstrap pre-step (§9) runs, carrying only dependency-manifest and lockfile changes; `tdd(<slug>): red — failing tests` after Loop 2 verification and **before Loop 3**; `tdd(<slug>): red(n) — amended requirements` after each approved escalation re-sync; `tdd(<slug>): green — implementation` on completion. Red and red(n) commits carry only `test.paths` content — `.shepherd/` artifacts are gitignored and never committed.
+The script refuses to start on a dirty working tree (untracked `.shepherd` files excepted). Automated commits, in order: `spec-implement(<slug>): chore — add <framework>` when the test-framework bootstrap pre-step (§9) runs, carrying only dependency-manifest and lockfile changes; `spec-implement(<slug>): red — failing tests` after Loop 2 verification and **before Loop 3**; `spec-implement(<slug>): red(n) — amended requirements` after each approved escalation re-sync; `spec-implement(<slug>): green — implementation` on completion. Red and red(n) commits carry only `test.paths` content — `.shepherd/` artifacts are gitignored and never committed.

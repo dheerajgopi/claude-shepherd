@@ -1,4 +1,4 @@
-"""Tests for tdd_loop1 — Loop 1 (EARS requirements specification, §8/§10/§12).
+"""Tests for spec_implement_loop1 — Loop 1 (EARS requirements specification, §8/§10/§12).
 
 Drives run_loop1/amend_requirements in-process against the conftest fixtures
 (tmp_repo/shepherd_repo/feature) and a scripted FakeAgentRunner. Script files
@@ -15,21 +15,21 @@ from types import SimpleNamespace
 
 import pytest
 
-from tdd_contracts import (
+from spec_implement_contracts import (
     GITIGNORE_ENTRIES,
     ExitCode,
     LoopStatus,
     PathPolicyMode,
     Phase,
 )
-from tdd_fake_runner import FakeAgentRunner
-from tdd_loop1 import amend_requirements, run_loop1
-from tdd_state import ShepherdError, StateStore, resolve_feature
+from spec_implement_fake_runner import FakeAgentRunner
+from spec_implement_loop1 import amend_requirements, run_loop1
+from spec_implement_state import ShepherdError, StateStore, resolve_feature
 
 REQUIREMENTS_REL = ".shepherd/features/user-auth/requirements"
 REQUIREMENTS_PROMPT = (
     Path(__file__).resolve().parent.parent
-    / "skills" / "tdd" / "references" / "requirements_prompt.md"
+    / "skills" / "spec-implement" / "references" / "requirements_prompt.md"
 )
 
 #: A scripted draft run: one spec file inside requirements/ plus one write

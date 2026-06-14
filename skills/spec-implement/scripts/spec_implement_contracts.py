@@ -1,4 +1,4 @@
-"""Shared contracts for the TDD shepherd engine.
+"""Shared contracts for the spec-implement shepherd engine.
 
 This module is the single source of truth for everything two modules could
 disagree on: exit codes, phases and their legal transitions, on-disk schemas
@@ -7,7 +7,7 @@ commit message formats, the AgentRunner protocol (the SDK seam), and the
 loop interfaces.
 
 Stdlib-only. Importable by the engine, the loops, the tests, and quotable by
-docs. Requirement references (§n) point at docs/tdd-skill-requirements.md.
+docs. Requirement references (§n) point at docs/spec-implement-skill-requirements.md.
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ class ExitCode(enum.IntEnum):
     NEEDS_INPUT = 14              # implementer is blocked, asked the human a question
     AWAITING_DESIGN_APPROVAL = 15  # design sketch drafted/revised, needs human review
     AWAITING_FRAMEWORK_APPROVAL = 16  # test-framework bootstrap proposed, needs human review
-    NO_FEATURE_RESOLVED = 20      # no --feature arg, no tdd/<slug> branch
+    NO_FEATURE_RESOLVED = 20      # no --feature arg, no spec-implement/<slug> branch
     BRANCH_MISMATCH = 21          # current branch != branch recorded in state
     SHEPHERD_NOT_INITIALIZED = 22  # no .shepherd folder found
 
@@ -112,7 +112,7 @@ RESUMABLE_PHASES: dict[Phase, int] = {
     Phase.AWAITING_APPROVAL: 1,
     Phase.REQUIREMENTS_APPROVED: 2,
     # Bootstrap phases sit at the front of Loop 2's territory; the dispatcher
-    # intercepts them before the loop-number dispatch (tdd_bootstrap owns them).
+    # intercepts them before the loop-number dispatch (spec_implement_bootstrap owns them).
     Phase.PROPOSING_FRAMEWORK: 2,
     Phase.AWAITING_FRAMEWORK_APPROVAL: 2,
     Phase.INSTALLING_FRAMEWORK: 2,
@@ -131,12 +131,12 @@ RESUMABLE_PHASES: dict[Phase, int] = {
 # Commit messages (§16)
 # ---------------------------------------------------------------------------
 
-COMMIT_RED = "tdd({slug}): red — failing tests"
-COMMIT_RED_AMENDED = "tdd({slug}): red({n}) — amended requirements"
-COMMIT_GREEN = "tdd({slug}): green — implementation"
+COMMIT_RED = "spec-implement({slug}): red — failing tests"
+COMMIT_RED_AMENDED = "spec-implement({slug}): red({n}) — amended requirements"
+COMMIT_GREEN = "spec-implement({slug}): green — implementation"
 #: Bootstrap commit (test-framework pre-step): carries dependency-manifest and
 #: lockfile changes only — never test.paths content (tests come later).
-COMMIT_BOOTSTRAP = "tdd({slug}): chore — add {framework}"
+COMMIT_BOOTSTRAP = "spec-implement({slug}): chore — add {framework}"
 
 
 # ---------------------------------------------------------------------------
@@ -161,12 +161,12 @@ REQUIREMENTS_DIR = "requirements"
 #: "<spec-file-stem>:REQ-<nnn>"; ids are never renumbered or reused.
 SPEC_FILE_GLOB = "*.md"
 REQUIREMENT_HEADING_PATTERN = r"^##\s+(REQ-\d+)\b.*$"
-TDD_DIR = ".tdd"
-STATE_FILE = ".tdd/state.json"
-TRACE_FILE = ".tdd/traceability.json"
-REPORTS_DIR = ".tdd/reports"
+SPEC_IMPLEMENT_DIR = ".spec-implement"
+STATE_FILE = ".spec-implement/state.json"
+TRACE_FILE = ".spec-implement/traceability.json"
+REPORTS_DIR = ".spec-implement/reports"
 
-BRANCH_PREFIX = "tdd/"  # feature branch = tdd/<slug>
+BRANCH_PREFIX = "spec-implement/"  # feature branch = spec-implement/<slug>
 
 #: .gitignore entries appended by init (§5 version-control policy):
 #: the whole workspace is machine-local, nothing under it is ever committed.
@@ -179,12 +179,12 @@ GITIGNORE_ENTRIES = [
 # CLI grammar (§6) — pinned so the command (T1-PKG) and engine (T1-CORE) agree
 # ---------------------------------------------------------------------------
 #
-#   tdd.py init [--force]
-#   tdd.py new <title...> [--task-stdin | --task-file PATH]
-#   tdd.py run [--feature SLUG] [--force]
+#   spec_implement.py init [--force]
+#   spec_implement.py new <title...> [--task-stdin | --task-file PATH]
+#   spec_implement.py run [--feature SLUG] [--force]
 #              [--decision approve|reject] [--feedback TEXT]
 #              [--verbose | --no-verbose]
-#   tdd.py status [--json]
+#   spec_implement.py status [--json]
 #
 # `--decision/--feedback` is the human-input channel: the outer command
 # re-invokes `run` with the human's answer after a checkpoint exit (10/12/14).
@@ -208,7 +208,7 @@ DECISION_APPROVE = "approve"
 DECISION_REJECT = "reject"
 
 #: Env var that swaps the SDK runner for a fake in tests (subprocess-level).
-RUNNER_ENV_VAR = "TDD_RUNNER"  # value: "fake:<path-to-script-json>" | unset = real
+RUNNER_ENV_VAR = "SPEC_IMPLEMENT_RUNNER"  # value: "fake:<path-to-script-json>" | unset = real
 
 
 # ---------------------------------------------------------------------------
@@ -280,7 +280,7 @@ class BudgetsSpent:
 @dataclass
 class FeatureState:
     slug: str
-    branch: str                      # tdd/<slug>
+    branch: str                      # spec-implement/<slug>
     base_commit: str                 # SHA at feature creation
     phase: str                       # current Phase value
     session_ids: dict[str, Optional[str]] = field(
@@ -495,9 +495,9 @@ class RunSpec:
 class AgentRunner(Protocol):
     """The single seam between the orchestrator and the Claude Agent SDK.
 
-    Production: SdkAgentRunner (tdd_agent.py). Tests: FakeAgentRunner
+    Production: SdkAgentRunner (spec_implement_agent.py). Tests: FakeAgentRunner
     (tests/fakes.py), scripted per test, with file side-effects gated by the
-    REAL path-policy decision function from tdd_hooks.py.
+    REAL path-policy decision function from spec_implement_hooks.py.
     """
 
     def run(self, spec: RunSpec) -> RunResult:  # blocking; wraps anyio internally
@@ -525,14 +525,14 @@ class LoopOutcome:
 
 # Signatures pinned for the loop modules (implemented in Wave 2):
 #
-#   tdd_loop0.run_loop0(ctx, runner, decision: str | None, feedback: str | None) -> LoopOutcome
-#   tdd_loop1.run_loop1(ctx, runner, decision: str | None, feedback: str | None) -> LoopOutcome
-#   tdd_loop1.amend_requirements(ctx, runner, proposal: dict) -> list[str]  # amended requirement_ids
-#   tdd_loop2.run_loop2(ctx, runner) -> LoopOutcome
-#   tdd_loop2.resync_tests(ctx, runner, requirement_ids: list[str]) -> LoopOutcome
-#   tdd_loop3.run_loop3(ctx, runner, decision: str | None, feedback: str | None) -> LoopOutcome
+#   spec_implement_loop0.run_loop0(ctx, runner, decision: str | None, feedback: str | None) -> LoopOutcome
+#   spec_implement_loop1.run_loop1(ctx, runner, decision: str | None, feedback: str | None) -> LoopOutcome
+#   spec_implement_loop1.amend_requirements(ctx, runner, proposal: dict) -> list[str]  # amended requirement_ids
+#   spec_implement_loop2.run_loop2(ctx, runner) -> LoopOutcome
+#   spec_implement_loop2.resync_tests(ctx, runner, requirement_ids: list[str]) -> LoopOutcome
+#   spec_implement_loop3.run_loop3(ctx, runner, decision: str | None, feedback: str | None) -> LoopOutcome
 #
-# `ctx` is tdd_state.FeatureContext: repo_root, slug, paths, ShepherdConfig,
+# `ctx` is spec_implement_state.FeatureContext: repo_root, slug, paths, ShepherdConfig,
 # FeatureState store handle, and git helpers — defined in T1-CORE and kept
 # minimal; loops receive everything through it.
 

@@ -1,10 +1,10 @@
-"""State, configuration, and active-feature resolution for the TDD shepherd.
+"""State, configuration, and active-feature resolution for the spec-implement shepherd.
 
 Owns the machine-local runtime surface defined in requirement §5/§7/§14:
 config.yaml parsing (`load_config`), the state.json store (`StateStore`),
 the per-invocation feature context (`FeatureContext`, `resolve_feature`),
 and slug derivation (`slugify`). Everything shared with other modules comes
-from tdd_contracts; nothing here re-derives an exit code, phase, path
+from spec_implement_contracts; nothing here re-derives an exit code, phase, path
 constant, or commit format.
 """
 
@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
-from tdd_contracts import (
+from spec_implement_contracts import (
     BRANCH_PREFIX,
     BudgetsConfig,
     BudgetsSpent,
@@ -29,7 +29,7 @@ from tdd_contracts import (
     REQUIREMENTS_DIR,
     REPORTS_DIR,
     STATE_FILE,
-    TDD_DIR,
+    SPEC_IMPLEMENT_DIR,
     ExitCode,
     FeatureState,
     ShepherdConfig,
@@ -91,7 +91,7 @@ def load_config(repo_root: Path) -> ShepherdConfig:
     except ImportError as exc:  # surfaced cleanly instead of a bare traceback
         raise ShepherdError(
             ExitCode.INTERNAL_ERROR,
-            "pyyaml is not installed in this interpreter; run `tdd.py init` "
+            "pyyaml is not installed in this interpreter; run `spec_implement.py init` "
             "preconditions or `pip install pyyaml`",
         ) from exc
 
@@ -99,7 +99,7 @@ def load_config(repo_root: Path) -> ShepherdConfig:
     if not config_path.is_file():
         raise ShepherdError(
             ExitCode.SHEPHERD_NOT_INITIALIZED,
-            f"no {CONFIG_FILE} found under {repo_root}; run `tdd.py init` first",
+            f"no {CONFIG_FILE} found under {repo_root}; run `spec_implement.py init` first",
         )
     try:
         data = yaml.safe_load(config_path.read_text(encoding="utf-8"))
@@ -149,7 +149,7 @@ def save_config(repo_root: Path, config: ShepherdConfig) -> None:
     except ImportError as exc:  # mirror load_config's clean surfacing
         raise ShepherdError(
             ExitCode.INTERNAL_ERROR,
-            "pyyaml is not installed in this interpreter; run `tdd.py init` "
+            "pyyaml is not installed in this interpreter; run `spec_implement.py init` "
             "preconditions or `pip install pyyaml`",
         ) from exc
 
@@ -222,7 +222,7 @@ class StateStore:
         """Validated phase transition: update phase, append history, save.
 
         Raises ShepherdError(INTERNAL_ERROR) if `state.phase -> new_phase` is
-        not legal per tdd_contracts.validate_transition.
+        not legal per spec_implement_contracts.validate_transition.
         """
 
         try:
@@ -259,7 +259,7 @@ class FeatureContext:
     feature_dir: Path
     design_dir: Path
     requirements_dir: Path
-    tdd_dir: Path
+    spec_implement_dir: Path
     reports_dir: Path
     config: ShepherdConfig
     state: FeatureState
@@ -289,7 +289,7 @@ def _feature_listing(repo_root: Path) -> str:
 
     features = list_features(repo_root)
     if not features:
-        return "  (no features yet — create one with `tdd.py new <title>`)"
+        return "  (no features yet — create one with `spec_implement.py new <title>`)"
     return "\n".join(f"  {slug}: {phase}" for slug, phase in features)
 
 
@@ -304,11 +304,11 @@ def resolve_feature(
     (else ShepherdError(BRANCH_MISMATCH)).
     """
 
-    import tdd_git  # local import: tdd_git imports ShepherdError from this module
+    import spec_implement_git  # local import: spec_implement_git imports ShepherdError from this module
 
     config = load_config(repo_root)
     features_dir = repo_root / FEATURES_DIR
-    branch = tdd_git.current_branch(repo_root)
+    branch = spec_implement_git.current_branch(repo_root)
 
     if feature_arg is not None:
         slug = feature_arg
@@ -347,7 +347,7 @@ def resolve_feature(
         feature_dir=feature_dir,
         design_dir=feature_dir / DESIGN_DIR,
         requirements_dir=feature_dir / REQUIREMENTS_DIR,
-        tdd_dir=feature_dir / TDD_DIR,
+        spec_implement_dir=feature_dir / SPEC_IMPLEMENT_DIR,
         reports_dir=feature_dir / REPORTS_DIR,
         config=config,
         state=state,

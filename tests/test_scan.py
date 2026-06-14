@@ -1,4 +1,4 @@
-"""Tests for tdd_scan — deterministic convention pre-scan (§9)."""
+"""Tests for spec_implement_scan — deterministic convention pre-scan (§9)."""
 
 from __future__ import annotations
 
@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pytest
 
-tdd_scan = pytest.importorskip("tdd_scan")  # parallel track (T1-CORE)
+spec_implement_scan = pytest.importorskip("spec_implement_scan")  # parallel track (T1-CORE)
 
-from tdd_scan import scan_conventions  # noqa: E402
+from spec_implement_scan import scan_conventions  # noqa: E402
 
 
 @pytest.fixture
@@ -159,7 +159,7 @@ class TestConventionDocs:
         assert names == ["CLAUDE.md", "AGENTS.md"]
 
     def test_content_capped(self, pytest_repo: Path) -> None:
-        from tdd_scan import _CONVENTION_DOC_CAP
+        from spec_implement_scan import _CONVENTION_DOC_CAP
 
         (pytest_repo / "CLAUDE.md").write_text("x" * (_CONVENTION_DOC_CAP + 500))
         scan = scan_conventions(pytest_repo)
@@ -168,12 +168,12 @@ class TestConventionDocs:
 
 class TestFormatConventionDocs:
     def test_empty_is_blank(self) -> None:
-        from tdd_scan import format_convention_docs
+        from spec_implement_scan import format_convention_docs
 
         assert format_convention_docs([]) == ""
 
     def test_renders_each_doc(self) -> None:
-        from tdd_scan import format_convention_docs
+        from spec_implement_scan import format_convention_docs
 
         out = format_convention_docs([("CLAUDE.md", "layout rule")])
         assert "### CLAUDE.md" in out

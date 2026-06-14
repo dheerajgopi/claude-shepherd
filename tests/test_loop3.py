@@ -1,4 +1,4 @@
-"""Tests for tdd_loop3 — implementation + escalation channel (§10, §15, §16).
+"""Tests for spec_implement_loop3 — implementation + escalation channel (§10, §15, §16).
 
 World-building mirrors test_loop2: conftest fixtures + direct state edits;
 the agent seam is FakeAgentRunner with scripted runs. Loops 1/2 are stubbed
@@ -22,8 +22,8 @@ from typing import Callable, Optional
 
 import pytest
 
-import tdd_loop3
-from tdd_contracts import (
+import spec_implement_loop3
+from spec_implement_contracts import (
     COMMIT_GREEN,
     COMMIT_RED_AMENDED,
     ExitCode,
@@ -32,8 +32,8 @@ from tdd_contracts import (
     PathPolicyMode,
     Phase,
 )
-from tdd_fake_runner import FakeAgentRunner
-from tdd_state import StateStore, resolve_feature
+from spec_implement_fake_runner import FakeAgentRunner
+from spec_implement_state import StateStore, resolve_feature
 
 IMPLEMENT_MODEL = "claude-sonnet-4-6"  # conftest shepherd_repo config defaults
 VERIFIER_MODEL = "claude-haiku-4-5"
@@ -157,8 +157,8 @@ def _setup_loop3(
     (feature.repo / ".gitignore").write_text(".shepherd/\nfake_script.json*\n")
     (feature.repo / TEST_FILE).parent.mkdir(parents=True, exist_ok=True)
     (feature.repo / TEST_FILE).write_text(TEST_CONTENT)
-    (feature.feature_dir / ".tdd").mkdir(parents=True, exist_ok=True)
-    (feature.feature_dir / ".tdd" / "traceability.json").write_text(
+    (feature.feature_dir / ".spec-implement").mkdir(parents=True, exist_ok=True)
+    (feature.feature_dir / ".spec-implement" / "traceability.json").write_text(
         _trace_json(trace_tests if trace_tests is not None else [f"{TEST_FILE}::test_x"])
     )
 
@@ -196,9 +196,9 @@ def _stub_sibling_loops(
     resync_outcome: LoopOutcome,
     calls: dict,
 ):
-    """Inject stub tdd_loop1/tdd_loop2 so lazy imports in loop3 hit them."""
+    """Inject stub spec_implement_loop1/spec_implement_loop2 so lazy imports in loop3 hit them."""
 
-    loop1 = types.ModuleType("tdd_loop1")
+    loop1 = types.ModuleType("spec_implement_loop1")
 
     def amend_requirements(ctx, runner, proposal):
         calls["amend"] = proposal
@@ -206,7 +206,7 @@ def _stub_sibling_loops(
 
     loop1.amend_requirements = amend_requirements
 
-    loop2 = types.ModuleType("tdd_loop2")
+    loop2 = types.ModuleType("spec_implement_loop2")
 
     def resync_tests(ctx, runner, requirement_ids):
         calls["resync"] = requirement_ids
@@ -214,8 +214,8 @@ def _stub_sibling_loops(
 
     loop2.resync_tests = resync_tests
 
-    monkeypatch.setitem(sys.modules, "tdd_loop1", loop1)
-    monkeypatch.setitem(sys.modules, "tdd_loop2", loop2)
+    monkeypatch.setitem(sys.modules, "spec_implement_loop1", loop1)
+    monkeypatch.setitem(sys.modules, "spec_implement_loop2", loop2)
 
 
 class TestHappyPath:
@@ -233,7 +233,7 @@ class TestHappyPath:
             ],
         )
 
-        outcome = tdd_loop3.run_loop3(ctx, runner, None, None)
+        outcome = spec_implement_loop3.run_loop3(ctx, runner, None, None)
 
         assert outcome.status is LoopStatus.ADVANCE
         assert "green" in outcome.detail
@@ -273,7 +273,7 @@ class TestHappyPath:
             ],
         )
 
-        outcome = tdd_loop3.run_loop3(ctx, runner, None, None)
+        outcome = spec_implement_loop3.run_loop3(ctx, runner, None, None)
 
         assert outcome.status is LoopStatus.ADVANCE
         second = runner.received[1]
@@ -290,7 +290,7 @@ class TestTraceabilityGate:
         before = _commit_count(feature.repo)
         runner = _runner(feature, [])
 
-        outcome = tdd_loop3.run_loop3(ctx, runner, None, None)
+        outcome = spec_implement_loop3.run_loop3(ctx, runner, None, None)
 
         assert outcome.status is LoopStatus.FAILED
         assert outcome.exit_code is ExitCode.INTERNAL_ERROR
@@ -320,13 +320,13 @@ class TestProposals:
             ],
         )
 
-        outcome = tdd_loop3.run_loop3(ctx, runner, None, None)
+        outcome = spec_implement_loop3.run_loop3(ctx, runner, None, None)
 
         assert outcome.status is LoopStatus.ADVANCE
         content = (feature.repo / TEST_FILE).read_text()
         assert "import pathlib  # stdlib" in content  # diff applied on disk
 
-        from tdd_trace import load_matrix
+        from spec_implement_trace import load_matrix
 
         matrix = load_matrix(ctx.feature_dir)
         assert matrix.requirements[0].revision == 2
@@ -352,7 +352,7 @@ class TestProposals:
             ],
         )
 
-        outcome = tdd_loop3.run_loop3(ctx, runner, None, None)
+        outcome = spec_implement_loop3.run_loop3(ctx, runner, None, None)
 
         assert outcome.status is LoopStatus.CHECKPOINT
         assert outcome.exit_code is ExitCode.ESCALATED
@@ -377,7 +377,7 @@ class TestProposals:
             ],
         )
 
-        outcome = tdd_loop3.run_loop3(ctx, runner, None, None)
+        outcome = spec_implement_loop3.run_loop3(ctx, runner, None, None)
 
         assert outcome.exit_code is ExitCode.ESCALATED
         report = json.loads((ctx.reports_dir / "escalation_1.json").read_text())
@@ -398,7 +398,7 @@ class TestProposals:
             ],
         )
 
-        outcome = tdd_loop3.run_loop3(ctx, runner, None, None)
+        outcome = spec_implement_loop3.run_loop3(ctx, runner, None, None)
 
         assert outcome.exit_code is ExitCode.ESCALATED
         assert (feature.repo / TEST_FILE).read_text() == original  # untouched
@@ -419,7 +419,7 @@ class TestBlockerChannel:
                 }
             ],
         )
-        outcome = tdd_loop3.run_loop3(ctx, runner, None, None)
+        outcome = spec_implement_loop3.run_loop3(ctx, runner, None, None)
         assert outcome.exit_code is ExitCode.NEEDS_INPUT
         return ctx
 
@@ -436,7 +436,7 @@ class TestBlockerChannel:
             ],
         )
 
-        outcome = tdd_loop3.run_loop3(ctx, runner, None, None)
+        outcome = spec_implement_loop3.run_loop3(ctx, runner, None, None)
 
         assert outcome.status is LoopStatus.CHECKPOINT
         assert outcome.exit_code is ExitCode.NEEDS_INPUT
@@ -463,7 +463,7 @@ class TestBlockerChannel:
             ],
         )
 
-        outcome = tdd_loop3.run_loop3(ctx, runner, None, "Use JWT")
+        outcome = spec_implement_loop3.run_loop3(ctx, runner, None, "Use JWT")
 
         assert outcome.status is LoopStatus.ADVANCE  # PASS written → green
         answer_spec = runner.received[0]
@@ -476,7 +476,7 @@ class TestBlockerChannel:
         ctx = self._blocked(feature)
         runner = _runner(feature, [])
 
-        outcome = tdd_loop3.run_loop3(ctx, runner, None, None)
+        outcome = spec_implement_loop3.run_loop3(ctx, runner, None, None)
 
         assert outcome.status is LoopStatus.CHECKPOINT
         assert outcome.exit_code is ExitCode.NEEDS_INPUT
@@ -496,7 +496,7 @@ class TestBlockerChannel:
             ],
         )
 
-        outcome = tdd_loop3.run_loop3(ctx, runner, None, None)
+        outcome = spec_implement_loop3.run_loop3(ctx, runner, None, None)
 
         assert outcome.exit_code is ExitCode.NEEDS_INPUT  # not ESCALATED
         assert (ctx.reports_dir / "blocker_1.md").is_file()
@@ -518,7 +518,7 @@ class TestEscalationResolution:
                 {"text": _verdict("significant")},
             ],
         )
-        outcome = tdd_loop3.run_loop3(ctx, runner, None, None)
+        outcome = spec_implement_loop3.run_loop3(ctx, runner, None, None)
         assert outcome.exit_code is ExitCode.ESCALATED
         return ctx, outcome
 
@@ -526,7 +526,7 @@ class TestEscalationResolution:
         ctx, _ = self._escalated(feature)
         runner = _runner(feature, [])
 
-        outcome = tdd_loop3.run_loop3(ctx, runner, None, None)
+        outcome = spec_implement_loop3.run_loop3(ctx, runner, None, None)
 
         assert outcome.status is LoopStatus.CHECKPOINT
         assert outcome.exit_code is ExitCode.ESCALATED
@@ -546,7 +546,7 @@ class TestEscalationResolution:
             ],
         )
 
-        outcome = tdd_loop3.run_loop3(ctx, runner, "reject", "test is correct")
+        outcome = spec_implement_loop3.run_loop3(ctx, runner, "reject", "test is correct")
 
         assert outcome.status is LoopStatus.ADVANCE  # PASS written → green
         rejection_spec = runner.received[0]
@@ -570,7 +570,7 @@ class TestEscalationResolution:
         (feature.repo / TEST_FILE).write_text(TEST_CONTENT + "# amended\n")
         runner = _runner(feature, [])
 
-        outcome = tdd_loop3.run_loop3(ctx, runner, "approve", None)
+        outcome = spec_implement_loop3.run_loop3(ctx, runner, "approve", None)
 
         assert outcome.status is LoopStatus.ADVANCE
         assert calls["amend"]["test_file"] == TEST_FILE
@@ -597,7 +597,7 @@ class TestEscalationResolution:
         )
         runner = _runner(feature, [])
 
-        outcome = tdd_loop3.run_loop3(ctx, runner, "approve", None)
+        outcome = spec_implement_loop3.run_loop3(ctx, runner, "approve", None)
 
         assert outcome.exit_code is ExitCode.COVERAGE_GAP
         state = StateStore(ctx.feature_dir).load()
@@ -612,7 +612,7 @@ class TestGuards:
         ctx = _setup_loop3(feature, state_mut=exhaust)
         runner = _runner(feature, [])
 
-        outcome = tdd_loop3.run_loop3(ctx, runner, None, None)
+        outcome = spec_implement_loop3.run_loop3(ctx, runner, None, None)
 
         assert outcome.status is LoopStatus.CHECKPOINT
         assert outcome.exit_code is ExitCode.BUDGET_EXCEEDED
@@ -633,7 +633,7 @@ class TestGuards:
                     raise subprocess.TimeoutExpired(cmd=args[0], timeout=900)
             return real_run(*args, **kwargs)
 
-        monkeypatch.setattr(tdd_loop3.subprocess, "run", fake_run)
+        monkeypatch.setattr(spec_implement_loop3.subprocess, "run", fake_run)
         runner = _runner(
             feature,
             [
@@ -645,7 +645,7 @@ class TestGuards:
             ],
         )
 
-        outcome = tdd_loop3.run_loop3(ctx, runner, None, None)
+        outcome = spec_implement_loop3.run_loop3(ctx, runner, None, None)
 
         assert outcome.status is LoopStatus.ADVANCE
         assert "timed out" in runner.received[0].prompt
@@ -656,7 +656,7 @@ class TestGuards:
             feature, [{"text": "", "is_error": True, "session_id": "s"}]
         )
 
-        outcome = tdd_loop3.run_loop3(ctx, runner, None, None)
+        outcome = spec_implement_loop3.run_loop3(ctx, runner, None, None)
 
         assert outcome.status is LoopStatus.FAILED
         assert outcome.exit_code is ExitCode.INTERNAL_ERROR
@@ -665,7 +665,7 @@ class TestGuards:
         ctx = _setup_loop3(feature, phase=Phase.DRAFTING_REQUIREMENTS)
         runner = _runner(feature, [])
 
-        outcome = tdd_loop3.run_loop3(ctx, runner, None, None)
+        outcome = spec_implement_loop3.run_loop3(ctx, runner, None, None)
 
         assert outcome.status is LoopStatus.FAILED
         assert "cannot run from phase" in outcome.detail
@@ -680,21 +680,21 @@ class TestDiffApplier:
             "@@ -0,0 +1,1 @@\n"
             "+import sys\n"
         )
-        assert not tdd_loop3._apply_unified_diff(ctx.repo_root, TEST_FILE, diff)
+        assert not spec_implement_loop3._apply_unified_diff(ctx.repo_root, TEST_FILE, diff)
 
     def test_wrong_file_header_rejected(self, feature) -> None:
         ctx = _setup_loop3(feature)
         diff = MINOR_DIFF.replace("tests/test_feature.py", "src/other.py")
-        assert not tdd_loop3._apply_unified_diff(ctx.repo_root, TEST_FILE, diff)
+        assert not spec_implement_loop3._apply_unified_diff(ctx.repo_root, TEST_FILE, diff)
 
     def test_fenced_diff_applies(self, feature) -> None:
         ctx = _setup_loop3(feature)
         fenced = "```diff\n" + MINOR_DIFF + "```"
-        assert tdd_loop3._apply_unified_diff(ctx.repo_root, TEST_FILE, fenced)
+        assert spec_implement_loop3._apply_unified_diff(ctx.repo_root, TEST_FILE, fenced)
         assert "# stdlib" in (ctx.repo_root / TEST_FILE).read_text()
 
     def test_ambiguous_context_rejected(self, tmp_path) -> None:
         target = tmp_path / "t.py"
         target.write_text("x = 1\nx = 1\n")
         diff = "@@ -5,1 +5,1 @@\n-x = 1\n+x = 2\n"  # wrong hint, 2 matches
-        assert not tdd_loop3._apply_unified_diff(tmp_path, "t.py", diff)
+        assert not spec_implement_loop3._apply_unified_diff(tmp_path, "t.py", diff)

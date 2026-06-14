@@ -1,4 +1,4 @@
-"""Deterministic convention scan for the TDD shepherd (§6 step 3, §9).
+"""Deterministic convention scan for the spec-implement shepherd (§6 step 3, §9).
 
 Pure-Python file inspection — no agent calls, no guessing. Detects the test
 command, framework, test paths, and an exemplar test file from well-known
@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-from tdd_contracts import matches_any_pattern
+from spec_implement_contracts import matches_any_pattern
 
 #: Conventional test directories probed when no config declares paths.
 _DEFAULT_TEST_DIRS = ("tests", "test", "spec", "src/__tests__")

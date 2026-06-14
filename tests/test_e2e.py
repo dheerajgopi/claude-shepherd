@@ -1,6 +1,6 @@
 """End-to-end journeys through the real CLI (§15 flow), fake-SDK only.
 
-Every step is a true `tdd.py run` subprocess with `TDD_RUNNER=fake:<script>`;
+Every step is a true `spec_implement.py run` subprocess with `SPEC_IMPLEMENT_RUNNER=fake:<script>`;
 each invocation gets its OWN script file (a fresh process builds a fresh
 FakeAgentRunner, which consumes its script from the top). This exercises the
 full production path: argparse → feature resolution → phase dispatch → loop
@@ -20,7 +20,7 @@ from pathlib import Path
 import pytest
 
 from conftest import run_cli
-from tdd_contracts import (
+from spec_implement_contracts import (
     COMMIT_GREEN,
     COMMIT_RED,
     COMMIT_RED_AMENDED,
@@ -189,7 +189,7 @@ def world(tmp_repo, tmp_path_factory):
         script = scripts_dir / f"step_{counter['n']}.json"
         script.write_text(json.dumps({"runs": runs}))
         return run_cli(
-            args, tmp_repo, env_extra={"TDD_RUNNER": f"fake:{script}"}
+            args, tmp_repo, env_extra={"SPEC_IMPLEMENT_RUNNER": f"fake:{script}"}
         )
 
     init = run_cli(["init"], tmp_repo)
@@ -240,7 +240,7 @@ def bare_world(tmp_path_factory):
         counter["n"] += 1
         script = scripts_dir / f"step_{counter['n']}.json"
         script.write_text(json.dumps({"runs": runs}))
-        return run_cli(args, repo, env_extra={"TDD_RUNNER": f"fake:{script}"})
+        return run_cli(args, repo, env_extra={"SPEC_IMPLEMENT_RUNNER": f"fake:{script}"})
 
     init = run_cli(["init"], repo)
     assert init.returncode == 0, init.stderr
@@ -290,7 +290,7 @@ def _subjects(repo: Path) -> list[str]:
 
 def _phase(repo: Path) -> str:
     state = json.loads(
-        (repo / ".shepherd/features/user-auth/.tdd/state.json").read_text()
+        (repo / ".shepherd/features/user-auth/.spec-implement/state.json").read_text()
     )
     return state["phase"]
 
@@ -327,7 +327,7 @@ class TestHappyPath:
         subjects = _subjects(repo)
         assert subjects[0] == COMMIT_GREEN.format(slug="user-auth")
         assert subjects[1] == COMMIT_RED.format(slug="user-auth")
-        assert [s for s in subjects if s.startswith("tdd(")] == subjects[:2]
+        assert [s for s in subjects if s.startswith("spec-implement(")] == subjects[:2]
 
         # Nothing under the machine-local .shepherd/ ever enters a commit.
         shown = subprocess.run(
@@ -380,7 +380,7 @@ class TestCoverageGap:
 
         r = step(["run", "--decision", "approve"], [GEN_TESTS, VERIFY_MISSING])
         assert r.returncode == ExitCode.COVERAGE_GAP, r.stderr
-        gap = repo / ".shepherd/features/user-auth/.tdd/reports/coverage_gap.md"
+        gap = repo / ".shepherd/features/user-auth/.spec-implement/reports/coverage_gap.md"
         assert gap.is_file()
         assert REQUIREMENT_ID in gap.read_text()
         assert _phase(repo) == Phase.VERIFYING_COVERAGE.value
@@ -398,7 +398,7 @@ class TestEscalation:
         )
         assert r.returncode == ExitCode.ESCALATED, r.stderr
         assert _phase(repo) == Phase.ESCALATED.value
-        report = repo / ".shepherd/features/user-auth/.tdd/reports/escalation_1.md"
+        report = repo / ".shepherd/features/user-auth/.spec-implement/reports/escalation_1.md"
         assert report.is_file()
 
     def test_approve_amends_and_creates_red2(self, world) -> None:
@@ -420,7 +420,7 @@ class TestEscalation:
 
         # The renegotiation is auditable: resync revision bump in the matrix.
         matrix = json.loads(
-            (repo / ".shepherd/features/user-auth/.tdd/traceability.json").read_text()
+            (repo / ".shepherd/features/user-auth/.spec-implement/traceability.json").read_text()
         )
         kinds = [rev["kind"] for rev in matrix["revisions"]]
         assert "resync" in kinds
@@ -453,7 +453,7 @@ class TestBlocker:
         )
         assert r.returncode == ExitCode.NEEDS_INPUT, r.stderr
         assert _phase(repo) == Phase.BLOCKED.value
-        report = repo / ".shepherd/features/user-auth/.tdd/reports/blocker_1.md"
+        report = repo / ".shepherd/features/user-auth/.spec-implement/reports/blocker_1.md"
         assert report.is_file()
         assert "JWT or session cookies?" in report.read_text()
 
@@ -503,7 +503,7 @@ class TestTraceabilityGate:
 
         # Tamper: matrix now maps a function that does not exist; make the
         # suite trivially green. A deleted/renamed test must not fake DONE.
-        trace = repo / ".shepherd/features/user-auth/.tdd/traceability.json"
+        trace = repo / ".shepherd/features/user-auth/.spec-implement/traceability.json"
         trace.write_text(trace.read_text().replace("test_login", "test_ghost"))
         (repo / "PASS").write_text("1")
         subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
@@ -515,7 +515,7 @@ class TestTraceabilityGate:
         assert r.returncode == ExitCode.INTERNAL_ERROR
         assert "traceability" in (r.stdout + r.stderr).lower()
         violation = (
-            repo / ".shepherd/features/user-auth/.tdd/reports/traceability_violation.md"
+            repo / ".shepherd/features/user-auth/.spec-implement/reports/traceability_violation.md"
         )
         assert violation.is_file()
         assert COMMIT_GREEN.format(slug="user-auth") not in _subjects(repo)
@@ -575,7 +575,7 @@ class TestBootstrap:
         r = step(["run", "--decision", "approve"], [])
         assert r.returncode == ExitCode.AWAITING_FRAMEWORK_APPROVAL, r.stderr
         assert _phase(repo) == Phase.AWAITING_FRAMEWORK_APPROVAL.value
-        proposal = repo / ".shepherd/features/user-auth/.tdd/reports/framework_proposal.md"
+        proposal = repo / ".shepherd/features/user-auth/.spec-implement/reports/framework_proposal.md"
         assert proposal.is_file() and "pytest" in proposal.read_text()
 
         # Redundant re-run at the framework checkpoint: idempotent, no commits.
@@ -593,10 +593,10 @@ class TestBootstrap:
         assert _phase(repo) == Phase.DONE.value
 
         # Commit choreography: green, red, then the bootstrap chore beneath them.
-        subjects = [s for s in _subjects(repo) if s.startswith("tdd(")]
+        subjects = [s for s in _subjects(repo) if s.startswith("spec-implement(")]
         assert subjects[0] == COMMIT_GREEN.format(slug="user-auth")
         assert subjects[1] == COMMIT_RED.format(slug="user-auth")
-        assert subjects[2] == "tdd(user-auth): chore — add pytest"
+        assert subjects[2] == "spec-implement(user-auth): chore — add pytest"
 
         # The chore commit carried the manifest, never test/source paths.
         chore_files = subprocess.run(
@@ -621,6 +621,6 @@ class TestBootstrap:
         assert r.returncode == ExitCode.AWAITING_FRAMEWORK_APPROVAL
         assert _phase(repo) == Phase.AWAITING_FRAMEWORK_APPROVAL.value
         data = json.loads(
-            (repo / ".shepherd/features/user-auth/.tdd/reports/framework_proposal.json").read_text()
+            (repo / ".shepherd/features/user-auth/.spec-implement/reports/framework_proposal.json").read_text()
         )
         assert data["feedback"] == "keep pytest, thanks"

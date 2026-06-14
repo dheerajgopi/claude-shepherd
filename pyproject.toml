@@ -1,11 +1,11 @@
 [project]
 name = "claude-shepherd"
 version = "0"
-description = "Claude Code plugin packaging engineering workflows (the TDD engine + skills)."
+description = "Claude Code plugin packaging engineering workflows (the spec-implement engine + skills)."
 requires-python = ">=3.10"
 
-# Not an installable package: the engine scripts run via `python3 skills/tdd/
-# scripts/tdd.py` and are imported flat (conftest puts that dir on sys.path),
+# Not an installable package: the engine scripts run via `python3 skills/spec-implement/
+# scripts/spec_implement.py` and are imported flat (conftest puts that dir on sys.path),
 # never as a package. This file exists only to declare the dev/test toolchain
 # and tool config, so `uv sync` reproduces the documented environment.
 [tool.uv]

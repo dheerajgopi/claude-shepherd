@@ -1,4 +1,4 @@
-"""Thin git subprocess helpers for the TDD shepherd (stdlib only).
+"""Thin git subprocess helpers for the spec-implement shepherd (stdlib only).
 
 Every helper shells out to `git` and converts failures into
 ShepherdError(INTERNAL_ERROR) carrying git's stderr, so the CLI surfaces them
@@ -12,9 +12,9 @@ import subprocess
 from pathlib import Path
 from typing import Optional
 
-import tdd_wsl
-from tdd_contracts import SHEPHERD_DIR, ExitCode, matches_any_pattern
-from tdd_state import ShepherdError
+import spec_implement_wsl
+from spec_implement_contracts import SHEPHERD_DIR, ExitCode, matches_any_pattern
+from spec_implement_state import ShepherdError
 
 
 def git(args: list[str], cwd: Path, strip: bool = True) -> str:
@@ -28,15 +28,15 @@ def git(args: list[str], cwd: Path, strip: bool = True) -> str:
     When `cwd` is a WSL-filesystem UNC path on a Windows host, git runs inside
     WSL (`git -C <linux_path>`) so the repo is touched by its own git config —
     avoiding Windows git's dubious-ownership / line-ending surprises on a Linux
-    checkout (see tdd_wsl).
+    checkout (see spec_implement_wsl).
     """
 
-    target = tdd_wsl.wsl_target(cwd)
+    target = spec_implement_wsl.wsl_target(cwd)
     if target is None:
         argv, run_cwd = ["git", *args], cwd
     else:
         distro, linux_path = target
-        argv, run_cwd = tdd_wsl.exec_argv(distro, ["git", "-C", linux_path, *args]), None
+        argv, run_cwd = spec_implement_wsl.exec_argv(distro, ["git", "-C", linux_path, *args]), None
     try:
         proc = subprocess.run(
             argv,
@@ -70,8 +70,8 @@ def repo_root(cwd: Path) -> Optional[Path]:
         toplevel = git(["rev-parse", "--show-toplevel"], cwd)
     except ShepherdError:
         return None
-    if tdd_wsl.wsl_target(cwd) is not None:
-        unc = tdd_wsl.to_unc(toplevel, cwd)
+    if spec_implement_wsl.wsl_target(cwd) is not None:
+        unc = spec_implement_wsl.to_unc(toplevel, cwd)
         if unc is not None:
             return Path(unc)
     return Path(toplevel).resolve()

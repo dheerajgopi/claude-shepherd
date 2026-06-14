@@ -1,4 +1,4 @@
-"""Tests for tdd_git — git plumbing helpers (§16 dirty-tree policy included)."""
+"""Tests for spec_implement_git — git plumbing helpers (§16 dirty-tree policy included)."""
 
 from __future__ import annotations
 
@@ -8,9 +8,9 @@ from pathlib import Path
 
 import pytest
 
-tdd_git = pytest.importorskip("tdd_git")  # parallel track (T1-CORE)
+spec_implement_git = pytest.importorskip("spec_implement_git")  # parallel track (T1-CORE)
 
-from tdd_git import (  # noqa: E402
+from spec_implement_git import (  # noqa: E402
     branch_exists,
     changed_files,
     changed_files_matching,
@@ -104,12 +104,12 @@ class TestIsDirty:
 
 class TestBranches:
     def test_create_and_exists(self, tmp_repo: Path) -> None:
-        assert branch_exists(tmp_repo, "tdd/user-auth") is False
-        create_branch(tmp_repo, "tdd/user-auth")
-        assert branch_exists(tmp_repo, "tdd/user-auth") is True
+        assert branch_exists(tmp_repo, "spec-implement/user-auth") is False
+        create_branch(tmp_repo, "spec-implement/user-auth")
+        assert branch_exists(tmp_repo, "spec-implement/user-auth") is True
 
     def test_exists_false_for_unknown(self, tmp_repo: Path) -> None:
-        assert branch_exists(tmp_repo, "tdd/nope") is False
+        assert branch_exists(tmp_repo, "spec-implement/nope") is False
 
 
 class TestCommitPaths:
@@ -119,7 +119,7 @@ class TestCommitPaths:
         readme.write_text(readme.read_text() + "\nchange one\n")
         app.write_text(app.read_text() + "\n# change two\n")
 
-        commit_paths(tmp_repo, "tdd(user-auth): red — failing tests", ["README.md"])
+        commit_paths(tmp_repo, "spec-implement(user-auth): red — failing tests", ["README.md"])
 
         # The other modified file must remain uncommitted.
         status = _status(tmp_repo)
@@ -134,7 +134,7 @@ class TestCommitPaths:
             capture_output=True,
             text=True,
         ).stdout
-        assert show.splitlines()[0] == "tdd(user-auth): red — failing tests"
+        assert show.splitlines()[0] == "spec-implement(user-auth): red — failing tests"
         assert "README.md" in show
         assert "src/app.py" not in show
 
@@ -142,7 +142,7 @@ class TestCommitPaths:
         new = tmp_repo / "tests" / "test_new.py"
         new.write_text("def test_new(): pass\n")
 
-        commit_paths(tmp_repo, "tdd(user-auth): red — failing tests", ["tests/test_new.py"])
+        commit_paths(tmp_repo, "spec-implement(user-auth): red — failing tests", ["tests/test_new.py"])
 
         assert "tests/test_new.py" not in _status(tmp_repo)
         assert is_dirty(tmp_repo) is False

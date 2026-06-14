@@ -1,4 +1,4 @@
-"""Tests for tdd_bootstrap — the test-framework bootstrap pre-step.
+"""Tests for spec_implement_bootstrap — the test-framework bootstrap pre-step.
 
 Two layers: (1) `propose_framework` is a pure, deterministic recipe over a
 project's markers — tested against tiny scratch dirs; (2) `run_bootstrap`
@@ -16,15 +16,15 @@ from types import SimpleNamespace
 
 import pytest
 
-from tdd_bootstrap import (
+from spec_implement_bootstrap import (
     FrameworkProposal,
     propose_framework,
     run_bootstrap,
     should_bootstrap,
 )
-from tdd_contracts import ExitCode, LoopStatus, PathPolicyMode, Phase
-from tdd_fake_runner import FakeAgentRunner
-from tdd_state import StateStore, load_config, resolve_feature
+from spec_implement_contracts import ExitCode, LoopStatus, PathPolicyMode, Phase
+from spec_implement_fake_runner import FakeAgentRunner
+from spec_implement_state import StateStore, load_config, resolve_feature
 
 
 # ---------------------------------------------------------------------------
@@ -166,8 +166,8 @@ def bare_feature(tmp_path: Path) -> SimpleNamespace:
     _git(repo, "add", "-A")
     _git(repo, "commit", "-m", "initial commit")
 
-    from tdd_contracts import FeatureState, HistoryEntry, asdict_state
-    from tdd_state import utc_now_iso
+    from spec_implement_contracts import FeatureState, HistoryEntry, asdict_state
+    from spec_implement_state import utc_now_iso
 
     shepherd = repo / ".shepherd"
     (shepherd / "features").mkdir(parents=True)
@@ -179,12 +179,12 @@ def bare_feature(tmp_path: Path) -> SimpleNamespace:
     )
 
     slug = "user-auth"
-    branch = f"tdd/{slug}"
+    branch = f"spec-implement/{slug}"
     feature_dir = shepherd / "features" / slug
-    tdd_dir = feature_dir / ".tdd"
+    spec_implement_dir = feature_dir / ".spec-implement"
     (feature_dir / "design").mkdir(parents=True)
     (feature_dir / "requirements").mkdir(parents=True)
-    (tdd_dir / "reports").mkdir(parents=True)
+    (spec_implement_dir / "reports").mkdir(parents=True)
     (feature_dir / "task.md").write_text("Build user auth.\n")
     _git(repo, "checkout", "-b", branch)
 
@@ -196,7 +196,7 @@ def bare_feature(tmp_path: Path) -> SimpleNamespace:
         phase=Phase.REQUIREMENTS_APPROVED.value,
         history=[HistoryEntry(phase=Phase.REQUIREMENTS_APPROVED.value, timestamp=now)],
     )
-    (tdd_dir / "state.json").write_text(json.dumps(asdict_state(state), indent=2))
+    (spec_implement_dir / "state.json").write_text(json.dumps(asdict_state(state), indent=2))
 
     return SimpleNamespace(
         repo=repo, slug=slug, branch=branch, feature_dir=feature_dir
@@ -286,7 +286,7 @@ class TestApproveInstalls:
         commits_after = _git(bare_feature.repo, "rev-list", "--count", "HEAD").strip()
         assert int(commits_after) == int(commits_before) + 1
         assert _git(bare_feature.repo, "log", "-1", "--format=%s").strip() == (
-            "tdd(user-auth): chore — add pytest"
+            "spec-implement(user-auth): chore — add pytest"
         )
 
         # The denied write never landed; pyproject did.

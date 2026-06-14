@@ -1,8 +1,8 @@
-"""Subprocess-level CLI contract tests for tdd.py (§6 verbs, §13 exit codes).
+"""Subprocess-level CLI contract tests for spec_implement.py (§6 verbs, §13 exit codes).
 
 These define the CLI contract. Tests that exercise loop internals are loose
 here and tightened in T3-INTEG (marked inline). The SDK is never touched:
-TDD_RUNNER=fake:<script.json> selects FakeAgentRunner for every `run`.
+SPEC_IMPLEMENT_RUNNER=fake:<script.json> selects FakeAgentRunner for every `run`.
 """
 
 from __future__ import annotations
@@ -13,11 +13,11 @@ from pathlib import Path
 
 import pytest
 
-from conftest import TDD_PY, run_cli  # noqa: F401  (run_cli also available as fixture)
-from tdd_contracts import Phase
+from conftest import SPEC_IMPLEMENT_PY, run_cli  # noqa: F401  (run_cli also available as fixture)
+from spec_implement_contracts import Phase
 
 pytestmark = pytest.mark.skipif(
-    not TDD_PY.exists(), reason="tdd.py not yet written (parallel track T1-CLI)"
+    not SPEC_IMPLEMENT_PY.exists(), reason="spec_implement.py not yet written (parallel track T1-CLI)"
 )
 
 
@@ -33,7 +33,7 @@ def _current_branch(repo: Path) -> str:
 
 @pytest.fixture
 def fake_env(tmp_path_factory) -> dict:
-    """TDD_RUNNER env pointing at a generous fake script (outside any repo)."""
+    """SPEC_IMPLEMENT_RUNNER env pointing at a generous fake script (outside any repo)."""
 
     scratch = tmp_path_factory.mktemp("fake-runner")
     script = scratch / "script.json"
@@ -41,7 +41,7 @@ def fake_env(tmp_path_factory) -> dict:
         {"text": f"Feature: stub output for scripted run {i}\n"} for i in range(6)
     ]
     script.write_text(json.dumps({"runs": runs}))
-    return {"TDD_RUNNER": f"fake:{script}"}
+    return {"SPEC_IMPLEMENT_RUNNER": f"fake:{script}"}
 
 
 class TestUninitialized:
@@ -80,16 +80,16 @@ class TestNew:
         result = run_cli(["new", "Add user auth"], tmp_repo)
         assert result.returncode == 0, result.stderr
 
-        assert _current_branch(tmp_repo) == "tdd/add-user-auth"
+        assert _current_branch(tmp_repo) == "spec-implement/add-user-auth"
 
         feature_dir = tmp_repo / ".shepherd" / "features" / "add-user-auth"
         assert feature_dir.is_dir()
         # Without --task-file, the title is the task statement (§6).
         assert (feature_dir / "task.md").read_text().strip() == "Add user auth"
 
-        state = json.loads((feature_dir / ".tdd" / "state.json").read_text())
+        state = json.loads((feature_dir / ".spec-implement" / "state.json").read_text())
         assert state["slug"] == "add-user-auth"
-        assert state["branch"] == "tdd/add-user-auth"
+        assert state["branch"] == "spec-implement/add-user-auth"
         assert state["phase"] in {p.value for p in Phase}
         assert len(state["base_commit"]) == 40
 
@@ -108,7 +108,7 @@ class TestNew:
         assert result.returncode == 0, result.stderr
 
         # Slug/branch derive from the title; task.md holds the full statement.
-        assert _current_branch(tmp_repo) == "tdd/paginated-user-list"
+        assert _current_branch(tmp_repo) == "spec-implement/paginated-user-list"
         task_md = (
             tmp_repo / ".shepherd" / "features" / "paginated-user-list" / "task.md"
         )
@@ -142,7 +142,7 @@ class TestNew:
         )
         assert result.returncode == 0, result.stderr
 
-        assert _current_branch(tmp_repo) == "tdd/paginated-user-list"
+        assert _current_branch(tmp_repo) == "spec-implement/paginated-user-list"
         task_md = (
             tmp_repo / ".shepherd" / "features" / "paginated-user-list" / "task.md"
         )

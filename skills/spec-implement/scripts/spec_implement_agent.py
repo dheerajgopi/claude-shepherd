@@ -1,9 +1,9 @@
 """Claude-Agent-SDK adapter — the production AgentRunner (§9, §10, §12).
 
 `SdkAgentRunner` is the only module that talks to claude-agent-sdk; loops go
-through the `AgentRunner` protocol (tdd_contracts). All SDK imports live
+through the `AgentRunner` protocol (spec_implement_contracts). All SDK imports live
 inside function/method bodies so that `get_runner` with a fake runner
-(TDD_RUNNER=fake:<script.json>) works without the SDK installed.
+(SPEC_IMPLEMENT_RUNNER=fake:<script.json>) works without the SDK installed.
 """
 
 from __future__ import annotations
@@ -12,14 +12,14 @@ import os
 import sys
 from pathlib import Path
 
-from tdd_contracts import (
+from spec_implement_contracts import (
     RUNNER_ENV_VAR,
     AgentRunner,
     RunResult,
     RunSpec,
     ToolEvent,
 )
-from tdd_hooks import PathPolicy, make_pretooluse_hook
+from spec_implement_hooks import PathPolicy, make_pretooluse_hook
 
 
 def build_prompt(sections: list[tuple[str, str]]) -> str:
@@ -128,7 +128,7 @@ class SdkAgentRunner:
             }
 
         # Custom Loop-3 channels, each gated by its own RunSpec flag. Both
-        # live on one `tdd` MCP server; the server is created only if at least
+        # live on one `spec_implement` MCP server; the server is created only if at least
         # one tool is requested.
         mcp_servers = None
         custom_tools = []
@@ -164,7 +164,7 @@ class SdkAgentRunner:
                 }
 
             custom_tools.append(propose_test_change)
-            allowed_tools.append("mcp__tdd__propose_test_change")
+            allowed_tools.append("mcp__spec_implement__propose_test_change")
 
         # Blocker channel: pause for a human decision the agent cannot make.
         if spec.expose_request_human_input:
@@ -198,11 +198,11 @@ class SdkAgentRunner:
                 }
 
             custom_tools.append(request_human_input)
-            allowed_tools.append("mcp__tdd__request_human_input")
+            allowed_tools.append("mcp__spec_implement__request_human_input")
 
         if custom_tools:
             mcp_servers = {
-                "tdd": create_sdk_mcp_server("tdd", tools=custom_tools)
+                "spec_implement": create_sdk_mcp_server("spec_implement", tools=custom_tools)
             }
 
         # NOTE: setting_sources deliberately unset (None = full isolation
@@ -259,19 +259,19 @@ class SdkAgentRunner:
 
 
 def get_runner(repo_root: Path, verbose: bool = False) -> AgentRunner:
-    """Select the AgentRunner: real SDK, or a fake via TDD_RUNNER (tests).
+    """Select the AgentRunner: real SDK, or a fake via SPEC_IMPLEMENT_RUNNER (tests).
 
-    TDD_RUNNER="fake:<path-to-script-json>" selects FakeAgentRunner so that
+    SPEC_IMPLEMENT_RUNNER="fake:<path-to-script-json>" selects FakeAgentRunner so that
     subprocess-level tests never touch the SDK; anything else (or unset)
     returns the production SdkAgentRunner. `verbose` streams the agent's prose
     and tool activity to stderr (SdkAgentRunner only; the fake has no stream).
     """
     runner_spec = os.environ.get(RUNNER_ENV_VAR, "")
     if runner_spec.startswith("fake:"):
-        import tdd_fake_runner
+        import spec_implement_fake_runner
 
         script_path = runner_spec.split(":", 1)[1]
-        return tdd_fake_runner.FakeAgentRunner.from_script(
+        return spec_implement_fake_runner.FakeAgentRunner.from_script(
             script_path, repo_root
         )
     return SdkAgentRunner(repo_root, verbose=verbose)

@@ -13,8 +13,8 @@ This loop mirrors Loop 1's shape exactly (draft/revise/approve, byte-stable
 system prompt, loop-local budget guard). It has no escalation re-entry: Loop 3
 test-change escalations amend requirements (Loop 1), never the design.
 
-All shared vocabulary comes from tdd_contracts; state mutations go through
-ctx.store; prompt assembly through tdd_agent.build_prompt with sections
+All shared vocabulary comes from spec_implement_contracts; state mutations go through
+ctx.store; prompt assembly through spec_implement_agent.build_prompt with sections
 ordered stable → volatile (§12).
 """
 
@@ -24,8 +24,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from tdd_agent import build_prompt
-from tdd_contracts import (
+from spec_implement_agent import build_prompt
+from spec_implement_contracts import (
     DECISION_APPROVE,
     DESIGN_FILE_GLOB,
     TASK_FILE,
@@ -38,7 +38,7 @@ from tdd_contracts import (
     RunResult,
     RunSpec,
 )
-from tdd_state import FeatureContext, utc_now_iso
+from spec_implement_state import FeatureContext, utc_now_iso
 
 #: Loop 0 tool surface: read-only exploration + Write scoped by policy.
 LOOP0_ALLOWED_TOOLS = ["Read", "Glob", "Grep", "Write"]

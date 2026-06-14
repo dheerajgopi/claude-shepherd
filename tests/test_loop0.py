@@ -1,4 +1,4 @@
-"""Tests for tdd_loop0 — Loop 0 (design sketch).
+"""Tests for spec_implement_loop0 — Loop 0 (design sketch).
 
 Drives run_loop0 in-process against the conftest fixtures (feature) and a
 scripted FakeAgentRunner. Script files live OUTSIDE the fixture repo
@@ -18,20 +18,20 @@ from types import SimpleNamespace
 
 import pytest
 
-from tdd_contracts import (
+from spec_implement_contracts import (
     ExitCode,
     LoopStatus,
     PathPolicyMode,
     Phase,
 )
-from tdd_fake_runner import FakeAgentRunner
-from tdd_loop0 import run_loop0
-from tdd_state import StateStore, resolve_feature
+from spec_implement_fake_runner import FakeAgentRunner
+from spec_implement_loop0 import run_loop0
+from spec_implement_state import StateStore, resolve_feature
 
 DESIGN_REL = ".shepherd/features/user-auth/design"
 DESIGN_PROMPT = (
     Path(__file__).resolve().parent.parent
-    / "skills" / "tdd" / "references" / "design_prompt.md"
+    / "skills" / "spec-implement" / "references" / "design_prompt.md"
 )
 
 #: A scripted draft run: one design file inside design/ plus one write OUTSIDE

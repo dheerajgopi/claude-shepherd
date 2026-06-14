@@ -1,7 +1,7 @@
 """Traceability matrix persistence, parsing, and validation (§9, §10).
 
 The matrix (requirement → test mapping with revisions) is the committed audit
-artifact at .tdd/traceability.json. This module loads/saves it atomically,
+artifact at .spec-implement/traceability.json. This module loads/saves it atomically,
 parses the verifier model's (possibly noisy) JSON output against the pinned
 schema shape, and answers the two questions the loops ask: is every
 requirement covered, and do the mapped tests still exist on disk?
@@ -16,7 +16,7 @@ import re
 from pathlib import Path
 from typing import Any, Optional
 
-from tdd_contracts import (
+from spec_implement_contracts import (
     COVERAGE_COVERED,
     COVERAGE_STATUSES,
     TRACE_FILE,
@@ -25,7 +25,7 @@ from tdd_contracts import (
     TraceRevision,
     asdict_state,
 )
-from tdd_state import utc_now_iso
+from spec_implement_state import utc_now_iso
 
 _JSON_FENCE_RE = re.compile(r"```json\s*(\{.*?\})\s*```", re.DOTALL)
 
@@ -38,7 +38,7 @@ def _filtered_kwargs(cls: type, raw: dict[str, Any]) -> dict[str, Any]:
 
 
 def load_matrix(feature_dir: Path) -> Optional[TraceabilityMatrix]:
-    """Read .tdd/traceability.json; None if absent, ValueError if corrupt."""
+    """Read .spec-implement/traceability.json; None if absent, ValueError if corrupt."""
 
     path = feature_dir / TRACE_FILE
     if not path.is_file():
@@ -62,7 +62,7 @@ def load_matrix(feature_dir: Path) -> Optional[TraceabilityMatrix]:
 
 
 def save_matrix(feature_dir: Path, matrix: TraceabilityMatrix) -> None:
-    """Atomically write .tdd/traceability.json (tmp file + os.replace)."""
+    """Atomically write .spec-implement/traceability.json (tmp file + os.replace)."""
 
     path = feature_dir / TRACE_FILE
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -248,7 +248,7 @@ def bump_revisions(
 def gap_report(matrix: TraceabilityMatrix) -> str:
     """Markdown gap report: requirements that are partial/missing (or testless).
 
-    Written to .tdd/reports/ when Loop 2 exhausts its coverage iterations
+    Written to .spec-implement/reports/ when Loop 2 exhausts its coverage iterations
     (exit COVERAGE_GAP). Covered-but-testless requirements are included
     because they also block completion (matrix_fully_covered rejects them).
     """

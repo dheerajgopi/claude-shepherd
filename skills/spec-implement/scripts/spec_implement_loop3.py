@@ -9,8 +9,8 @@ by THIS script (never an agent turn — the "agent cannot edit tests" invariant
 holds), significant or unsure ones escalate with exit 12.
 
 On an approved escalation, control returns to Loop 1 incrementally
-(`tdd_loop1.amend_requirements`), Loop 2 re-syncs only the affected tests
-(`tdd_loop2.resync_tests`), a new `red(n)` commit marks the renegotiation,
+(`spec_implement_loop1.amend_requirements`), Loop 2 re-syncs only the affected tests
+(`spec_implement_loop2.resync_tests`), a new `red(n)` commit marks the renegotiation,
 and implementation resumes.
 
 Completion (§10) requires the test command to exit 0 AND the traceability
@@ -29,11 +29,11 @@ import subprocess
 from pathlib import Path
 from typing import Any, Optional
 
-import tdd_git
-import tdd_wsl
-from tdd_agent import build_prompt
-from tdd_scan import format_convention_docs, read_convention_docs
-from tdd_contracts import (
+import spec_implement_git
+import spec_implement_wsl
+from spec_implement_agent import build_prompt
+from spec_implement_scan import format_convention_docs, read_convention_docs
+from spec_implement_contracts import (
     COMMIT_GREEN,
     COMMIT_RED_AMENDED,
     AgentRunner,
@@ -45,8 +45,8 @@ from tdd_contracts import (
     RunResult,
     RunSpec,
 )
-from tdd_state import FeatureContext, utc_now_iso
-from tdd_trace import (
+from spec_implement_state import FeatureContext, utc_now_iso
+from spec_implement_trace import (
     _extract_first_json_object,
     bump_revisions,
     load_matrix,
@@ -63,15 +63,15 @@ _OUTPUT_TAIL = 8_000          # chars of test output fed to the implementer
 _TEST_FILE_CAP = 20_000       # chars of test content in the triage prompt
 _TEST_COMMAND_TIMEOUT = 900   # seconds
 
-_PROPOSAL_TOOL_NAMES = ("propose_test_change", "mcp__tdd__propose_test_change")
-_BLOCKER_TOOL_NAMES = ("request_human_input", "mcp__tdd__request_human_input")
+_PROPOSAL_TOOL_NAMES = ("propose_test_change", "mcp__spec_implement__propose_test_change")
+_BLOCKER_TOOL_NAMES = ("request_human_input", "mcp__spec_implement__request_human_input")
 _VALID_VERDICTS = ("minor", "significant", "unsure")
 
 _REJECT_DEFAULT = "Proposal rejected; the test stands as written."
 
 
 # ---------------------------------------------------------------------------
-# Budgets and run accounting (loop-3 buckets; style mirrors tdd_loop2)
+# Budgets and run accounting (loop-3 buckets; style mirrors spec_implement_loop2)
 # ---------------------------------------------------------------------------
 
 
@@ -193,16 +193,16 @@ def _run_test_command(ctx: FeatureContext) -> tuple[int, str]:
     """Run the configured test command; (returncode, combined output tail).
 
     On a Windows host driving a WSL-filesystem repo the command is routed
-    through ``wsl.exe`` (see tdd_wsl) so it runs in a login shell with the
+    through ``wsl.exe`` (see spec_implement_wsl) so it runs in a login shell with the
     project's PATH; otherwise it runs natively via the local shell.
     """
 
-    target = tdd_wsl.wsl_target(ctx.repo_root)
+    target = spec_implement_wsl.wsl_target(ctx.repo_root)
     if target is None:
         args, kwargs = ctx.config.test.command, {"shell": True, "cwd": ctx.repo_root}
     else:
         distro, linux_path = target
-        args = tdd_wsl.shell_argv(ctx.config.test.command, distro, linux_path)
+        args = spec_implement_wsl.shell_argv(ctx.config.test.command, distro, linux_path)
         kwargs = {}  # cwd is carried by the `cd` inside WSL; a UNC cwd is unusable
     try:
         proc = subprocess.run(
@@ -567,10 +567,10 @@ def _commit_if_changes(repo: Path, message: str, paths: list[str]) -> bool:
 
     if not paths:
         return False
-    status = tdd_git.git(["status", "--porcelain", "--", *paths], repo)
+    status = spec_implement_git.git(["status", "--porcelain", "--", *paths], repo)
     if not status.strip():
         return False
-    tdd_git.commit_paths(repo, message, paths)
+    spec_implement_git.commit_paths(repo, message, paths)
     return True
 
 
@@ -809,8 +809,8 @@ def _amend_pipeline(ctx: FeatureContext, runner: AgentRunner) -> LoopOutcome:
     AMENDING_REQUIREMENTS) and from AMENDING_REQUIREMENTS crash recovery.
     """
 
-    import tdd_loop1
-    import tdd_loop2
+    import spec_implement_loop1
+    import spec_implement_loop2
 
     proposal = _latest_escalation(ctx)
     if proposal is None:
@@ -821,11 +821,11 @@ def _amend_pipeline(ctx: FeatureContext, runner: AgentRunner) -> LoopOutcome:
         )
 
     # (a) Loop 1 amends only the affected requirements. ShepherdError
-    #     (e.g. BUDGET_EXCEEDED) propagates to tdd.py's top-level handler.
-    amended_ids = tdd_loop1.amend_requirements(ctx, runner, proposal)
+    #     (e.g. BUDGET_EXCEEDED) propagates to spec_implement.py's top-level handler.
+    amended_ids = spec_implement_loop1.amend_requirements(ctx, runner, proposal)
 
     # (b) Loop 2 re-syncs only the mapped tests.
-    outcome = tdd_loop2.resync_tests(ctx, runner, amended_ids)
+    outcome = spec_implement_loop2.resync_tests(ctx, runner, amended_ids)
     if outcome.status is not LoopStatus.ADVANCE:
         return outcome  # phase stays AMENDING_REQUIREMENTS; re-run recovers here
 
@@ -838,7 +838,7 @@ def _amend_pipeline(ctx: FeatureContext, runner: AgentRunner) -> LoopOutcome:
     _commit_if_changes(
         ctx.repo_root,
         COMMIT_RED_AMENDED.format(slug=ctx.slug, n=n),
-        tdd_git.changed_files_matching(ctx.repo_root, ctx.config.test.paths),
+        spec_implement_git.changed_files_matching(ctx.repo_root, ctx.config.test.paths),
     )
 
     # (d) Back to implementation.

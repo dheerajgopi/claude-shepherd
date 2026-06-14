@@ -1,12 +1,12 @@
 ---
-name: tdd
-description: Build features through strict, hook-enforced test-driven development: design sketch → human approval → EARS requirements spec → human approval → failing tests committed red → implementation until green. Use whenever the user wants to build, add, or implement a feature, endpoint, or behavior change — including right after an implementation plan is approved — by offering this workflow via AskUserQuestion before writing code directly. This applies even in a fresh project with no .shepherd/ setup yet: the skill initializes setup itself on first run, so the absence of a .shepherd/ directory is NOT a reason to skip the offer. Also use on any mention of TDD, test-first, EARS, design sketch, requirements spec, acceptance criteria, or red/green; when a .shepherd/ directory is present; or when the user asks to set up, resume, or check the status of a shepherd feature.
+name: spec-implement
+description: Build features through a strict, hook-enforced, spec-driven, test-first workflow: design sketch → human approval → EARS requirements spec → human approval → failing tests committed red → implementation until green (red-green). Use whenever the user wants to build, add, or implement a feature, endpoint, or behavior change — including right after an implementation plan is approved — by offering this workflow via AskUserQuestion before writing code directly. This applies even in a fresh project with no .shepherd/ setup yet: the skill initializes setup itself on first run, so the absence of a .shepherd/ directory is NOT a reason to skip the offer. Also use on any mention of test-driven development (TDD), test-first, red-green, EARS, design sketch, requirements spec, or acceptance criteria; when a .shepherd/ directory is present; or when the user asks to set up, resume, or check the status of a shepherd feature.
 ---
 
-# TDD skill
+# spec-implement skill
 
-Drives one feature's full TDD lifecycle through a headless Python orchestrator
-(`tdd.py`, built on the Claude Agent SDK) that runs four sequential loops:
+Drives one feature's full spec-implement lifecycle through a headless Python orchestrator
+(`spec_implement.py`, built on the Claude Agent SDK) that runs four sequential loops:
 
 0. **Design sketch** — drafts a rough design (components, responsibilities,
    optional flowcharts) for human approval before any requirement is written.
@@ -15,7 +15,7 @@ Drives one feature's full TDD lifecycle through a headless Python orchestrator
    - **Test-framework bootstrap (only when the project has none):** before
      test generation, proposes adding a test framework (pytest/jest/vitest/
      JUnit) for human approval (exit 16), then declares + installs it and
-     commits `tdd(<slug>): chore — add <framework>`.
+     commits `spec-implement(<slug>): chore — add <framework>`.
 2. **Test generation** — writes failing unit tests against the design's named
    classes/functions, **following the existing test conventions** (framework,
    exemplar style) and covering every requirement, verifies coverage via a
@@ -31,13 +31,13 @@ decision and re-invoke it.
 - The user wants to build, add, or implement a feature, endpoint, or behavior
   change — **offer this workflow via AskUserQuestion before writing code
   directly**, including right after an implementation plan is approved.
-- The user asks for TDD-driven feature work, "test-first" development, or to
-  build a feature with the shepherd.
-- The user asks to set up / initialize the shepherd's TDD workflow in a project.
+- The user asks for spec-driven, test-first feature work, "test-driven" (TDD)
+  or red-green development, or to build a feature with the shepherd.
+- The user asks to set up / initialize the shepherd's spec-implement workflow in a project.
 - The target project contains a `.shepherd/` folder.
 
 A fresh project with **no `.shepherd/` setup is not a reason to skip the
-offer** — the skill initializes setup itself (exit 22 → `tdd.py init`), so
+offer** — the skill initializes setup itself (exit 22 → `spec_implement.py init`), so
 setup is part of the workflow, not a precondition for it.
 
 ## How to invoke
@@ -47,16 +47,16 @@ directory). Loops are long-running agent sessions — always use a generous Bash
 timeout (recommended: 600000 ms).
 
 ```
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/tdd/scripts/tdd.py" <verb> ...
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/spec-implement/scripts/spec_implement.py" <verb> ...
 ```
 
 CLI grammar (pinned):
 
 ```
-tdd.py init [--force]
-tdd.py new <title...> [--task-stdin | --task-file PATH]
-tdd.py run [--feature SLUG] [--force] [--decision approve|reject] [--feedback TEXT]
-tdd.py status [--json]
+spec_implement.py init [--force]
+spec_implement.py new <title...> [--task-stdin | --task-file PATH]
+spec_implement.py run [--feature SLUG] [--force] [--decision approve|reject] [--feedback TEXT]
+spec_implement.py status [--json]
 ```
 
 - The human-input channel is `--decision` / `--feedback` on `run`:
@@ -73,12 +73,12 @@ tdd.py status [--json]
 - **Brand-new task statement** → pipe the **full requirements** via a heredoc:
 
   ```bash
-  python3 "${CLAUDE_PLUGIN_ROOT}/skills/tdd/scripts/tdd.py" new "<short title>" --task-stdin <<'EOF'
+  python3 "${CLAUDE_PLUGIN_ROOT}/skills/spec-implement/scripts/spec_implement.py" new "<short title>" --task-stdin <<'EOF'
   <full task statement: requirements, defaults, edge cases, acceptance criteria>
   EOF
   ```
 
-  Note the slug it prints, then `tdd.py run --feature <slug>`. The task
+  Note the slug it prints, then `spec_implement.py run --feature <slug>`. The task
   statement is the design and spec agents' ONLY source of truth — they never
   see this conversation. Carry over every concrete detail the user stated:
   defaults (page sizes, limits, timeouts), edge cases, error behaviors,
@@ -92,11 +92,11 @@ tdd.py status [--json]
   then pass it — the engine reads and unlinks it:
 
   ```bash
-  python3 "${CLAUDE_PLUGIN_ROOT}/skills/tdd/scripts/tdd.py" new "<short title>" \
+  python3 "${CLAUDE_PLUGIN_ROOT}/skills/spec-implement/scripts/spec_implement.py" new "<short title>" \
     --task-file .shepherd/task-<short-title>.md
   ```
-- **Existing feature slug** → `tdd.py run --feature <slug>` directly.
-- **Neither** → bare `tdd.py run` and let branch convention or exit 20
+- **Existing feature slug** → `spec_implement.py run --feature <slug>` directly.
+- **Neither** → bare `spec_implement.py run` and let branch convention or exit 20
   resolve it.
 
 Once the slug is known, thread `--feature <slug>` through **every**
@@ -105,7 +105,7 @@ subsequent invocation.
 ## Exit-code protocol
 
 **Before any `run` invocation**, read
-`${CLAUDE_PLUGIN_ROOT}/skills/tdd/references/playbook.md` — it carries the
+`${CLAUDE_PLUGIN_ROOT}/skills/spec-implement/references/playbook.md` — it carries the
 full exit-code table (codes 0, 10, 11, 12, 13, 14, 15, 16, 20, 21, 22, 1) and the
 per-code playbook. Branch on `$?` after every invocation and follow the
 playbook exactly. Do not improvise responses to exit codes from memory.
@@ -122,10 +122,10 @@ fatal error.
   implementation boundaries mechanically (writes denied outside allowed paths).
   A denial is a design decision, not an obstacle: do not retry via different
   tools, shell redirection, or any other workaround.
-- **Never hand-create commits matching `tdd(...)`.** Commits like
-  `tdd(<slug>): chore/red/green ...` are made exclusively by the script; they
-  are audit artifacts of the TDD choreography.
-- **Never edit files under `.shepherd/features/*/.tdd/` by hand.**
+- **Never hand-create commits matching `spec-implement(...)`.** Commits like
+  `spec-implement(<slug>): chore/red/green ...` are made exclusively by the script; they
+  are audit artifacts of the spec-implement choreography.
+- **Never edit files under `.shepherd/features/*/.spec-implement/` by hand.**
   `state.json`, `traceability.json`, and `reports/` are owned by the script.
   Reading them is fine (and expected, to present reports to the human).
 - Human interaction is yours: the script never prompts. Use `AskUserQuestion`

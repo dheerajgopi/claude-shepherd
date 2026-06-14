@@ -1,4 +1,4 @@
-"""Shared fixtures for the TDD shepherd's own test suite.
+"""Shared fixtures for the spec-implement shepherd's own test suite.
 
 Fixtures build their worlds with plain subprocess git + file writes — they
 must NEVER call the engine's `init`/`new` (fixtures cannot depend on the code
@@ -19,8 +19,8 @@ from types import SimpleNamespace
 import pytest
 
 SHEPHERD_ROOT = Path(__file__).resolve().parent.parent
-SCRIPTS_DIR = SHEPHERD_ROOT / "skills" / "tdd" / "scripts"
-TDD_PY = SCRIPTS_DIR / "tdd.py"
+SCRIPTS_DIR = SHEPHERD_ROOT / "skills" / "spec-implement" / "scripts"
+SPEC_IMPLEMENT_PY = SCRIPTS_DIR / "spec_implement.py"
 
 # Module-level insertion: pytest.importorskip() at the top of test modules
 # runs at collection time, before any fixture (including autouse ones) fires.
@@ -30,7 +30,7 @@ if str(SCRIPTS_DIR) not in sys.path:
 
 @pytest.fixture(autouse=True)
 def scripts_on_path():
-    """Keep skills/tdd/scripts importable for every test."""
+    """Keep skills/spec-implement/scripts importable for every test."""
 
     if str(SCRIPTS_DIR) not in sys.path:
         sys.path.insert(0, str(SCRIPTS_DIR))
@@ -80,7 +80,7 @@ def tmp_repo(tmp_path: Path) -> Path:
 def shepherd_repo(tmp_repo: Path) -> Path:
     """tmp_repo with .shepherd/config.yaml written from ShepherdConfig defaults."""
 
-    from tdd_contracts import ShepherdConfig
+    from spec_implement_contracts import ShepherdConfig
 
     cfg = ShepherdConfig()
     cfg.test.command = "pytest -x -q"
@@ -110,26 +110,26 @@ def shepherd_repo(tmp_repo: Path) -> Path:
 
 
 def scaffold_feature(repo: Path, slug: str, *, checkout: bool = True) -> SimpleNamespace:
-    """Scaffold a feature folder + tdd/<slug> branch + seeded state.json.
+    """Scaffold a feature folder + spec-implement/<slug> branch + seeded state.json.
 
     Plain git/file plumbing — independent of the engine's `new`.
     """
 
-    from tdd_contracts import (
+    from spec_implement_contracts import (
         FeatureState,
         HistoryEntry,
         Phase,
         asdict_state,
     )
 
-    branch = f"tdd/{slug}"
+    branch = f"spec-implement/{slug}"
     feature_dir = repo / ".shepherd" / "features" / slug
     design_dir = feature_dir / "design"
     requirements_dir = feature_dir / "requirements"
-    tdd_dir = feature_dir / ".tdd"
+    spec_implement_dir = feature_dir / ".spec-implement"
     design_dir.mkdir(parents=True)
     requirements_dir.mkdir(parents=True)
-    (tdd_dir / "reports").mkdir(parents=True)
+    (spec_implement_dir / "reports").mkdir(parents=True)
     (feature_dir / "task.md").write_text(f"Build the {slug} feature.\n")
 
     base_commit = _git(repo, "rev-parse", "HEAD").strip()
@@ -148,7 +148,7 @@ def scaffold_feature(repo: Path, slug: str, *, checkout: bool = True) -> SimpleN
             HistoryEntry(phase=Phase.DRAFTING_REQUIREMENTS.value, timestamp=now)
         ],
     )
-    state_path = tdd_dir / "state.json"
+    state_path = spec_implement_dir / "state.json"
     state_path.write_text(json.dumps(asdict_state(state), indent=2))
 
     return SimpleNamespace(
@@ -158,7 +158,7 @@ def scaffold_feature(repo: Path, slug: str, *, checkout: bool = True) -> SimpleN
         feature_dir=feature_dir,
         design_dir=design_dir,
         requirements_dir=requirements_dir,
-        tdd_dir=tdd_dir,
+        spec_implement_dir=spec_implement_dir,
         state_path=state_path,
         base_commit=base_commit,
     )
@@ -166,19 +166,19 @@ def scaffold_feature(repo: Path, slug: str, *, checkout: bool = True) -> SimpleN
 
 @pytest.fixture
 def feature(shepherd_repo: Path) -> SimpleNamespace:
-    """A scaffolded 'user-auth' feature on branch tdd/user-auth (checked out)."""
+    """A scaffolded 'user-auth' feature on branch spec-implement/user-auth (checked out)."""
 
     return scaffold_feature(shepherd_repo, "user-auth", checkout=True)
 
 
 def run_cli(args, cwd, env_extra=None, stdin=None) -> subprocess.CompletedProcess:
-    """Run [python, tdd.py, *args] in cwd; returns CompletedProcess."""
+    """Run [python, spec_implement.py, *args] in cwd; returns CompletedProcess."""
 
     env = os.environ.copy()
     if env_extra:
         env.update(env_extra)
     return subprocess.run(
-        [sys.executable, str(TDD_PY), *args],
+        [sys.executable, str(SPEC_IMPLEMENT_PY), *args],
         cwd=cwd,
         capture_output=True,
         text=True,
