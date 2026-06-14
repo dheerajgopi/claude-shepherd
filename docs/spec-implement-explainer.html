@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>spec-implement — the shepherd's test-first build loop</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-soft: #161b22;
+    --bg-card: #1c2330;
+    --border: #2d3543;
+    --text: #e6edf3;
+    --muted: #9aa7b5;
+    --accent: #6ea8fe;
+    --green: #3fb950;
+    --red: #f85149;
+    --amber: #d29922;
+    --purple: #bc8cff;
+    --teal: #39c5cf;
+    --radius: 12px;
+    --shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  code, .mono { font-family: "SF Mono", "JetBrains Mono", "Fira Code", Consolas, monospace; }
+
+  /* layout */
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+  section { padding: 64px 0; border-bottom: 1px solid var(--border); }
+  section:last-child { border-bottom: none; }
+  h1, h2, h3 { line-height: 1.2; }
+  h2 { font-size: 1.9rem; margin: 0 0 8px; }
+  .lead { color: var(--muted); font-size: 1.1rem; max-width: 720px; }
+  .eyebrow { text-transform: uppercase; letter-spacing: 0.12em; font-size: 0.78rem; color: var(--accent); font-weight: 600; margin-bottom: 8px; }
+
+  /* hero */
+  header {
+    padding: 96px 0 72px;
+    background: radial-gradient(ellipse 80% 60% at 50% -10%, rgba(110,168,254,0.18), transparent 70%), var(--bg);
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 { font-size: 3rem; margin: 0 0 12px; letter-spacing: -0.02em; }
+  header h1 .mono { color: var(--accent); }
+  header p { color: var(--muted); font-size: 1.25rem; max-width: 680px; margin: 0 auto 8px; }
+  .redgreen-badge {
+    display: inline-flex; gap: 6px; align-items: center; margin-top: 24px;
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 999px;
+    padding: 8px 18px; font-size: 0.9rem; color: var(--muted);
+  }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .dot.r { background: var(--red); } .dot.g { background: var(--green); }
+
+  /* big idea cards */
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 32px; }
+  .card {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 22px; transition: transform .15s, border-color .15s;
+  }
+  .card:hover { transform: translateY(-3px); border-color: var(--accent); }
+  .card .ic { font-size: 1.6rem; }
+  .card h3 { margin: 10px 0 6px; font-size: 1.1rem; }
+  .card p { margin: 0; color: var(--muted); font-size: 0.95rem; }
+
+  /* pipeline */
+  .pipeline { display: flex; gap: 10px; margin-top: 36px; flex-wrap: wrap; }
+  .stage {
+    flex: 1 1 0; min-width: 150px; cursor: pointer; text-align: left;
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 18px; position: relative; transition: all .18s; color: var(--text);
+  }
+  .stage:hover { border-color: var(--accent); }
+  .stage.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), var(--shadow); background: #20283a; }
+  .stage .num {
+    width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center;
+    font-weight: 700; font-size: 0.95rem; margin-bottom: 12px;
+    background: rgba(110,168,254,0.15); color: var(--accent);
+  }
+  .stage[data-loop="0"] .num { background: rgba(188,140,255,0.18); color: var(--purple); }
+  .stage[data-loop="1"] .num { background: rgba(57,197,207,0.18); color: var(--teal); }
+  .stage[data-loop="2"] .num { background: rgba(248,81,73,0.18); color: var(--red); }
+  .stage[data-loop="3"] .num { background: rgba(63,185,80,0.18); color: var(--green); }
+  .stage h4 { margin: 0 0 4px; font-size: 1rem; }
+  .stage .sub { font-size: 0.82rem; color: var(--muted); }
+  .stage .arrow { position: absolute; right: -16px; top: 50%; transform: translateY(-50%); color: var(--border); font-size: 1.4rem; z-index: 2; }
+  @media (max-width: 760px){ .stage .arrow { display:none; } .cards { grid-template-columns: 1fr; } }
+
+  .detail {
+    margin-top: 22px; background: var(--bg-soft); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 26px; min-height: 200px;
+  }
+  .detail h3 { margin: 0 0 4px; font-size: 1.3rem; }
+  .detail .tag { display:inline-block; font-size:0.72rem; text-transform:uppercase; letter-spacing:0.08em; padding:3px 10px; border-radius:999px; margin-bottom:14px; font-weight:600; }
+  .detail ul { margin: 14px 0 0; padding-left: 20px; }
+  .detail li { margin-bottom: 8px; color: var(--text); }
+  .detail li .k { color: var(--muted); }
+  .detail .out {
+    margin-top: 18px; padding: 12px 16px; background: var(--bg); border:1px solid var(--border);
+    border-radius: 8px; font-size: 0.88rem;
+  }
+  .detail .out .label { color: var(--muted); font-size:0.75rem; text-transform:uppercase; letter-spacing:0.08em; }
+  .gate { display:inline-flex; align-items:center; gap:6px; margin-top:14px; padding:6px 12px; border-radius:8px; background:rgba(210,153,34,0.12); border:1px solid rgba(210,153,34,0.3); color:var(--amber); font-size:0.85rem; font-weight:500; }
+
+  /* checkpoint machine */
+  .machine { background: var(--bg-soft); border:1px solid var(--border); border-radius:var(--radius); padding:24px; margin-top:28px; }
+  .machine p.cap { color: var(--muted); margin: 0 0 18px; }
+  .codes { display:grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap:12px; }
+  .code {
+    background: var(--bg-card); border:1px solid var(--border); border-radius:10px; padding:14px;
+    cursor:pointer; transition: all .15s;
+  }
+  .code:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .code .cnum { font-weight:700; font-size:1.4rem; }
+  .code .cname { font-size:0.78rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em; }
+  .code.human { border-left: 3px solid var(--amber); }
+  .code.done { border-left: 3px solid var(--green); }
+  .code.err { border-left: 3px solid var(--red); }
+  .code .cdesc { font-size:0.85rem; color:var(--muted); margin-top:8px; display:none; }
+  .code.open .cdesc { display:block; }
+  .legend { display:flex; gap:18px; margin-top:16px; flex-wrap:wrap; font-size:0.82rem; color:var(--muted); }
+  .legend span { display:inline-flex; align-items:center; gap:6px; }
+  .swatch { width:14px; height:14px; border-radius:3px; display:inline-block; }
+
+  /* guarantees */
+  .guards { display:grid; grid-template-columns: repeat(2,1fr); gap:16px; margin-top:28px; }
+  .guard { background: var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); padding:20px; }
+  .guard h4 { margin:0 0 8px; display:flex; align-items:center; gap:8px; }
+  .guard p { margin:0; color:var(--muted); font-size:0.92rem; }
+  .guard .pill { font-size:0.7rem; padding:2px 8px; border-radius:999px; background:rgba(110,168,254,0.15); color:var(--accent); font-weight:600; }
+  @media (max-width:760px){ .guards { grid-template-columns:1fr; } }
+
+  /* walkthrough — guided journey */
+  .journey { display:grid; grid-template-columns: 250px 1fr; gap:24px; margin-top:32px; }
+  @media (max-width: 820px){ .journey { grid-template-columns:1fr; } }
+
+  .jrail { display:flex; flex-direction:column; gap:0; position:relative; }
+  .jstep {
+    display:flex; gap:12px; align-items:flex-start; text-align:left; cursor:pointer;
+    background:none; border:none; color:var(--text); padding:10px 8px; position:relative; width:100%;
+    border-radius:8px; transition:background .15s;
+  }
+  .jstep:hover { background: var(--bg-soft); }
+  .jstep.active { background: var(--bg-card); }
+  .jstep .jdot {
+    flex:0 0 28px; width:28px; height:28px; border-radius:50%; display:grid; place-items:center;
+    font-size:0.8rem; font-weight:700; background:var(--bg-card); border:2px solid var(--border);
+    color:var(--muted); z-index:2; transition:all .15s;
+  }
+  .jstep.active .jdot { border-color:var(--accent); color:var(--accent); background:#20283a; }
+  .jstep.human .jdot { border-color:var(--amber); }
+  .jstep.human.active .jdot { background:rgba(210,153,34,0.15); color:var(--amber); }
+  .jstep.done .jdot { border-color:var(--green); color:var(--green); }
+  /* connecting line */
+  .jstep:not(:last-child)::before {
+    content:""; position:absolute; left:21px; top:34px; bottom:-4px; width:2px; background:var(--border); z-index:1;
+  }
+  .jstep .jlabel { padding-top:3px; }
+  .jstep .jlabel .jt { font-size:0.92rem; font-weight:600; }
+  .jstep .jlabel .jp { font-size:0.74rem; color:var(--muted); }
+
+  .jpanel {
+    background:var(--bg-soft); border:1px solid var(--border); border-radius:var(--radius);
+    padding:26px; min-height:420px;
+  }
+  .jhead { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:6px; }
+  .actor { display:inline-flex; align-items:center; gap:6px; font-size:0.78rem; font-weight:600; padding:4px 11px; border-radius:999px; }
+  .actor.engine { background:rgba(110,168,254,0.15); color:var(--accent); }
+  .actor.you { background:rgba(210,153,34,0.15); color:var(--amber); }
+  .chip { font-family:"SF Mono",Consolas,monospace; font-size:0.74rem; padding:4px 10px; border-radius:6px; font-weight:600; }
+  .chip.exit { background:rgba(210,153,34,0.12); color:var(--amber); border:1px solid rgba(210,153,34,0.3); }
+  .chip.exit.ok { background:rgba(63,185,80,0.12); color:var(--green); border-color:rgba(63,185,80,0.3); }
+  .jpanel h3 { margin:6px 0 4px; font-size:1.35rem; }
+  .jpanel .jnarr { color:var(--muted); margin:0 0 18px; }
+
+  /* artifact "file" component */
+  .file { background:#010409; border:1px solid var(--border); border-radius:10px; overflow:hidden; margin-top:14px; }
+  .file .fname {
+    background:var(--bg-soft); padding:8px 14px; font-family:"SF Mono",Consolas,monospace; font-size:0.8rem;
+    color:var(--muted); border-bottom:1px solid var(--border); display:flex; align-items:center; gap:8px;
+  }
+  .file .fname .fi { color:var(--accent); }
+  .file pre { margin:0; padding:14px 16px; font-family:"SF Mono",Consolas,monospace; font-size:0.82rem; line-height:1.65; overflow-x:auto; white-space:pre; }
+  .file pre .c-key { color:var(--purple); }
+  .file pre .c-str { color:var(--green); }
+  .file pre .c-com { color:#6b7785; }
+  .file pre .c-tag { color:var(--amber); }
+  .file pre .c-hd { color:var(--teal); font-weight:600; }
+  .file pre .c-ears { color:var(--accent); font-weight:600; }
+
+  .commit { display:inline-flex; align-items:center; gap:9px; margin-top:16px; padding:9px 14px; border-radius:8px; font-family:"SF Mono",Consolas,monospace; font-size:0.82rem; }
+  .commit.red { background:rgba(248,81,73,0.1); border:1px solid rgba(248,81,73,0.3); color:var(--red); }
+  .commit.green { background:rgba(63,185,80,0.1); border:1px solid rgba(63,185,80,0.3); color:var(--green); }
+  .commit .cdot { width:9px; height:9px; border-radius:50%; background:currentColor; }
+
+  /* traceability table */
+  table.trace { width:100%; border-collapse:collapse; margin-top:16px; font-size:0.85rem; }
+  table.trace th, table.trace td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--border); }
+  table.trace th { color:var(--muted); font-weight:600; font-size:0.76rem; text-transform:uppercase; letter-spacing:0.05em; }
+  table.trace td .mono { color:var(--accent); }
+  table.trace td .ck { color:var(--green); }
+
+  .decision { display:flex; gap:10px; margin-top:16px; flex-wrap:wrap; }
+  .decision .opt { padding:8px 16px; border-radius:8px; font-size:0.88rem; font-weight:600; border:1px solid var(--border); }
+  .decision .opt.pick { background:rgba(63,185,80,0.12); border-color:rgba(63,185,80,0.4); color:var(--green); }
+  .decision .opt.alt { background:var(--bg-card); color:var(--muted); }
+
+  .testres { margin-top:16px; display:flex; flex-direction:column; gap:5px; font-family:"SF Mono",Consolas,monospace; font-size:0.83rem; }
+  .testres .tr { display:flex; gap:8px; align-items:center; }
+  .testres .tr.pass { color:var(--green); } .testres .tr.fail { color:var(--red); }
+
+  .walk-ctrl { display:flex; gap:10px; margin-top:20px; align-items:center; }
+  button.btn {
+    background: var(--accent); color:#07121f; border:none; border-radius:8px; padding:9px 18px;
+    font-weight:600; cursor:pointer; font-size:0.9rem; transition: opacity .15s;
+  }
+  button.btn:hover { opacity:0.88; }
+  button.btn.ghost { background:transparent; color:var(--muted); border:1px solid var(--border); }
+  .walk-ctrl .step-ind { color:var(--muted); font-size:0.85rem; margin-left:auto; }
+
+  footer { padding:40px 0 60px; text-align:center; color:var(--muted); font-size:0.88rem; }
+  footer code { background:var(--bg-card); padding:2px 7px; border-radius:5px; }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <h1>The <span class="mono">spec-implement</span> skill</h1>
+    <p>A strict, hook-enforced workflow that turns a feature idea into <strong>committed, tested code</strong> — design first, requirements second, failing tests third, implementation last.</p>
+    <div class="redgreen-badge"><span class="dot r"></span> red &rarr; <span class="dot g"></span> green &nbsp;·&nbsp; nothing skips a step</div>
+  </div>
+</header>
+
+<!-- THE BIG IDEA -->
+<section>
+  <div class="wrap">
+    <div class="eyebrow">The big idea</div>
+    <h2>Three principles, enforced by the machine — not by good intentions</h2>
+    <p class="lead">Most "AI writes a feature" flows jump straight to code. spec-implement refuses to. It forces a human-approved trail of <em>what</em> and <em>why</em> before a single line of production code is written — and uses mechanical guardrails so the rules can't be quietly broken.</p>
+    <div class="cards">
+      <div class="card">
+        <div class="ic">📐</div>
+        <h3>Spec-driven</h3>
+        <p>A design sketch and EARS requirements are written and <strong>approved by a human</strong> before code exists. The spec is the source of truth — every test traces back to a requirement.</p>
+      </div>
+      <div class="card">
+        <div class="ic">🔴🟢</div>
+        <h3>Test-first (red &rarr; green)</h3>
+        <p>Failing tests are written and committed <strong>red</strong> first. Implementation then runs until those exact tests pass — committed <strong>green</strong>. The test defines "done".</p>
+      </div>
+      <div class="card">
+        <div class="ic">🔒</div>
+        <h3>Hook-enforced</h3>
+        <p>File-write boundaries are enforced by <strong>PreToolUse hooks</strong>, not prompts. The test-writing phase physically cannot touch production code, and vice-versa.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- THE FOUR LOOPS -->
+<section>
+  <div class="wrap">
+    <div class="eyebrow">The pipeline</div>
+    <h2>Four sequential loops</h2>
+    <p class="lead">Each loop is a long-running agent session with one job. Click a stage to see what it does, what it produces, and where a human steps in.</p>
+
+    <div class="pipeline" id="pipeline">
+      <button class="stage active" data-loop="0">
+        <div class="num">0</div><h4>Design sketch</h4><div class="sub">Components &amp; responsibilities</div>
+        <span class="arrow">›</span>
+      </button>
+      <button class="stage" data-loop="1">
+        <div class="num">1</div><h4>EARS requirements</h4><div class="sub">Testable behaviours</div>
+        <span class="arrow">›</span>
+      </button>
+      <button class="stage" data-loop="2">
+        <div class="num">2</div><h4>Test generation</h4><div class="sub">Failing tests · red commit</div>
+        <span class="arrow">›</span>
+      </button>
+      <button class="stage" data-loop="3">
+        <div class="num">3</div><h4>Implementation</h4><div class="sub">Code until green</div>
+      </button>
+    </div>
+
+    <div class="detail" id="detail"><!-- filled by JS --></div>
+  </div>
+</section>
+
+<!-- THE CHECKPOINT MACHINE -->
+<section>
+  <div class="wrap">
+    <div class="eyebrow">How the human stays in control</div>
+    <h2>A resumable checkpoint state machine</h2>
+    <p class="lead">The engine runs headlessly. Whenever it needs a human decision, it <strong>exits with a specific code</strong> instead of guessing. The outer agent reads the code, asks you, and re-invokes — resuming the same session. The exit code <em>is</em> the protocol.</p>
+
+    <div class="machine">
+      <p class="cap">Click any code to expand. <strong>Amber</strong> = needs your decision · <strong>green</strong> = success · <strong>red</strong> = error to surface.</p>
+      <div class="codes" id="codes"></div>
+      <div class="legend">
+        <span><span class="swatch" style="background:var(--amber)"></span> Human decision needed</span>
+        <span><span class="swatch" style="background:var(--green)"></span> Done</span>
+        <span><span class="swatch" style="background:var(--red)"></span> Error / setup</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- WALKTHROUGH -->
+<section>
+  <div class="wrap">
+    <div class="eyebrow">See it run</div>
+    <h2>A feature, end to end</h2>
+    <p class="lead">Building a <strong>login rate-limit</strong> feature, stage by stage. Click any step in the rail to jump to it — each one shows the real artifact that stage produces and exactly where you, the human, step in.</p>
+
+    <div class="journey">
+      <div class="jrail" id="jrail"></div>
+      <div class="jpanel" id="jpanel"></div>
+    </div>
+    <div class="walk-ctrl">
+      <button class="btn ghost" id="prevBtn">◀ Prev</button>
+      <button class="btn" id="nextBtn">Next ▶</button>
+      <span class="step-ind" id="stepInd"></span>
+    </div>
+  </div>
+</section>
+
+<!-- GUARANTEES -->
+<section>
+  <div class="wrap">
+    <div class="eyebrow">Why it's safe to trust</div>
+    <h2>The guardrails</h2>
+    <p class="lead">The rules aren't suggestions in a prompt — they're mechanical invariants the agent can't route around.</p>
+    <div class="guards">
+      <div class="guard">
+        <h4>🔒 Path policy <span class="pill">PreToolUse hook</span></h4>
+        <p>A pure decision function classifies every file write. Loops 0–2 are <em>allow-only</em> (design/, requirements/, test files). Loop 3 is <em>deny-under</em> test paths — it can only write production code. A denial is a design decision, not an obstacle to retry around.</p>
+      </div>
+      <div class="guard">
+        <h4>🧾 Automated commits <span class="pill">exact format</span></h4>
+        <p>Only the engine creates <code>spec-implement(&lt;slug&gt;)</code> commits: <code>chore</code>, <code>red</code>, <code>red(n)</code>, <code>green</code>. They're audit artifacts of the choreography — the agent never hand-crafts one.</p>
+      </div>
+      <div class="guard">
+        <h4>🧬 Traceability matrix <span class="pill">coverage gate</span></h4>
+        <p>Every test is tagged <code># requirement: &lt;id&gt;</code>. Before the red commit, a verifier checks every requirement (and every example-table row) maps to a test. A gap stops the run for human judgment (exit 11).</p>
+      </div>
+      <div class="guard">
+        <h4>🗂️ Machine-local workspace <span class="pill">gitignored</span></h4>
+        <p>The whole <code>.shepherd/</code> workspace — config, design, requirements, state — is gitignored. Only the test and production code ever reach version control.</p>
+      </div>
+      <div class="guard">
+        <h4>↩️ Escalation channel <span class="pill">exit 12</span></h4>
+        <p>If implementation reveals a test must change significantly, Loop 3 can't just edit it. It escalates for approval; an approved change re-enters Loop 1 + 2 and produces a fresh <code>red(n)</code> commit.</p>
+      </div>
+      <div class="guard">
+        <h4>🔁 Resumable sessions <span class="pill">prompt cache</span></h4>
+        <p>Each re-invocation resumes the same SDK session (<code>resume=&lt;id&gt;</code>), preserving the cache prefix and the agent's context across every human checkpoint.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    Part of the <strong>shepherd</strong> Claude Code plugin · run with <code>/spec-implement</code><br>
+    Invoke the engine from a project root:
+    <code>python3 skills/spec-implement/scripts/spec_implement.py run</code>
+  </div>
+</footer>
+
+<script>
+/* ---------- Loop detail data ---------- */
+const LOOPS = {
+  "0": {
+    color: "var(--purple)", title: "Loop 0 — Design sketch",
+    tag: "drafts a design", tagBg: "rgba(188,140,255,0.15)", tagColor: "var(--purple)",
+    blurb: "Before any requirement is written, the agent drafts a rough design: the components, their responsibilities, and optional flowcharts. This is the shape of the solution — not yet the testable rules.",
+    points: [
+      "<span class='k'>Reads:</span> the full task statement you provided at <code>new</code>",
+      "<span class='k'>Writes:</span> free-form markdown into <code>design/*.md</code> (allow-only)",
+      "<span class='k'>Consumed by:</span> both Loop 1 (the <em>what</em>) and Loop 2 (the named classes/functions, the <em>how</em>)"
+    ],
+    out: "design/architecture.md drafted",
+    gate: "Exit 15 — you approve the design or give corrections"
+  },
+  "1": {
+    color: "var(--teal)", title: "Loop 1 — EARS requirements",
+    tag: "drafts the spec", tagBg: "rgba(57,197,207,0.15)", tagColor: "var(--teal)",
+    blurb: "Derives the testable behaviours of the approved design as EARS requirements — one 'THE SYSTEM SHALL…' statement per requirement, each with a stable id like login:REQ-003. Declarative only: no function names or endpoints.",
+    points: [
+      "<span class='k'>Reads:</span> the approved design + the task statement",
+      "<span class='k'>Writes:</span> <code>requirements/*.md</code> (allow-only)",
+      "<span class='k'>Format:</span> WHEN… / WHILE… / IF…THEN… EARS patterns, with optional example tables every row of which must be tested",
+      "<span class='k'>Bootstrap fork:</span> if the project has <em>no</em> test framework, a pre-step proposes one (pytest/jest/vitest/JUnit) for approval, then installs it"
+    ],
+    out: "requirements/login.md — REQ-001 … REQ-004",
+    gate: "Exit 10 — you approve the requirements or give corrections (and exit 16 for the framework, if proposed)"
+  },
+  "2": {
+    color: "var(--red)", title: "Loop 2 — Test generation",
+    tag: "writes failing tests", tagBg: "rgba(248,81,73,0.15)", tagColor: "var(--red)",
+    blurb: "Writes failing unit tests against the design's named classes/functions, following the project's existing test conventions. Each test is tagged with the requirement it covers. A verifier builds a traceability matrix to prove full coverage before committing.",
+    points: [
+      "<span class='k'>Reads:</span> design + requirements + existing test exemplars",
+      "<span class='k'>Writes:</span> only files matching the <code>test.paths</code> classifier (allow-only)",
+      "<span class='k'>Tags:</span> every test carries <code># requirement: &lt;id&gt;</code>",
+      "<span class='k'>Gate:</span> coverage verified, then the <strong>red</strong> commit lands"
+    ],
+    out: "spec-implement(login): red — failing tests",
+    gate: "Exit 11 only if a coverage gap is found — otherwise advances automatically"
+  },
+  "3": {
+    color: "var(--green)", title: "Loop 3 — Implementation",
+    tag: "code until green", tagBg: "rgba(63,185,80,0.15)", tagColor: "var(--green)",
+    blurb: "Edits production code only — the test files are now off-limits (deny-under). It iterates until the committed red tests pass, then commits green. If it gets stuck it can ask you a question (exit 14); if a test genuinely needs changing it must escalate (exit 12).",
+    points: [
+      "<span class='k'>Writes:</span> only non-test (production) files — the inverse of Loop 2",
+      "<span class='k'>Can ask:</span> a blocking question via exit 14 (you answer with --feedback)",
+      "<span class='k'>Can escalate:</span> a significant test change via exit 12 → re-enters Loop 1+2 → red(n)",
+      "<span class='k'>Finishes:</span> all tests green, traceability intact → green commit → exit 0"
+    ],
+    out: "spec-implement(login): green — implementation",
+    gate: "Exit 0 — done. (Or 14 / 12 / 13 along the way)"
+  }
+};
+
+const detail = document.getElementById('detail');
+function renderDetail(loop){
+  const d = LOOPS[loop];
+  detail.innerHTML = `
+    <span class="tag" style="background:${d.tagBg};color:${d.tagColor}">${d.tag}</span>
+    <h3 style="color:${d.color}">${d.title}</h3>
+    <p style="color:var(--muted);margin:0">${d.blurb}</p>
+    <ul>${d.points.map(p=>`<li>${p}</li>`).join('')}</ul>
+    <div class="out"><span class="label">Produces</span><br><span class="mono">${d.out}</span></div>
+    <div class="gate">⏸ ${d.gate}</div>
+  `;
+}
+document.querySelectorAll('.stage').forEach(s=>{
+  s.addEventListener('click',()=>{
+    document.querySelectorAll('.stage').forEach(x=>x.classList.remove('active'));
+    s.classList.add('active');
+    renderDetail(s.dataset.loop);
+  });
+});
+renderDetail("0");
+
+/* ---------- Exit codes ---------- */
+const CODES = [
+  {n:0, name:"DONE", cls:"done", d:"All tests green, traceability intact. Report success and stop."},
+  {n:10, name:"AWAITING_APPROVAL", cls:"human", d:"EARS requirements drafted. Approve them or send corrections."},
+  {n:11, name:"COVERAGE_GAP", cls:"err", d:"A requirement has no covering test. Surface the gap report — needs human judgment, not a retry."},
+  {n:12, name:"ESCALATED", cls:"human", d:"A significant test change is proposed. Approve (→ amend requirements + resync) or reject with a reason."},
+  {n:13, name:"BUDGET_EXCEEDED", cls:"err", d:"The loop hit its turn/cost budget. Surface the status report and stop."},
+  {n:14, name:"NEEDS_INPUT", cls:"human", d:"The implementer is blocked and asked a question. Answer it, re-invoke with --feedback."},
+  {n:15, name:"AWAITING_DESIGN_APPROVAL", cls:"human", d:"The first checkpoint. The design sketch is drafted — approve it or give corrections."},
+  {n:16, name:"AWAITING_FRAMEWORK_APPROVAL", cls:"human", d:"Project has no test framework. A framework is proposed — approve adding it or suggest another."},
+  {n:20, name:"NO_FEATURE_RESOLVED", cls:"err", d:"Couldn't tell which feature to run. Present the list, re-invoke with --feature."},
+  {n:21, name:"BRANCH_MISMATCH", cls:"err", d:"Current branch differs from the feature's recorded branch. Re-invoke with --force only if intended."},
+  {n:22, name:"SHEPHERD_NOT_INITIALIZED", cls:"err", d:"No .shepherd/ workspace yet. Offer to run init, then review the generated config."}
+];
+const codesEl = document.getElementById('codes');
+codesEl.innerHTML = CODES.map(c=>`
+  <div class="code ${c.cls}" data-n="${c.n}">
+    <div class="cnum">${c.n}</div>
+    <div class="cname">${c.name}</div>
+    <div class="cdesc">${c.d}</div>
+  </div>`).join('');
+codesEl.querySelectorAll('.code').forEach(el=>{
+  el.addEventListener('click',()=>el.classList.toggle('open'));
+});
+
+/* ---------- Guided journey ---------- */
+const JOURNEY = [
+  {
+    rail:"Capture the task", phase:"new", actor:"engine", actorLabel:"engine",
+    chip:"slug: login-rate-limit", chipOk:true,
+    title:"The task statement is captured — once",
+    narr:"You hand the engine the full requirement via <code>new … --task-stdin</code>. It's written to <code>task.md</code> verbatim and becomes the design and spec agents' <em>only</em> source of truth — they never see your chat. Every concrete detail has to live here.",
+    body:`<div class="file"><div class="fname"><span class="fi">📄</span> .shepherd/features/login-rate-limit/task.md</div><pre>Rate-limit login attempts. After <span class="c-str">5</span> failed attempts for an
+email within a <span class="c-str">15</span>-minute window, reject further attempts
+with HTTP <span class="c-str">429</span> until the window expires.
+
+A successful login resets the counter for that email.
+Failures older than 15 minutes no longer count.</pre></div>`
+  },
+  {
+    rail:"Loop 0 · Design", phase:"SKETCHING_DESIGN", actor:"engine", actorLabel:"engine",
+    chip:"exit 15 · AWAITING_DESIGN_APPROVAL",
+    title:"Loop 0 sketches a design, then pauses",
+    narr:"The agent drafts the <em>shape</em> of the solution — components and responsibilities — into <code>design/</code>. It can only write there (allow-only). Then it exits <strong>15</strong> and waits for you.",
+    body:`<div class="file"><div class="fname"><span class="fi">📐</span> design/architecture.md</div><pre><span class="c-hd"># Login rate limiter — design</span>
+
+<span class="c-hd">## LoginRateLimiter</span>
+Tracks failed attempts per email in a sliding 15-min window.
+
+<span class="c-key">- record_failure(email)</span>  → append now() to the email's list
+<span class="c-key">- is_blocked(email)</span>     → True if ≥5 failures inside the window
+<span class="c-key">- reset(email)</span>          → clear the email's failures
+
+<span class="c-hd">## Store</span>
+In-memory: <span class="c-com">dict[str, list[timestamp]]</span>, pruned lazily.</pre></div>`
+  },
+  {
+    rail:"Your call · design", phase:"checkpoint", actor:"you", actorLabel:"you",
+    chip:"--decision approve",
+    title:"You approve the design (or send corrections)",
+    narr:"The outer agent shows you the design and asks via <code>AskUserQuestion</code>. Approve, and the same run rolls straight into Loop 1. Reject with notes, and Loop 0 redrafts and checkpoints again — this cycle repeats until you're happy.",
+    body:`<div class="decision">
+      <span class="opt pick">✓ Approve → run --decision approve</span>
+      <span class="opt alt">✎ Give corrections → --feedback "…"</span>
+    </div>`
+  },
+  {
+    rail:"Loop 1 · Requirements", phase:"DRAFTING_REQUIREMENTS", actor:"engine", actorLabel:"engine",
+    chip:"exit 10 · AWAITING_APPROVAL",
+    title:"Loop 1 derives EARS requirements, then pauses",
+    narr:"From the approved design it writes <strong>testable behaviours</strong> as EARS statements — one per requirement, each with a stable id. Declarative only: no function names or endpoints leak in here. Then it exits <strong>10</strong>.",
+    body:`<div class="file"><div class="fname"><span class="fi">📋</span> requirements/login.md</div><pre><span class="c-hd"># Login rate limiting</span>
+<span class="c-com">Rationale: protect accounts from credential-stuffing while
+letting legitimate users recover after the window passes.</span>
+
+<span class="c-hd">## REQ-001: Record failed attempt</span>
+<span class="c-ears">WHEN</span> a login attempt fails, <span class="c-ears">THE SYSTEM SHALL</span> record the
+failure against the email with the current timestamp.
+
+<span class="c-hd">## REQ-002: Block after threshold</span>
+<span class="c-ears">IF</span> an email has 5 or more failures within the last 15
+minutes, <span class="c-ears">THEN THE SYSTEM SHALL</span> reject attempts with HTTP 429.
+
+<span class="c-hd">## REQ-003: Reset on success</span>
+<span class="c-ears">WHEN</span> a login succeeds, <span class="c-ears">THE SYSTEM SHALL</span> clear all
+recorded failures for that email.
+
+<span class="c-hd">## REQ-004: Expire old failures</span>
+<span class="c-ears">WHILE</span> counting failures, <span class="c-ears">THE SYSTEM SHALL</span> exclude any
+recorded more than 15 minutes ago.</pre></div>`
+  },
+  {
+    rail:"Framework check", phase:"bootstrap", actor:"engine", actorLabel:"engine",
+    chip:"skipped (pytest present)", chipOk:true,
+    title:"Test-framework bootstrap — the conditional fork",
+    narr:"Between requirements and tests, the engine checks for a test framework. This project already has <code>pytest</code>, so it's skipped. <strong>If there were none</strong>, it would propose one (pytest/jest/vitest/JUnit), exit <strong>16</strong> for your approval, install it, and commit a <code>chore</code> — all before any test is written.",
+    body:`<div class="commit" style="background:var(--bg-card);border:1px solid var(--border);color:var(--muted)"><span class="cdot"></span>would commit: spec-implement(login-rate-limit): chore — add pytest</div>`
+  },
+  {
+    rail:"Loop 2 · Failing tests", phase:"GENERATING_TESTS", actor:"engine", actorLabel:"engine",
+    chip:"commit: red", chipRed:true,
+    title:"Loop 2 writes failing tests and commits them red",
+    narr:"It writes tests against the design's named functions, following the repo's existing pytest style. Each test is tagged with the requirement it covers. It can only write test files (allow-only). The tests <em>fail</em> — the code doesn't exist yet — and that red state is committed.",
+    body:`<div class="file"><div class="fname"><span class="fi">🔴</span> tests/test_rate_limit.py</div><pre><span class="c-com"># requirement: login:REQ-002</span>
+<span class="c-key">def</span> test_blocks_after_five_failures():
+    rl = LoginRateLimiter()
+    <span class="c-key">for</span> _ <span class="c-key">in</span> range(5):
+        rl.record_failure(<span class="c-str">"a@x.io"</span>)
+    <span class="c-key">assert</span> rl.is_blocked(<span class="c-str">"a@x.io"</span>) <span class="c-key">is</span> True
+
+<span class="c-com"># requirement: login:REQ-003</span>
+<span class="c-key">def</span> test_success_resets_counter():
+    rl = LoginRateLimiter()
+    rl.record_failure(<span class="c-str">"a@x.io"</span>)
+    rl.reset(<span class="c-str">"a@x.io"</span>)
+    <span class="c-key">assert</span> rl.is_blocked(<span class="c-str">"a@x.io"</span>) <span class="c-key">is</span> False</pre></div>
+    <div class="commit red"><span class="cdot"></span>spec-implement(login-rate-limit): red — failing tests</div>`
+  },
+  {
+    rail:"Coverage gate", phase:"VERIFYING_COVERAGE", actor:"engine", actorLabel:"engine",
+    chip:"4/4 covered", chipOk:true,
+    title:"A traceability matrix proves nothing slipped",
+    narr:"Before the red commit is accepted, a verifier maps every requirement (and every example-table row) to a covering test. Full coverage → advance. A gap → exit <strong>11</strong>, and the run stops for your judgment rather than charging ahead.",
+    body:`<table class="trace">
+      <tr><th>Requirement</th><th>Covering test</th><th></th></tr>
+      <tr><td><span class="mono">login:REQ-001</span></td><td>test_records_failure</td><td><span class="ck">✓</span></td></tr>
+      <tr><td><span class="mono">login:REQ-002</span></td><td>test_blocks_after_five_failures</td><td><span class="ck">✓</span></td></tr>
+      <tr><td><span class="mono">login:REQ-003</span></td><td>test_success_resets_counter</td><td><span class="ck">✓</span></td></tr>
+      <tr><td><span class="mono">login:REQ-004</span></td><td>test_expired_failures_excluded</td><td><span class="ck">✓</span></td></tr>
+    </table>`
+  },
+  {
+    rail:"Loop 3 · Implementation", phase:"IMPLEMENTING", actor:"engine", actorLabel:"engine",
+    chip:"exit 0 · DONE", chipOk:true,
+    title:"Loop 3 writes code until the tests go green",
+    narr:"Now the boundary flips: Loop 3 is deny-under test paths — it can only touch <strong>production</strong> code. It iterates until the committed red tests pass, then commits green and exits <strong>0</strong>. (Stuck? It asks you via exit 14. Test genuinely wrong? It escalates via exit 12 — it can't just edit the test.)",
+    body:`<div class="file"><div class="fname"><span class="fi">🟢</span> rate_limit.py</div><pre><span class="c-key">class</span> LoginRateLimiter:
+    WINDOW = timedelta(minutes=<span class="c-str">15</span>)
+    LIMIT = <span class="c-str">5</span>
+
+    <span class="c-key">def</span> record_failure(self, email):
+        self._fails[email].append(now())
+
+    <span class="c-key">def</span> is_blocked(self, email):
+        recent = [t <span class="c-key">for</span> t <span class="c-key">in</span> self._fails[email]
+                  <span class="c-key">if</span> now() - t &lt; self.WINDOW]
+        self._fails[email] = recent   <span class="c-com"># REQ-004</span>
+        <span class="c-key">return</span> len(recent) &gt;= self.LIMIT</pre></div>
+    <div class="testres">
+      <div class="tr pass">✓ test_records_failure</div>
+      <div class="tr pass">✓ test_blocks_after_five_failures</div>
+      <div class="tr pass">✓ test_success_resets_counter</div>
+      <div class="tr pass">✓ test_expired_failures_excluded</div>
+    </div>
+    <div class="commit green"><span class="cdot"></span>spec-implement(login-rate-limit): green — implementation</div>`
+  }
+];
+
+const jrail = document.getElementById('jrail');
+const jpanel = document.getElementById('jpanel');
+const stepInd = document.getElementById('stepInd');
+let jIdx = 0;
+
+jrail.innerHTML = JOURNEY.map((s,i)=>{
+  const cls = s.actor==="you" ? "human" : (i===JOURNEY.length-1 ? "done" : "");
+  return `<button class="jstep ${cls}" data-i="${i}">
+    <span class="jdot">${s.actor==="you" ? "👤" : i+1}</span>
+    <span class="jlabel"><span class="jt">${s.rail}</span><br><span class="jp">${s.phase}</span></span>
+  </button>`;
+}).join('');
+
+function renderJourney(){
+  const s = JOURNEY[jIdx];
+  jpanel.innerHTML = `
+    <div class="jhead">
+      <span class="actor ${s.actor}">${s.actor==="you" ? "👤 you" : "🤖 engine"}</span>
+      <span class="chip ${s.chipOk ? "exit ok" : "exit"}">${s.chip}</span>
+    </div>
+    <h3>${s.title}</h3>
+    <p class="jnarr">${s.narr}</p>
+    ${s.body}
+  `;
+  jrail.querySelectorAll('.jstep').forEach((el,i)=>el.classList.toggle('active', i===jIdx));
+  stepInd.textContent = `step ${jIdx+1} / ${JOURNEY.length}`;
+  document.getElementById('prevBtn').disabled = jIdx===0;
+  document.getElementById('nextBtn').disabled = jIdx===JOURNEY.length-1;
+}
+jrail.querySelectorAll('.jstep').forEach(el=>{
+  el.addEventListener('click',()=>{ jIdx = +el.dataset.i; renderJourney(); });
+});
+document.getElementById('nextBtn').addEventListener('click',()=>{ if(jIdx<JOURNEY.length-1){jIdx++; renderJourney();} });
+document.getElementById('prevBtn').addEventListener('click',()=>{ if(jIdx>0){jIdx--; renderJourney();} });
+renderJourney();
+</script>
+</body>
+</html>
