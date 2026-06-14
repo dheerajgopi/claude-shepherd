@@ -48,7 +48,8 @@ design before any requirement is written.
 1. Read the drafted design (`.md`) files from
    `.shepherd/features/<slug>/design/`.
 2. Present them to the user via `AskUserQuestion` with options:
-   **Approve** / **Give corrections**.
+   **Approve** / **Give corrections**. Show the file path(s) you read so the
+   user can open the design themselves.
 3. On approve: re-invoke `run --feature <slug> --decision approve`. The same
    invocation advances into Loop 1, which drafts the EARS requirements and then
    checkpoints again at exit 10.
@@ -76,7 +77,8 @@ approval and test generation.
 1. Read the drafted EARS spec (`.md`) files from
    `.shepherd/features/<slug>/requirements/`.
 2. Present them to the user via `AskUserQuestion` with options:
-   **Approve** / **Give corrections**.
+   **Approve** / **Give corrections**. Show the file path(s) you read so the
+   user can open the spec themselves.
 3. On approve: re-invoke `run --feature <slug> --decision approve`.
 4. On corrections: collect the user's feedback text, then re-invoke
    `run --feature <slug> --feedback "<text>"`. This cycle repeats until
