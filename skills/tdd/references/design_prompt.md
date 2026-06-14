@@ -16,7 +16,7 @@ Write one or more markdown files into `design/`. Cover, as the task warrants:
 - **Overview** — 2–4 sentences: what is being built and the approach in one breath.
 - **Components** — the classes, functions, modules, or services involved. For each: its single responsibility, the key inputs/outputs or signatures (sketch-level, not final), and the **source module path** it will live at (e.g. `app/services/user_service.py`), placed per the repo's existing layout. The later test phase derives each test's location from this path, so name it concretely.
 - **Responsibilities & collaborations** — who owns what state, who calls whom, where the boundaries sit. Call out anything that touches existing code.
-- **Data & flow** — the important data shapes and the path a request/operation takes through the components. Use a mermaid `flowchart` or `sequenceDiagram` fenced block when a picture is clearer than prose.
+- **Data & flow** — the important data shapes and the path a request/operation takes through the components. Describe this in prose by default; add a mermaid diagram only when the *gate* below is met.
 - **Key decisions & trade-offs** — the choices a reviewer should weigh, alternatives considered, and what is deliberately out of scope.
 - **Risks / open questions** — anything you are unsure about or that needs a human call.
 
@@ -25,7 +25,7 @@ Write one or more markdown files into `design/`. Cover, as the task warrants:
 - Match the existing codebase: reuse its modules, naming, layering, and domain terms. A design that ignores the conventions already in the repo is wrong even if internally coherent.
 - Favor the smallest design that satisfies the task. Do not invent abstractions, layers, or configurability the task does not call for.
 - Be specific about names and responsibilities so the later EARS-requirements and test phases have something concrete to derive from — but do NOT write the requirements or tests here; that is a separate, later phase.
-- Mermaid diagrams are optional and used only where they add clarity. Keep them small and valid.
+- **Mermaid diagrams — default to none.** Prose is the canonical artifact; a diagram is justified only when the design's difficulty lives in the *relationships*, not the units. Add one ONLY if it shows the reviewer something prose cannot reconstruct cheaply — specifically: (a) four or more components wired non-linearly (a graph, not a chain), (b) the feature introduces or crosses a boundary (a new service, module/package, or external integration), or (c) ordering is itself load-bearing for correctness — in which case prefer a `sequenceDiagram` over a `flowchart`. A single unit, a small feature, a linear pipeline, or a structure that falls straight out of the components list does NOT warrant a diagram — omit it. Any unit shown in a diagram must also be named in the prose, since the later test phase derives tests from the prose, not the picture. When you do include one, keep it small and valid.
 
 ## Final message
 
