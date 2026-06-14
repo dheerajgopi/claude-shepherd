@@ -17,14 +17,15 @@ uv run pytest tests/test_loop3.py         # one file
 uv run pytest tests/test_loop3.py -k escalation   # one test by keyword
 
 claude --plugin-dir /path/to/shepherd      # load the plugin surface in a scratch project
-bin/setup.sh                              # install into a target project (run from ITS root)
 ```
+
+Install into a target project via the marketplace (`/plugin marketplace add` + install); the TDD skill bootstraps the `.shepherd/` workspace itself on first run (exit 22 → `tdd.py init`) and installs the runtime deps when missing.
 
 The TDD engine CLI (run from a target project root): `python3 skills/tdd/scripts/tdd.py init|new|run|status`.
 
 ## Architecture
 
-**The contracts module is the single source of truth.** `skills/tdd/scripts/tdd_contracts.py` (stdlib-only) pins everything two modules could disagree on: exit codes, phases + legal transitions (`PHASE_TRANSITIONS` — the state store refuses anything else), on-disk schemas, CLI grammar, commit formats, and the `AgentRunner` protocol. Import it; never re-derive these values. `docs/contracts.md` is its prose companion for artifacts that can't import Python (SKILL.md, the playbook, setup.sh, prompts) — keep the two in sync.
+**The contracts module is the single source of truth.** `skills/tdd/scripts/tdd_contracts.py` (stdlib-only) pins everything two modules could disagree on: exit codes, phases + legal transitions (`PHASE_TRANSITIONS` — the state store refuses anything else), on-disk schemas, CLI grammar, commit formats, and the `AgentRunner` protocol. Import it; never re-derive these values. `docs/contracts.md` is its prose companion for artifacts that can't import Python (SKILL.md, the playbook, prompts) — keep the two in sync.
 
 **Checkpoint state machine.** `tdd.py run` executes headlessly via the Claude Agent SDK and exits with a distinct code whenever human input is needed (0 done, 10 awaiting requirements approval, 11 coverage gap, 12 escalated, 13 budget exceeded, 14 needs input, 15 awaiting design approval, 16 awaiting test-framework approval, 20–22 resolution errors). The outer agent — driven by the TDD skill (`skills/tdd/SKILL.md`, with the per-code playbook in `skills/tdd/references/playbook.md`; `commands/tdd.md` is a thin alias that invokes the skill) — interprets `$?`, gathers the human decision with AskUserQuestion, and re-invokes with `--decision approve|reject [--feedback …]`. The engine resumes the same SDK session (`resume=<session_id>`) to preserve the prompt-cache prefix. The exit code is the protocol; informational output goes to stdout, errors to stderr.
 
@@ -38,7 +39,7 @@ The TDD engine CLI (run from a target project root): `python3 skills/tdd/scripts
 
 **WSL subprocess routing** (`tdd_wsl.py`, stdlib-only, pure). When the engine's Python runs on a *Windows host* but the target repo lives in the WSL filesystem, its path is a UNC path (`\\wsl.localhost\<distro>\…` / `\\wsl$\…`); Windows can't use a UNC path as a process cwd and CMD lacks WSL's PATH, so every in-repo subprocess (test command, `py_compile` gate, git) fails and burns checkpoint turns. `wsl_target(repo_root, platform)` detects that exact case (parametrised by platform — exercised from any host) and the three call sites (`tdd_loop3._run_test_command`, `tdd_loop2._syntax_errors`, `tdd_git.git`) re-route through `wsl.exe -d <distro>`. All three run inside a login shell (`bash -lc`) — essential, not cosmetic: a bare `wsl.exe -- git`/`python3` runs with the interop PATH (default dirs + appended Windows `Path`), so a Windows `git`/`python` shadows the WSL one and mangles `/home/…` into `C:\…\home\…`. `shell_argv` builds the test command's line (`cd … && <command>`); `exec_argv` builds git's (`git -C <linux_path> …`) and `py_compile`'s (absolute path), `shlex.quote`-joining each token before the login shell. Detection is **runtime, not baked into config** — `config.yaml` stays portable across Windows/WSL. `repo_root` re-expresses WSL-side git's Linux toplevel back to UNC (`to_unc`) so detection keeps tripping downstream. Not covered: the SDK agent's own Bash tool (e.g. the bootstrap install step) runs wherever Claude Code runs — running Claude Code *inside* WSL avoids the whole class.
 
-**Target-project footprint:** a `.shepherd/` workspace (config.yaml, manifest.json, one folder per feature), gitignored in its entirety — every artifact in it is machine-local — and one `enabledPlugins` entry in `.claude/settings.json`. Branch convention: `tdd/<slug>`.
+**Target-project footprint:** a `.shepherd/` workspace (config.yaml, one folder per feature), gitignored in its entirety — every artifact in it is machine-local — and one `enabledPlugins` entry in `.claude/settings.json`. Branch convention: `tdd/<slug>`.
 
 ## Test-suite conventions
 

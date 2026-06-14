@@ -16,7 +16,7 @@ The TDD skill is not distributed standalone: it ships inside a **shepherd plugin
 
 ## 4. Distribution — the shepherd plugin
 
-Shepherd is a separate repository structured as a **Claude Code plugin** (publishable as its own marketplace), bundling skills, commands, and per-project setup tooling. The plugin is not TDD-specific — the TDD skill and its outer-loop command are simply the first capabilities it ships. Capability distribution (skill, command, hooks) uses the native plugin mechanism; only project-workspace bootstrap is custom.
+Shepherd is a separate repository structured as a **Claude Code plugin** (publishable as its own marketplace), bundling skills and commands. The plugin is not TDD-specific — the TDD skill and its outer-loop command are simply the first capabilities it ships. Capability distribution (skill, command, hooks) uses the native plugin mechanism; only project-workspace bootstrap is custom, and the TDD skill owns it directly.
 
 ### Shepherd repo layout
 
@@ -39,8 +39,6 @@ shepherd/
 ├── templates/
 │   ├── config.yaml              # default per-loop models, budgets
 │   └── gitignore.snippet
-├── bin/
-│   └── setup.sh                 # per-project setup script
 └── docs/
     └── tdd-skill-requirements.md
 ```
@@ -49,16 +47,14 @@ Structural rule: only `plugin.json` lives inside `.claude-plugin/`; `skills/`, `
 
 The TDD enforcement hooks (path-based edit denial in Loops 2–3) are **Agent SDK in-process hooks inside `tdd.py`** — they travel with the script and require no installation into target projects. Plugin-level hooks are reserved for any future outer-session behaviors.
 
-### Per-project setup (`bin/setup.sh`)
+### Per-project setup
 
-Run once from a target project's root; idempotent; delegates rather than duplicates:
+The plugin is installed through the native marketplace mechanism (`/plugin marketplace add <path-or-url>` + `/plugin install shepherd`), which owns capability registration (skill, command, hooks) and plugin enablement. Everything project-specific is owned by the TDD skill, lazily, on first run:
 
-1. **Preflight** — git repo root, Python version, `uv`/`pip` available; fail loudly with fixes, never leave a half-installed state.
-2. **Capability registration** — enable the shepherd plugin *project-scoped* by merging `enabledPlugins` into the project's `.claude/settings.json` (careful JSON merge with backup — this file may carry the team's existing config and is never overwritten). Because the settings file is committed, teammates who pull the repo get the shepherd without running anything.
-3. **Workspace bootstrap** — invoke `tdd.py init` (§6). The setup script is plumbing; init owns the logic.
-4. **Manifest** — write `.shepherd/manifest.json` recording the shepherd version (git SHA) and checksums of installed/merged artifacts, so a future `setup.sh update` can distinguish upstream changes from local modifications and refuse to clobber the latter.
+1. **Workspace bootstrap** — the skill invokes `tdd.py init` (§6) the first time it runs in a project with no `.shepherd/`; a fresh project is not a precondition to skip the offer. `init` is explicit and idempotent and owns all the logic (config detection, `.gitignore` policy).
+2. **Runtime deps** — `init`/`run` check that `claude-agent-sdk` and `pyyaml` import under the engine's `python3`; when missing, the skill installs them sudo-free into that interpreter's per-user site-packages and retries (PEP 668 surfaced, never silently overridden).
 
-Shepherd leaves a deliberately small footprint in target projects: `.shepherd/` plus one settings entry. No edits to the project's own files.
+Shepherd leaves a deliberately small footprint in target projects: the `.shepherd/` workspace (gitignored, machine-local). No edits to the project's own files.
 
 ### Versioning of `tdd.py`
 
@@ -66,7 +62,7 @@ Current decision: the plugin carries the script (one repo, simplest). The script
 
 ### Local development and testing
 
-During development the plugin is loaded directly, without a marketplace: `claude --plugin-dir /path/to/shepherd` from a scratch project, with `/reload-plugins` picking up edits mid-session. A locally loaded plugin with the same name takes precedence over an installed marketplace copy for that session, which is also the mechanism for testing in-development versions against real projects after publication. Before publishing a release, one pass through the local-marketplace route (`/plugin marketplace add /path/to/shepherd` + install) validates marketplace metadata, caching, and namespacing. Note that `--plugin-dir` exercises only the plugin surface; `setup.sh` (settings merge, init, manifest) runs outside the plugin system and is tested directly in the scratch project. Test installs are confined to disposable scratch projects, due in part to a known Claude Code issue where local/user-scope installs can block reinstallation into a different project.
+During development the plugin is loaded directly, without a marketplace: `claude --plugin-dir /path/to/shepherd` from a scratch project, with `/reload-plugins` picking up edits mid-session. A locally loaded plugin with the same name takes precedence over an installed marketplace copy for that session, which is also the mechanism for testing in-development versions against real projects after publication. Before publishing a release, one pass through the local-marketplace route (`/plugin marketplace add /path/to/shepherd` + install) validates marketplace metadata, caching, and namespacing. Note that `--plugin-dir` exercises only the plugin surface; the workspace bootstrap (`tdd.py init`) runs from the skill and is tested directly in the scratch project. Test installs are confined to disposable scratch projects, due in part to a known Claude Code issue where local/user-scope installs can block reinstallation into a different project.
 
 ## 5. Workspace layout (`.shepherd`)
 

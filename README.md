@@ -10,21 +10,20 @@ Pinned contracts (exit codes, schemas, CLI): [docs/contracts.md](docs/contracts.
 
 ## Install into a project
 
-```bash
-cd /path/to/your/project
-/path/to/shepherd/bin/setup.sh
+Add this repo as a marketplace and install the plugin from Claude Code:
+
+```
+/plugin marketplace add /path/to/shepherd
+/plugin install shepherd
 ```
 
-Idempotent. It registers the plugin project-scoped in `.claude/settings.json`
-(committed, so teammates get it on pull), bootstraps the `.shepherd/`
-workspace, and records install state in `.shepherd/manifest.json`. **Review
-`.shepherd/config.yaml` afterwards** — especially `test.command` and
-`test.paths`, which feed the enforcement hooks.
+On its first run in a project the TDD skill bootstraps the `.shepherd/`
+workspace itself (`tdd.py init`, explicit and idempotent). **Review `.shepherd/config.yaml` afterwards** — especially
+`test.command` and `test.paths`, which feed the enforcement hooks.
 
 Requires: git, Python ≥ 3.10, and the Claude Code CLI authenticated. The
-runtime deps (`claude-agent-sdk` + `pyyaml`) are installed automatically when
-missing — by `bin/setup.sh` on the manual path, and by the skill on first run
-for a marketplace install — sudo-free, into the ambient `python3`'s per-user
+runtime deps (`claude-agent-sdk` + `pyyaml`) are installed by the skill on
+first run when missing — sudo-free, into the ambient `python3`'s per-user
 site-packages.
 
 ## Skills
@@ -80,7 +79,9 @@ What the TDD skill lands in your repo:
   [`red(n)` after approved escalations] → `green`. The red commit is the
   recovery anchor and the proof the tests failed before the implementation
   existed.
-- One `enabledPlugins` entry in `.claude/settings.json`. Nothing else.
+
+Plugin enablement itself is handled by the marketplace install (Claude Code's
+plugin config), not written into your repo by the skill.
 
 ## Development
 

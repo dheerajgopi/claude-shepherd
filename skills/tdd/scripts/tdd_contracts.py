@@ -2,7 +2,7 @@
 
 This module is the single source of truth for everything two modules could
 disagree on: exit codes, phases and their legal transitions, on-disk schemas
-(state.json, traceability.json, config.yaml, manifest.json), CLI grammar,
+(state.json, traceability.json, config.yaml), CLI grammar,
 commit message formats, the AgentRunner protocol (the SDK seam), and the
 loop interfaces.
 
@@ -146,7 +146,6 @@ COMMIT_BOOTSTRAP = "tdd({slug}): chore — add {framework}"
 SHEPHERD_DIR = ".shepherd"
 CONFIG_FILE = ".shepherd/config.yaml"
 FEATURES_DIR = ".shepherd/features"
-MANIFEST_FILE = ".shepherd/manifest.json"
 # Per feature (relative to .shepherd/features/<slug>/). The entire .shepherd/
 # workspace is gitignored (§5): every artifact below is machine-local.
 TASK_FILE = "task.md"
@@ -369,19 +368,6 @@ VERIFIER_TRIAGE_JSON_SCHEMA: dict[str, Any] = {
         "rationale": {"type": "string"},
     },
 }
-
-
-# ---------------------------------------------------------------------------
-# manifest.json schema (§4)
-# ---------------------------------------------------------------------------
-
-
-@dataclass
-class ShepherdManifest:
-    shepherd_sha: str                          # git SHA of the shepherd repo
-    installed_at: str                         # ISO-8601 UTC
-    artifacts: dict[str, str] = field(default_factory=dict)  # path -> sha256
-    schema_version: int = 1
 
 
 # ---------------------------------------------------------------------------

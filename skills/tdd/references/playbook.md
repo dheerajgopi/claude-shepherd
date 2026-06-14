@@ -156,8 +156,6 @@ python3 -m pip install --user claude-agent-sdk pyyaml
   "externally managed" (PEP 668). Surface that and suggest re-running with
   `--break-system-packages`, or installing the deps into a venv that is the
   `python3` on PATH. Do not silently add `--break-system-packages` yourself.
-- `bin/setup.sh` does this same install automatically; it is only needed for the
-  manual (non-marketplace) install path.
 
 ## Run mechanics
 
