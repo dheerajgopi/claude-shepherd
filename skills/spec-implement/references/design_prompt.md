@@ -15,7 +15,7 @@ Write one or more markdown files into `design/`. Cover, as the task warrants:
 
 - **Overview** — 2–4 sentences: what is being built and the approach in one breath.
 - **Components** — the classes, functions, modules, or services involved. For each: its single responsibility, the key inputs/outputs or signatures (sketch-level, not final), and the **source module path** it will live at (e.g. `app/services/user_service.py`), placed per the repo's existing layout. The later test phase derives each test's location from this path, so name it concretely.
-- **Responsibilities & collaborations** — who owns what state, who calls whom, where the boundaries sit. Call out anything that touches existing code.
+- **Responsibilities & collaborations** — who owns what state, who calls whom, where the boundaries sit. Call out anything that touches existing code. When the feature **modifies the behavior of a unit that already exists**, say so explicitly and name that unit by its real source path — the later test phase uses this to find and update the existing tests for that unit rather than writing parallel new ones.
 - **Data & flow** — the important data shapes and the path a request/operation takes through the components. Describe this in prose by default; add a mermaid diagram only when the *gate* below is met.
 - **Key decisions & trade-offs** — the choices a reviewer should weigh, alternatives considered, and what is deliberately out of scope.
 - **Risks / open questions** — anything you are unsure about or that needs a human call.
